@@ -8,6 +8,7 @@ require("dotenv").config();
 const path = require("path");
 const express = require("express");
 const session = require("express-session");
+const pgSession = require("connect-pg-simple")(session);
 const expressLayouts = require("express-ejs-layouts");
 const db = require("./db");
 const cron = require("node-cron");
@@ -37,8 +38,17 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
+// Sessions live in Postgres (not the default in-memory store), which leaks
+// memory over time and — worse on Render's free tier — is wiped every time
+// the app sleeps and wakes back up, silently logging everyone out. Falls back
+// to the in-memory store only if DATABASE_URL isn't set yet (local first run).
+const sessionStore = process.env.DATABASE_URL
+  ? new pgSession({ pool: db.getPool(), tableName: "session", createTableIfMissing: true })
+  : undefined;
+
 app.use(
   session({
+    store: sessionStore,
     secret: process.env.SESSION_SECRET || "dev-insecure-secret",
     resave: false,
     saveUninitialized: false,

@@ -1,0 +1,62 @@
+<div class="page-head" style="display:flex;align-items:center;justify-content:space-between">
+  <div>
+    <h1>Inventory</h1>
+    <div class="sub"><%= medicines.length %> shown<%= q ? ` matching “${q}”` : "" %><%= lowOnly ? " · low stock only" : "" %></div>
+  </div>
+  <a class="btn" href="/inventory/new">+ Add medicine</a>
+</div>
+
+<% if (flash) { %>
+  <div class="card" style="background:var(--accent-softer);border-color:var(--accent-soft)"><%= flash %></div>
+<% } %>
+
+<div class="card">
+  <div class="sum" style="margin-bottom:14px">
+    <span class="sum-pill"><b><%= total %></b> medicine<%= total === 1 ? "" : "s" %></span>
+    <a href="/inventory?low=1" style="text-decoration:none">
+      <span class="sum-pill <%= lowCount ? 'bad' : '' %>"><b><%= lowCount %></b> low stock</span>
+    </a>
+    <a href="/inventory/dispenses?status=pending" style="text-decoration:none">
+      <span class="sum-pill <%= pendingCount ? 'warn' : '' %>"><b><%= pendingCount %></b> pending doctor approval</span>
+    </a>
+    <% if (lowOnly) { %><a class="mini-btn" href="/inventory">Clear filter</a><% } %>
+  </div>
+
+  <form method="GET" action="/inventory" style="margin-bottom:14px">
+    <% if (lowOnly) { %><input type="hidden" name="low" value="1" /><% } %>
+    <input class="search" type="search" name="q" value="<%= q %>"
+           placeholder="Search medicine name…" style="max-width:100%" />
+  </form>
+
+  <% if (!medicines.length) { %>
+    <p class="muted" style="padding:8px 2px">
+      <% if (q || lowOnly) { %>No medicines match this filter.<% } else { %>No medicines yet. Click <b>Add medicine</b> to create the first one.<% } %>
+    </p>
+  <% } else { %>
+    <table class="tbl">
+      <thead>
+        <tr><th>Name</th><th>Unit</th><th>Stock</th><th>Source</th><th>Approval</th><th></th></tr>
+      </thead>
+      <tbody>
+        <% medicines.forEach(m => { %>
+          <% const low = m.stock_quantity < m.low_stock_threshold; %>
+          <tr>
+            <td>
+              <a href="/inventory/<%= m.medicine_id %>"><%= m.name %></a>
+              <% if (m.description) { %><div class="muted" style="font-size:11.5px"><%= m.description %></div><% } %>
+            </td>
+            <td><%= m.unit || "—" %></td>
+            <td>
+              <span style="<%= low ? 'color:var(--bad-ink);font-weight:700' : '' %>"><%= m.stock_quantity %></span>
+              <span class="muted" style="font-size:11px"> / <%= m.low_stock_threshold %> min</span>
+              <% if (low) { %><span class="badge bad" style="margin-left:6px">Low</span><% } %>
+            </td>
+            <td><%= m.source || "—" %></td>
+            <td><% if (m.requires_doctor_approval) { %><span class="badge warn">Doctor approval</span><% } else { %><span class="muted">—</span><% } %></td>
+            <td style="text-align:right"><a href="/inventory/<%= m.medicine_id %>/edit" class="muted">Edit</a></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>

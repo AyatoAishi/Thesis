@@ -1,0 +1,87 @@
+<%
+  const isEdit = mode === "edit";
+  const action = isEdit ? `/appointments/${appt.appointment_id}` : "/appointments";
+%>
+<div class="page-head">
+  <h1><%= isEdit ? "Reschedule appointment" : "Book appointment" %></h1>
+  <div class="sub"><a href="/appointments" class="muted">← Back to appointments</a></div>
+</div>
+
+<% if (errors && errors.length) { %>
+  <div class="card" style="border-color:#f3c9cb;background:var(--bad-bg)">
+    <b style="color:var(--bad-ink)">Please fix:</b>
+    <ul style="margin:8px 0 0;color:var(--bad-ink);font-size:13px">
+      <% errors.forEach(e => { %><li><%= e %></li><% }) %>
+    </ul>
+  </div>
+<% } %>
+
+<form method="POST" action="<%= action %>">
+  <div class="card">
+    <div class="form-grid">
+      <label class="field" style="grid-column:1/-1"><span>Patient *</span>
+        <% if (patient) { %>
+          <input type="hidden" name="patient_id" value="<%= patient.patient_id %>" />
+          <input type="text" value="<%= patient.full_name %> — <%= patient.patient_number %>" disabled />
+        <% } else if (!patients.length) { %>
+          <p class="muted" style="margin:6px 0 0">No patients registered yet. <a href="/patients/new">Add one first →</a></p>
+        <% } else { %>
+          <select name="patient_id" required>
+            <option value="">— choose patient —</option>
+            <% patients.forEach(p => { %>
+              <option value="<%= p.patient_id %>" <%= String(appt.patient_id) === String(p.patient_id) ? 'selected' : '' %>>
+                <%= p.full_name %> — <%= p.patient_number %>
+              </option>
+            <% }) %>
+          </select>
+        <% } %>
+      </label>
+
+      <label class="field"><span>Service *</span>
+        <select name="service_id" id="svcSelect" required>
+          <option value="">— choose —</option>
+          <% services.forEach(s => { %>
+            <option value="<%= s.service_id %>" data-day="<%= s.schedule_day %>" <%= String(appt.service_id) === String(s.service_id) ? 'selected' : '' %>>
+              <%= pretty(s.name) %> (<%= s.schedule_day %>)
+            </option>
+          <% }) %>
+        </select>
+      </label>
+
+      <label class="field"><span>Date *</span>
+        <input type="date" name="appointment_date" id="dateInput" value="<%= appt.appointment_date || '' %>" min="<%= today %>" required />
+      </label>
+
+      <label class="field"><span>Time <span class="muted">(optional)</span></span>
+        <input type="time" name="appointment_time" value="<%= appt.appointment_time || '' %>" />
+      </label>
+
+      <label class="field" style="grid-column:1/-1"><span>Notes <span class="muted">(optional)</span></span>
+        <input type="text" name="notes" value="<%= appt.notes || '' %>" maxlength="255" />
+      </label>
+    </div>
+    <p class="muted" style="font-size:12px;margin:12px 2px 0">
+      Each service runs on a fixed weekday — choosing a service auto-fills the next matching date.
+    </p>
+  </div>
+
+  <button type="submit" class="btn"><%= isEdit ? "Save changes" : "Book appointment" %></button>
+</form>
+
+<script>
+  (function () {
+    var DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    var TODAY = "<%= today %>";
+    var svc = document.getElementById("svcSelect");
+    var date = document.getElementById("dateInput");
+    function wd(s){ var p=s.split("-"); return new Date(Date.UTC(+p[0],+p[1]-1,+p[2])).getUTCDay(); }
+    function add(s,n){ var p=s.split("-"); var d=new Date(Date.UTC(+p[0],+p[1]-1,+p[2])); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); }
+    function nextFor(day){ var t=DAYS.indexOf(day); if(t<0) return ""; var c=TODAY; for(var i=0;i<7;i++){ if(wd(c)===t) return c; c=add(c,1);} return ""; }
+    function suggest(){
+      var opt = svc.options[svc.selectedIndex]; if(!opt) return;
+      var day = opt.getAttribute("data-day"); if(!day) return;
+      if(!date.value || wd(date.value) !== DAYS.indexOf(day)){ var n=nextFor(day); if(n) date.value=n; }
+    }
+    if (svc) svc.addEventListener("change", suggest);
+  })();
+</script>

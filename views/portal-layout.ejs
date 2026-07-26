@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= typeof title !== "undefined" ? title : "Patient portal · Sampaguita HC" %></title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body class="portal-body">
+  <header class="portal-top">
+    <div class="brand">
+      <span class="brand-badge">S</span>
+      <div class="portal-brand-text">
+        <b>Sampaguita Health Clinic</b>
+        <span class="muted">Patient portal</span>
+      </div>
+    </div>
+    <div class="portal-top-right">
+      <span class="portal-me"><%= me.full_name %></span>
+      <form method="POST" action="/portal/logout" style="margin:0">
+        <button type="submit" class="logout-btn">Log out</button>
+      </form>
+    </div>
+  </header>
+  <main class="portal-main">
+    <%- body %>
+  </main>
+  <footer class="portal-foot muted">
+    Barangay Sampaguita Health Clinic · Your records are private (RA 10173)
+  </footer>
+</body>
+</html>

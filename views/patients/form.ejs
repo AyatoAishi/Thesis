@@ -1,0 +1,99 @@
+<%
+  const isEdit = mode === "edit";
+  const p = patient || {};
+  const action = isEdit ? `/patients/${p.patient_id}` : "/patients";
+  const bd = p.birthdate ? new Date(p.birthdate).toISOString().slice(0, 10) : "";
+%>
+<div class="page-head">
+  <h1><%= isEdit ? "Edit patient" : "Add patient" %></h1>
+  <div class="sub"><a href="/patients" class="muted">← Back to patients</a></div>
+</div>
+
+<% if (errors && errors.length) { %>
+  <div class="card" style="border-color:#f3c9cb;background:var(--bad-bg)">
+    <b style="color:var(--bad-ink)">Please fix:</b>
+    <ul style="margin:8px 0 0;color:var(--bad-ink);font-size:13px">
+      <% errors.forEach(e => { %><li><%= e %></li><% }) %>
+    </ul>
+  </div>
+<% } %>
+
+<form method="POST" action="<%= action %>">
+  <div class="card">
+    <div class="panel-title" style="margin-bottom:14px">Patient details</div>
+    <div class="form-grid">
+      <label class="field"><span>Full name *</span>
+        <input type="text" name="full_name" value="<%= p.full_name || '' %>" required />
+      </label>
+      <label class="field"><span>Birthdate</span>
+        <input type="date" name="birthdate" value="<%= bd %>" />
+      </label>
+      <label class="field"><span>Sex</span>
+        <select name="sex">
+          <option value="">—</option>
+          <option value="male"   <%= p.sex === 'male'   ? 'selected' : '' %>>Male</option>
+          <option value="female" <%= p.sex === 'female' ? 'selected' : '' %>>Female</option>
+        </select>
+      </label>
+      <label class="field"><span>Patient contact #</span>
+        <input type="text" name="contact_number" value="<%= p.contact_number || '' %>" placeholder="09xxxxxxxxx" />
+      </label>
+      <label class="field"><span>Patient email <span class="muted">(for reminders)</span></span>
+        <input type="email" name="email" value="<%= p.email || '' %>" placeholder="name@gmail.com" />
+      </label>
+      <label class="field" style="grid-column:1/-1"><span>Address</span>
+        <input type="text" name="address" value="<%= p.address || '' %>" />
+      </label>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="panel-title" style="margin-bottom:6px">Family contact <span class="muted">(used if the patient has no phone)</span></div>
+    <div class="form-grid">
+      <label class="field"><span>Name</span>
+        <input type="text" name="family_contact_name" value="<%= p.family_contact_name || '' %>" />
+      </label>
+      <label class="field"><span>Relation</span>
+        <input type="text" name="family_contact_relation" value="<%= p.family_contact_relation || '' %>" placeholder="e.g. mother" />
+      </label>
+      <label class="field"><span>Contact #</span>
+        <input type="text" name="family_contact_number" value="<%= p.family_contact_number || '' %>" placeholder="09xxxxxxxxx" />
+      </label>
+      <label class="field"><span>Email <span class="muted">(fallback for reminders)</span></span>
+        <input type="email" name="family_email" value="<%= p.family_email || '' %>" placeholder="name@gmail.com" />
+      </label>
+    </div>
+  </div>
+
+  <div class="card">
+    <label class="check">
+      <input type="checkbox" name="is_minor" data-minor-toggle <%= p.is_minor ? 'checked' : '' %> />
+      <span>Patient is a <b>minor</b> (under 18)</span>
+    </label>
+
+    <div class="minor-fields" data-minor-fields style="<%= p.is_minor ? '' : 'display:none' %>;margin-top:14px">
+      <div class="form-grid">
+        <label class="field"><span>Guardian name *</span>
+          <input type="text" name="guardian_name" value="<%= p.guardian_name || '' %>" />
+        </label>
+      </div>
+      <label class="check" style="margin-top:12px">
+        <input type="checkbox" name="guardian_consent" <%= p.guardian_consent ? 'checked' : '' %> />
+        <span>Guardian <b>consent</b> recorded for treatment &amp; data handling (RA 10173)</span>
+      </label>
+    </div>
+  </div>
+
+  <button type="submit" class="btn"><%= isEdit ? "Save changes" : "Create patient" %></button>
+</form>
+
+<script>
+  // Show/hide guardian fields when "minor" is toggled.
+  (function () {
+    var box = document.querySelector("[data-minor-toggle]");
+    var fields = document.querySelector("[data-minor-fields]");
+    if (box && fields) box.addEventListener("change", function () {
+      fields.style.display = box.checked ? "" : "none";
+    });
+  })();
+</script>

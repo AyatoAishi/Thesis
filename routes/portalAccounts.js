@@ -1,0 +1,159 @@
+// ============================================================================
+// routes/portalAccounts.js — STAFF management of patient portal accounts (M5).
+// Mounted behind requireLogin. Staff can: see the account list (pending
+// verifications first), verify an account after checking the physical valid
+// ID, create an account for a patient at the desk, and reset credentials.
+//
+// One-time secrets (temp password / recovery code) are passed via a session
+// flash and shown exactly once on the patient page — they are stored hashed.
+// ============================================================================
+const express = require("express");
+const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
+const db = require("../db");
+const ID_TYPES = require("../lib/idTypes");
+
+const router = express.Router();
+
+const USERNAME_RE = /^[a-z0-9._]{4,30}$/;
+
+function genCode() {
+  const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  const bytes = crypto.randomBytes(8);
+  let s = "";
+  for (let i = 0; i < 8; i++) {
+    s += alphabet[bytes[i] % alphabet.length];
+    if (i === 3) s += "-";
+  }
+  return s;
+}
+
+// Local-only redirect target (same guard pattern as appointment status posts).
+function safeBack(raw, fallback) {
+  return raw && raw.startsWith("/") && !raw.startsWith("//") ? raw : fallback;
+}
+
+// ---- LIST  /portal-accounts (pending first) ---------------------------------
+router.get("/portal-accounts", async (req, res, next) => {
+  try {
+    const { rows } = await db.query(
+      `SELECT a.account_id, a.username, a.valid_id_type, a.valid_id_number,
+              a.is_verified, a.created_at,
+              p.patient_id, p.patient_number, p.full_name
+         FROM patient_accounts a
+         JOIN patients p ON p.patient_id = a.patient_id
+        ORDER BY a.is_verified ASC, a.created_at DESC
+        LIMIT 300`
+    );
+    res.render("portal-accounts/list", {
+      title: "Portal accounts · Sampaguita HC",
+      active: "portal",
+      accounts: rows,
+      pendingCount: rows.filter((r) => !r.is_verified).length,
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ---- VERIFY  POST /portal-accounts/:id/verify --------------------------------
+router.post("/portal-accounts/:id/verify", async (req, res, next) => {
+  try {
+    await db.query(
+      "UPDATE patient_accounts SET is_verified = true WHERE account_id = $1",
+      [req.params.id]
+    );
+    res.redirect(safeBack(req.body.back, "/portal-accounts"));
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ---- RESET  POST /portal-accounts/:id/reset -----------------------------------
+// Issues a NEW temp password + NEW recovery code (both hashed; shown once).
+router.post("/portal-accounts/:id/reset", async (req, res, next) => {
+  try {
+    const { rows } = await db.query(
+      "SELECT account_id, patient_id, username FROM patient_accounts WHERE account_id = $1",
+      [req.params.id]
+    );
+    if (!rows[0]) return next();
+    const acct = rows[0];
+
+    const tempPassword = genCode();
+    const recoveryCode = genCode();
+    await db.query(
+      "UPDATE patient_accounts SET password_hash=$1, recovery_id=$2 WHERE account_id=$3",
+      [await bcrypt.hash(tempPassword, 10), await bcrypt.hash(recoveryCode, 10), acct.account_id]
+    );
+
+    req.session.oneTimeSecret = {
+      patient_id: acct.patient_id,
+      username: acct.username,
+      temp_password: tempPassword,
+      recovery_code: recoveryCode,
+      kind: "reset",
+    };
+    res.redirect(`/patients/${acct.patient_id}`);
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ---- CREATE at the desk  POST /patients/:id/portal-account --------------------
+// Staff checked the physical ID → the account is born verified.
+router.post("/patients/:id/portal-account", async (req, res, next) => {
+  try {
+    const patient_id = parseInt(req.params.id, 10);
+    const username = (req.body.username || "").trim().toLowerCase();
+    const valid_id_type = (req.body.valid_id_type || "").trim();
+    const valid_id_number = (req.body.valid_id_number || "").trim();
+
+    const patientQ = await db.query(
+      "SELECT patient_id FROM patients WHERE patient_id = $1", [patient_id]
+    );
+    if (!patientQ.rows[0]) return next();
+
+    const back = `/patients/${patient_id}`;
+    const oops = (msg) => res.redirect(`${back}?acct_err=${encodeURIComponent(msg)}`);
+
+    if (!USERNAME_RE.test(username))
+      return oops("Username must be 4–30 characters: lowercase letters, numbers, dots or underscores.");
+    if (!ID_TYPES.includes(valid_id_type)) return oops("Choose which valid ID was presented.");
+    if (!valid_id_number) return oops("Enter the valid ID number.");
+
+    const existing = await db.query(
+      "SELECT 1 FROM patient_accounts WHERE patient_id = $1", [patient_id]
+    );
+    if (existing.rowCount) return oops("This patient already has a portal account.");
+
+    const taken = await db.query(
+      "SELECT 1 FROM patient_accounts WHERE lower(username) = $1", [username]
+    );
+    if (taken.rowCount) return oops("That username is already taken.");
+
+    const tempPassword = genCode();
+    const recoveryCode = genCode();
+    await db.query(
+      `INSERT INTO patient_accounts
+         (patient_id, username, password_hash, valid_id_type, valid_id_number,
+          is_verified, recovery_id)
+       VALUES ($1,$2,$3,$4,$5,true,$6)`,
+      [patient_id, username, await bcrypt.hash(tempPassword, 10),
+       valid_id_type, valid_id_number, await bcrypt.hash(recoveryCode, 10)]
+    );
+
+    req.session.oneTimeSecret = {
+      patient_id,
+      username,
+      temp_password: tempPassword,
+      recovery_code: recoveryCode,
+      kind: "created",
+    };
+    res.redirect(back);
+  } catch (e) {
+    next(e);
+  }
+});
+
+module.exports = router;

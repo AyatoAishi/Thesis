@@ -1,0 +1,67 @@
+<%
+  const m = medicine;
+  const low = m.stock_quantity < m.low_stock_threshold;
+  function fmt(ts) {
+    if (!ts) return "—";
+    return new Date(ts).toLocaleString("en-PH", { timeZone: "Asia/Manila", year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  }
+  function dispenseBadge(d) {
+    if (!d.requires_doctor_approval) return '<span class="badge ok">Completed</span>';
+    if (d.approved_at) return '<span class="badge info">Approved</span>';
+    return '<span class="badge warn">Pending approval</span>';
+  }
+%>
+<div class="page-head" style="display:flex;align-items:center;justify-content:space-between">
+  <div>
+    <h1><%= m.name %>
+      <% if (m.requires_doctor_approval) { %><span class="badge warn" style="vertical-align:middle">Doctor approval</span><% } %>
+      <% if (low) { %><span class="badge bad" style="vertical-align:middle">Low stock</span><% } %>
+    </h1>
+    <div class="sub"><%= m.description || " " %></div>
+  </div>
+  <div style="display:flex;gap:8px">
+    <a class="btn" href="/inventory/dispense/new?medicine_id=<%= m.medicine_id %>">+ Dispense</a>
+    <a class="mini-btn" href="/inventory/<%= m.medicine_id %>/edit">Edit</a>
+    <a class="logout-btn" href="/inventory" style="display:inline-flex;align-items:center;text-decoration:none">Back</a>
+  </div>
+</div>
+
+<% if (flash) { %>
+  <div class="card" style="background:var(--accent-softer);border-color:var(--accent-soft)"><%= flash %></div>
+<% } %>
+
+<div class="card">
+  <div class="panel-title" style="margin-bottom:12px">Stock</div>
+  <dl class="kv">
+    <div><dt>Stock quantity</dt><dd style="<%= low ? 'color:var(--bad-ink);font-weight:700' : '' %>"><%= m.stock_quantity %> <%= m.unit || "" %></dd></div>
+    <div><dt>Low-stock threshold</dt><dd><%= m.low_stock_threshold %></dd></div>
+    <div><dt>Source</dt><dd><%= m.source || "—" %></dd></div>
+    <div><dt>Doctor approval required</dt><dd><%= m.requires_doctor_approval ? "Yes" : "No" %></dd></div>
+  </dl>
+</div>
+
+<div class="card">
+  <div class="svc-head">
+    <span class="panel-title">Dispense history</span>
+    <span class="muted"><%= dispenses.length %> record<%= dispenses.length === 1 ? "" : "s" %></span>
+  </div>
+  <% if (!dispenses.length) { %>
+    <p class="muted" style="margin:6px 2px 0">No dispenses recorded yet.</p>
+  <% } else { %>
+    <table class="tbl">
+      <thead><tr><th>When</th><th>Patient</th><th>Qty</th><th>Status</th><th>Dispensed by</th><th>Approved by</th></tr></thead>
+      <tbody>
+        <% dispenses.forEach(d => { %>
+          <tr>
+            <td class="mono" style="font-size:12px"><%= fmt(d.dispensed_at) %></td>
+            <td><a href="/patients/<%= d.patient_id %>"><%= d.full_name %></a></td>
+            <td><%= d.quantity %></td>
+            <td><%- dispenseBadge(d) %></td>
+            <td><%= d.dispensed_by_name || "—" %></td>
+            <td><%= d.approved_by_name || "—" %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>

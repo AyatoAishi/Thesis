@@ -1,0 +1,53 @@
+<div class="page-head">
+  <h1>Portal accounts</h1>
+  <div class="sub">Patient online accounts — verify a valid ID before activating full access</div>
+</div>
+
+<% if (pendingCount) { %>
+  <div class="card" style="background:var(--warn-bg);border-color:transparent">
+    <b><%= pendingCount %></b> account<%= pendingCount === 1 ? "" : "s" %> waiting for ID verification.
+    Check the patient's physical ID against the type &amp; number below, then click <b>Verify</b>.
+  </div>
+<% } %>
+
+<div class="card">
+  <% if (!accounts.length) { %>
+    <p class="muted" style="margin:0">
+      No portal accounts yet. Patients can sign up at <code class="mono">/portal/signup</code>,
+      or create one from a patient's page after checking their valid ID.
+    </p>
+  <% } else { %>
+    <table class="tbl">
+      <thead><tr><th>Patient</th><th>Username</th><th>Valid ID</th><th>Status</th><th>Created</th><th></th></tr></thead>
+      <tbody>
+        <% accounts.forEach(a => { %>
+          <tr>
+            <td>
+              <a href="/patients/<%= a.patient_id %>"><%= a.full_name %></a>
+              <div class="muted mono" style="font-size:11px"><%= a.patient_number %></div>
+            </td>
+            <td class="mono"><%= a.username %></td>
+            <td style="font-size:13px">
+              <%= a.valid_id_type || "—" %>
+              <% if (a.valid_id_number) { %><div class="muted mono" style="font-size:11px"><%= a.valid_id_number %></div><% } %>
+            </td>
+            <td>
+              <% if (a.is_verified) { %><span class="badge ok">Verified</span>
+              <% } else { %><span class="badge warn">Pending ID check</span><% } %>
+            </td>
+            <td class="mono" style="font-size:12px"><%= new Date(a.created_at).toLocaleDateString("en-PH", { timeZone:"Asia/Manila", month:"short", day:"numeric", year:"numeric" }) %></td>
+            <td style="text-align:right">
+              <% if (!a.is_verified) { %>
+                <form method="POST" action="/portal-accounts/<%= a.account_id %>/verify" style="margin:0;display:inline"
+                      onsubmit="return confirm('Confirm you checked the physical valid ID?')">
+                  <input type="hidden" name="back" value="/portal-accounts" />
+                  <button type="submit" class="mini-btn ok">Verify</button>
+                </form>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>

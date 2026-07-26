@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= title %></title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body class="auth-body">
+  <main class="auth-wrap">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <span class="brand-badge">S</span>
+        <div>
+          <b>Sampaguita Health Clinic</b>
+          <span class="muted">Patient portal</span>
+        </div>
+      </div>
+
+      <h1 class="auth-title">Reset your password</h1>
+      <p class="muted" style="margin:-8px 0 16px;font-size:13px">
+        Use the <b>recovery code</b> you were given when your account was created.
+        Lost it too? Visit the clinic and the staff will reset it for you.
+      </p>
+
+      <% if (error) { %>
+        <div class="auth-error"><%= error %></div>
+      <% } %>
+
+      <form method="POST" action="/portal/recover" class="auth-form" autocomplete="off">
+        <label class="field">
+          <span>Username</span>
+          <input type="text" name="username" value="<%= username %>"
+                 required autofocus autocapitalize="none" spellcheck="false" />
+        </label>
+        <label class="field">
+          <span>Recovery code</span>
+          <input type="text" name="recovery_code" placeholder="XXXX-XXXX"
+                 required autocapitalize="characters" spellcheck="false" class="mono" />
+        </label>
+        <label class="field">
+          <span>New password <span class="muted">(8+ characters)</span></span>
+          <input type="password" name="password" minlength="8" required />
+        </label>
+        <button type="submit" class="btn auth-submit">Set new password</button>
+      </form>
+
+      <div class="auth-links">
+        <a href="/portal/login">← Back to sign in</a>
+      </div>
+
+      <p class="auth-foot muted">Your health records are private · RA 10173 protected</p>
+    </div>
+  </main>
+</body>
+</html>

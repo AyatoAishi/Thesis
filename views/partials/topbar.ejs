@@ -1,0 +1,38 @@
+<%
+  // "Today's service" pill, derived from the weekday (matches the seeded services).
+  const dow = new Date().getDay(); // 0 Sun ... 6 Sat
+  const svcByDay = { 2: "Immunization", 4: "Prenatal", 5: "Medicine distribution" };
+  const todaySvc = svcByDay[dow] || "No scheduled service today";
+  const u = typeof user !== "undefined" && user ? user : null;
+%>
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-badge">S</span>
+    <span>Sampaguita&nbsp;HC</span>
+  </div>
+
+  <input class="search" type="search" data-search
+         placeholder="Search patient by name or number…   (press / )" aria-label="Search patients" />
+
+  <div class="topbar-right">
+    <span class="pill">● <%= todaySvc %></span>
+
+    <button class="icon-btn" title="Notifications" aria-label="Notifications">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+    </button>
+
+    <div class="user-chip">
+      <span class="user-avatar"><%= u ? (u.full_name || "?").charAt(0).toUpperCase() : "·" %></span>
+      <span class="user-meta">
+        <b><%= u ? u.full_name : "Not signed in" %></b>
+        <span><%= u ? u.role : "—" %></span>
+      </span>
+    </div>
+
+    <% if (u) { %>
+      <form method="POST" action="/logout" style="margin:0">
+        <button type="submit" class="logout-btn" title="Sign out">Logout</button>
+      </form>
+    <% } %>
+  </div>
+</header>

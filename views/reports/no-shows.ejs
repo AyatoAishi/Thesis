@@ -1,0 +1,49 @@
+<div class="page-head">
+  <h1>Reports</h1>
+  <div class="sub">No-show list</div>
+</div>
+
+<div class="card">
+  <%- include("../partials/reports-tabbar", { active: "no-shows", from, to }) %>
+
+  <form method="GET" action="/reports/no-shows" class="form-grid" style="align-items:flex-end;margin-bottom:16px">
+    <%- include("../partials/reports-daterange", { from, to }) %>
+    <label class="field"><span>Service</span>
+      <select name="service_id">
+        <option value="">All services</option>
+        <% services.forEach(s => { %>
+          <option value="<%= s.service_id %>" <%= String(service_id) === String(s.service_id) ? 'selected' : '' %>><%= pretty(s.name) %></option>
+        <% }) %>
+      </select>
+    </label>
+    <label class="field"><span>Patient name or number</span>
+      <input type="search" name="q" value="<%= q %>" placeholder="Search…" />
+    </label>
+    <div class="field"><button class="btn" type="submit">Apply</button></div>
+  </form>
+
+  <div class="sub" style="margin-bottom:10px"><%= rows.length %> no-show<%= rows.length === 1 ? "" : "s" %> in this range</div>
+
+  <% if (!rows.length) { %>
+    <p class="muted" style="padding:8px 2px">No no-shows match this filter.</p>
+  <% } else { %>
+    <table class="tbl">
+      <thead><tr><th>Date</th><th>Time</th><th>Patient</th><th>Service</th><th>Contact</th><th></th></tr></thead>
+      <tbody>
+        <% rows.forEach(r => { %>
+          <tr>
+            <td><%= longDate(r.appointment_date) %></td>
+            <td class="mono"><%= shortTime(r.appointment_time) || "—" %></td>
+            <td>
+              <a href="/patients/<%= r.patient_id %>"><%= r.full_name %></a>
+              <div class="muted mono" style="font-size:11px"><%= r.patient_number %></div>
+            </td>
+            <td><%= pretty(r.service_name) %></td>
+            <td><%= r.contact_number || r.family_contact_number || "—" %></td>
+            <td style="text-align:right"><a class="mini-btn" href="/appointments/new?patient_id=<%= r.patient_id %>">Book follow-up</a></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>

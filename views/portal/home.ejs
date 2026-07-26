@@ -1,0 +1,169 @@
+<%
+  function statusBadge(s) {
+    const m = { scheduled:["info","Scheduled"], completed:["ok","Completed"], missed:["bad","Missed"], cancelled:["warn","Cancelled"] };
+    const [c, l] = m[s] || ["info", s];
+    return `<span class="badge ${c}">${l}</span>`;
+  }
+  const next = upcoming[0] || null;
+%>
+
+<div class="page-head">
+  <h1>Hello, <%= me.full_name.split(" ")[0] %> 👋</h1>
+  <div class="sub mono"><%= me.patient_number %></div>
+</div>
+
+<% if (flash.booked) { %>
+  <div class="card portal-flash ok-flash">✅ Appointment booked! A confirmation email is on its way.</div>
+<% } %>
+<% if (flash.cancelled) { %>
+  <div class="card portal-flash">Your appointment was cancelled.</div>
+<% } %>
+<% if (flash.err) { %>
+  <div class="card portal-flash bad-flash">⚠️ <%= flash.err %></div>
+<% } %>
+
+<% if (!me.is_verified) { %>
+  <div class="card portal-flash warn-flash">
+    <b>Account pending verification.</b> Present your valid ID at the clinic and the staff
+    will activate full access (medical records &amp; online booking). You can already see
+    your appointments below.
+  </div>
+<% } %>
+
+<div class="card hero-appt">
+  <div class="panel-title" style="margin-bottom:6px">Next appointment</div>
+  <% if (next) { %>
+    <div class="hero-appt-main">
+      <div class="hero-appt-date"><%= longDate(next.appointment_date) %></div>
+      <div class="hero-appt-sub">
+        <%= pretty(next.service_name) %><%= shortTime(next.appointment_time) ? " · " + shortTime(next.appointment_time) : "" %>
+      </div>
+    </div>
+    <p class="muted" style="margin:8px 0 0;font-size:13px">We'll email you a reminder the day before. See you po!</p>
+  <% } else { %>
+    <p class="muted" style="margin:4px 0 0">No upcoming appointment<%= me.is_verified ? " — book one below" : "" %>.</p>
+  <% } %>
+</div>
+
+<% if (me.is_verified) { %>
+<div class="card">
+  <div class="panel-title" style="margin-bottom:4px">Book an appointment</div>
+  <p class="muted" style="margin:0 0 14px;font-size:13px">
+    Each service has a fixed clinic day — pick a service and choose from its upcoming dates.
+  </p>
+  <% if (!canBookMore) { %>
+    <p class="muted" style="margin:0">You already have <%= maxOpen %> upcoming appointments — cancel one below to book another.</p>
+  <% } else { %>
+  <form method="POST" action="/portal/book" class="auth-form" style="gap:12px">
+    <div class="form-grid">
+      <label class="field">
+        <span>Service</span>
+        <select name="service_id" id="bk-service" required>
+          <% bookOptions.forEach((s, i) => { %>
+            <option value="<%= s.service_id %>"><%= pretty(s.name) %> (every <%= s.schedule_day %>)</option>
+          <% }) %>
+        </select>
+      </label>
+      <label class="field">
+        <span>Date</span>
+        <select name="appointment_date" id="bk-date" required></select>
+      </label>
+      <label class="field" style="grid-column:1/-1">
+        <span>Note for the clinic <span class="muted">(optional)</span></span>
+        <input type="text" name="notes" maxlength="255" placeholder="e.g. follow-up, medsakit ang lalamunan…" />
+      </label>
+    </div>
+    <button type="submit" class="btn" style="align-self:flex-start">Book appointment</button>
+  </form>
+  <script>
+    // Swap the date choices when the service changes (server re-validates anyway).
+    (function () {
+      var DATA = <%- JSON.stringify(bookOptions.map(s => ({ id: String(s.service_id), dates: s.dates, labels: s.dates.map(d => longDate(d)) }))) %>;
+      var svc = document.getElementById("bk-service");
+      var dt = document.getElementById("bk-date");
+      function fill() {
+        var row = DATA.find(function (r) { return r.id === svc.value; }) || DATA[0];
+        dt.innerHTML = "";
+        row.dates.forEach(function (d, i) {
+          var o = document.createElement("option");
+          o.value = d; o.textContent = row.labels[i];
+          dt.appendChild(o);
+        });
+      }
+      svc.addEventListener("change", fill);
+      fill();
+    })();
+  </script>
+  <% } %>
+</div>
+<% } %>
+
+<div class="card">
+  <div class="panel-title" style="margin-bottom:12px">My appointments</div>
+  <% if (!appointments.length) { %>
+    <p class="muted" style="margin:0">No appointments yet.</p>
+  <% } else { %>
+    <table class="tbl">
+      <thead><tr><th>Date</th><th>Service</th><th>Time</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        <% appointments.forEach(a => { %>
+          <tr>
+            <td><%= longDate(a.appointment_date) %></td>
+            <td><%= pretty(a.service_name) %></td>
+            <td class="mono"><%= shortTime(a.appointment_time) || "—" %></td>
+            <td><%- statusBadge(a.status) %></td>
+            <td style="text-align:right">
+              <% if (a.status === "scheduled" && a.appointment_date >= today) { %>
+                <form method="POST" action="/portal/cancel/<%= a.appointment_id %>" style="margin:0"
+                      onsubmit="return confirm('Cancel this appointment?')">
+                  <button type="submit" class="mini-btn bad">Cancel</button>
+                </form>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>
+
+<% if (me.is_verified) { %>
+<div class="card">
+  <div class="panel-title" style="margin-bottom:12px">My visit records</div>
+  <% if (!visits.length) { %>
+    <p class="muted" style="margin:0">No visit records yet — they'll appear here after your check-ups.</p>
+  <% } else { %>
+    <table class="tbl">
+      <thead><tr><th>Date</th><th>Blood pressure</th><th>Weight</th><th>Temp</th><th>Diagnosis</th></tr></thead>
+      <tbody>
+        <% visits.forEach(v => { %>
+          <tr>
+            <td><%= longDate(v.visit_date) %></td>
+            <td class="mono"><%= v.bp_systolic && v.bp_diastolic ? `${v.bp_systolic}/${v.bp_diastolic}` : "—" %></td>
+            <td class="mono"><%= v.weight_kg ? v.weight_kg + " kg" : "—" %></td>
+            <td class="mono"><%= v.temperature_c ? v.temperature_c + " °C" : "—" %></td>
+            <td><%= v.diagnosis || "—" %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>
+<% } %>
+
+<div class="card">
+  <div class="panel-title" style="margin-bottom:12px">My information</div>
+  <dl class="kv">
+    <div><dt>Full name</dt><dd><%= me.full_name %></dd></div>
+    <div><dt>Patient number</dt><dd class="mono"><%= me.patient_number %></dd></div>
+    <div><dt>Birthdate</dt><dd><%= me.birthdate ? longDate(me.birthdate) : "—" %></dd></div>
+    <div><dt>Sex</dt><dd><%= me.sex || "—" %></dd></div>
+    <div><dt>Contact number</dt><dd><%= me.contact_number || "—" %></dd></div>
+    <div><dt>Email</dt><dd><%= me.email || "—" %></dd></div>
+    <div style="grid-column:1/-1"><dt>Address</dt><dd><%= me.address || "—" %></dd></div>
+  </dl>
+  <p class="muted" style="font-size:12px;margin:12px 2px 0">
+    Something wrong? Tell the staff on your next visit — only the clinic can edit records.
+    Need a new password? <a href="/portal/recover">Use your recovery code</a>.
+  </p>
+</div>

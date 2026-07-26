@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= title %></title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body class="auth-body">
+  <main class="auth-wrap">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <span class="brand-badge">S</span>
+        <div>
+          <b>Sampaguita Health Clinic</b>
+          <span class="muted">EMR &amp; Appointments</span>
+        </div>
+      </div>
+
+      <h1 class="auth-title">Staff sign in</h1>
+
+      <% if (error) { %>
+        <div class="auth-error"><%= error %></div>
+      <% } %>
+
+      <form method="POST" action="/login" class="auth-form" autocomplete="off">
+        <label class="field">
+          <span>Username</span>
+          <input type="text" name="username" value="<%= username %>"
+                 required autofocus autocapitalize="none" spellcheck="false" />
+        </label>
+
+        <label class="field">
+          <span>Password</span>
+          <input type="password" name="password" required />
+        </label>
+
+        <button type="submit" class="btn auth-submit">Sign in</button>
+      </form>
+
+      <p class="auth-foot muted">Authorized clinic staff only · RA 10173 protected</p>
+    </div>
+  </main>
+</body>
+</html>

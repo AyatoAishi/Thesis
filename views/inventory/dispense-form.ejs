@@ -1,0 +1,68 @@
+<div class="page-head">
+  <h1>Dispense medicine</h1>
+  <div class="sub"><a href="/inventory" class="muted">← Back to inventory</a></div>
+</div>
+
+<% if (errors && errors.length) { %>
+  <div class="card" style="border-color:#f3c9cb;background:var(--bad-bg)">
+    <b style="color:var(--bad-ink)">Please fix:</b>
+    <ul style="margin:8px 0 0;color:var(--bad-ink);font-size:13px">
+      <% errors.forEach(e => { %><li><%= e %></li><% }) %>
+    </ul>
+  </div>
+<% } %>
+
+<form method="POST" action="/inventory/dispense">
+  <div class="card">
+    <div class="form-grid">
+      <label class="field" style="grid-column:1/-1"><span>Patient *</span>
+        <% if (patient) { %>
+          <input type="hidden" name="patient_id" value="<%= patient.patient_id %>" />
+          <input type="text" value="<%= patient.full_name %> — <%= patient.patient_number %>" disabled />
+        <% } else if (!patients.length) { %>
+          <p class="muted" style="margin:6px 0 0">No patients registered yet. <a href="/patients/new">Add one first →</a></p>
+        <% } else { %>
+          <select name="patient_id" required>
+            <option value="">— choose patient —</option>
+            <% patients.forEach(p => { %>
+              <option value="<%= p.patient_id %>" <%= String(dispense.patient_id) === String(p.patient_id) ? 'selected' : '' %>>
+                <%= p.full_name %> — <%= p.patient_number %>
+              </option>
+            <% }) %>
+          </select>
+        <% } %>
+      </label>
+
+      <label class="field" style="grid-column:1/-1"><span>Medicine *</span>
+        <% if (medicine) { %>
+          <input type="hidden" name="medicine_id" value="<%= medicine.medicine_id %>" />
+          <input type="text" value="<%= medicine.name %> (<%= medicine.unit || 'unit' %>) — <%= medicine.stock_quantity %> in stock" disabled />
+          <% if (medicine.requires_doctor_approval) { %>
+            <span class="muted" style="font-size:11.5px">Requires doctor approval — stock won't be deducted until approved.</span>
+          <% } %>
+        <% } else if (!medicines.length) { %>
+          <p class="muted" style="margin:6px 0 0">No medicines in inventory yet. <a href="/inventory/new">Add one first →</a></p>
+        <% } else { %>
+          <select name="medicine_id" required>
+            <option value="">— choose medicine —</option>
+            <% medicines.forEach(med => { %>
+              <option value="<%= med.medicine_id %>" <%= String(dispense.medicine_id) === String(med.medicine_id) ? 'selected' : '' %>>
+                <%= med.name %> (<%= med.unit || "unit" %>) — <%= med.stock_quantity %> in stock
+              </option>
+            <% }) %>
+          </select>
+        <% } %>
+      </label>
+
+      <label class="field"><span>Quantity *</span>
+        <input type="number" name="quantity" min="1" step="1" value="<%= dispense.quantity || '' %>" required />
+      </label>
+
+      <label class="field" style="grid-column:1/-1"><span>Notes <span class="muted">(optional)</span></span>
+        <input type="text" name="notes" value="<%= dispense.notes || '' %>" maxlength="255" placeholder="e.g. for fever, prescribed by Dr. X" />
+      </label>
+    </div>
+  </div>
+
+  <button type="submit" class="btn">Dispense</button>
+</form>

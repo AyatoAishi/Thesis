@@ -1,0 +1,53 @@
+<div class="page-head">
+  <h1>Reports</h1>
+  <div class="sub">Inventory report</div>
+</div>
+
+<div class="card">
+  <%- include("../partials/reports-tabbar", { active: "inventory", from, to }) %>
+
+  <form method="GET" action="/reports/inventory" class="form-grid" style="align-items:flex-end;margin-bottom:16px">
+    <%- include("../partials/reports-daterange", { from, to }) %>
+    <div class="field"><button class="btn" type="submit">Apply</button></div>
+  </form>
+
+  <div class="panel-title" style="margin-bottom:10px">Dispensed in this range</div>
+  <% if (!dispensed.length) { %>
+    <p class="muted" style="padding:8px 2px 20px">No medicines dispensed in this range.</p>
+  <% } else { %>
+    <table class="tbl" style="margin-bottom:24px">
+      <thead><tr><th>Medicine</th><th>Dispenses</th><th>Total qty</th><th>Still pending approval</th></tr></thead>
+      <tbody>
+        <% dispensed.forEach(d => { %>
+          <tr>
+            <td><a href="/inventory/<%= d.medicine_id %>"><%= d.name %></a></td>
+            <td><%= d.dispense_count %></td>
+            <td><%= d.total_qty %> <%= d.unit || "" %></td>
+            <td><%= d.pending_count || "—" %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+
+  <div class="svc-head">
+    <span class="panel-title">Low stock right now</span>
+    <a class="mini-btn" href="/inventory?low=1">Open inventory →</a>
+  </div>
+  <% if (!lowStock.length) { %>
+    <p class="muted" style="padding:8px 2px">Nothing is below its threshold right now.</p>
+  <% } else { %>
+    <table class="tbl">
+      <thead><tr><th>Medicine</th><th>Stock</th><th>Threshold</th></tr></thead>
+      <tbody>
+        <% lowStock.forEach(m => { %>
+          <tr>
+            <td><a href="/inventory/<%= m.medicine_id %>"><%= m.name %></a></td>
+            <td style="color:var(--bad-ink);font-weight:700"><%= m.stock_quantity %> <%= m.unit || "" %></td>
+            <td><%= m.low_stock_threshold %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>

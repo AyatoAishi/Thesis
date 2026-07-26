@@ -1,0 +1,55 @@
+<div class="page-head">
+  <h1>Reports</h1>
+  <div class="sub">Attendance summary</div>
+</div>
+
+<div class="card">
+  <%- include("../partials/reports-tabbar", { active: "attendance", from, to }) %>
+
+  <form method="GET" action="/reports/attendance" class="form-grid" style="align-items:flex-end;margin-bottom:16px">
+    <%- include("../partials/reports-daterange", { from, to }) %>
+    <div class="field"><button class="btn" type="submit">Apply</button></div>
+  </form>
+
+  <% if (!rows.length) { %>
+    <p class="muted" style="padding:8px 2px">No appointments in this range.</p>
+  <% } else { %>
+    <table class="tbl">
+      <thead>
+        <tr><th>Service</th><th>Scheduled</th><th>Completed</th><th>Missed</th><th>Cancelled</th><th>Total</th><th>Attendance rate</th></tr>
+      </thead>
+      <tbody>
+        <% rows.forEach(r => {
+             const denom = r.completed + r.missed;
+             const rate = denom ? Math.round((r.completed / denom) * 100) : null;
+        %>
+          <tr>
+            <td><%= pretty(r.name) %></td>
+            <td><%= r.scheduled %></td>
+            <td><%= r.completed %></td>
+            <td><%= r.missed %></td>
+            <td><%= r.cancelled %></td>
+            <td><b><%= r.total %></b></td>
+            <td><%= rate === null ? "—" : rate + "%" %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+      <tfoot>
+        <%
+          const denomT = totals.completed + totals.missed;
+          const rateT = denomT ? Math.round((totals.completed / denomT) * 100) : null;
+        %>
+        <tr style="font-weight:700">
+          <td>Total</td>
+          <td><%= totals.scheduled %></td>
+          <td><%= totals.completed %></td>
+          <td><%= totals.missed %></td>
+          <td><%= totals.cancelled %></td>
+          <td><%= totals.total %></td>
+          <td><%= rateT === null ? "—" : rateT + "%" %></td>
+        </tr>
+      </tfoot>
+    </table>
+    <p class="muted" style="font-size:12px;margin-top:10px">Attendance rate = completed ÷ (completed + missed) for that range.</p>
+  <% } %>
+</div>

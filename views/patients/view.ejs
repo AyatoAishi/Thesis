@@ -1,0 +1,195 @@
+<%
+  const p = patient;
+  function fmt(d) { return d ? new Date(d).toLocaleDateString("en-PH", { year:"numeric", month:"long", day:"numeric" }) : "—"; }
+  function age(bd) {
+    if (!bd) return null;
+    const d = new Date(bd), n = new Date();
+    let a = n.getFullYear() - d.getFullYear();
+    const m = n.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && n.getDate() < d.getDate())) a--;
+    return a;
+  }
+  const a = age(p.birthdate);
+%>
+<div class="page-head" style="display:flex;align-items:center;justify-content:space-between">
+  <div>
+    <h1><%= p.full_name %>
+      <% if (p.is_minor) { %><span class="badge info" style="vertical-align:middle">Minor</span><% } %>
+    </h1>
+    <div class="sub mono"><%= p.patient_number %></div>
+  </div>
+  <div style="display:flex;gap:8px">
+    <a class="mini-btn" href="/reports/export/patient/<%= p.patient_id %>" target="_blank" rel="noopener">Export PDF</a>
+    <a class="btn" href="/patients/<%= p.patient_id %>/edit">Edit</a>
+    <a class="logout-btn" href="/patients" style="display:inline-flex;align-items:center;text-decoration:none">Back</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="panel-title" style="margin-bottom:12px">Demographics</div>
+  <dl class="kv">
+    <div><dt>Sex</dt><dd><%= p.sex || "—" %></dd></div>
+    <div><dt>Birthdate</dt><dd><%= fmt(p.birthdate) %><%= a !== null ? ` (${a} yrs)` : "" %></dd></div>
+    <div><dt>Patient contact</dt><dd><%= p.contact_number || "—" %></dd></div>
+    <div><dt>Email</dt><dd><%= p.email || "—" %></dd></div>
+    <div style="grid-column:1/-1"><dt>Address</dt><dd><%= p.address || "—" %></dd></div>
+  </dl>
+</div>
+
+<div class="card">
+  <div class="panel-title" style="margin-bottom:12px">Family contact</div>
+  <dl class="kv">
+    <div><dt>Name</dt><dd><%= p.family_contact_name || "—" %></dd></div>
+    <div><dt>Relation</dt><dd><%= p.family_contact_relation || "—" %></dd></div>
+    <div><dt>Contact</dt><dd><%= p.family_contact_number || "—" %></dd></div>
+    <div><dt>Email</dt><dd><%= p.family_email || "—" %></dd></div>
+  </dl>
+</div>
+
+<% if (p.is_minor) { %>
+<div class="card">
+  <div class="panel-title" style="margin-bottom:12px">Guardian</div>
+  <dl class="kv">
+    <div><dt>Guardian name</dt><dd><%= p.guardian_name || "—" %></dd></div>
+    <div><dt>Consent</dt><dd>
+      <% if (p.guardian_consent) { %><span class="badge ok">Recorded</span>
+      <% } else { %><span class="badge bad">Missing</span><% } %>
+    </dd></div>
+  </dl>
+</div>
+<% } %>
+
+<%
+  function statusBadge(s) {
+    const m = { scheduled:["info","Scheduled"], completed:["ok","Completed"], missed:["bad","Missed"], cancelled:["warn","Cancelled"] };
+    const [c, l] = m[s] || ["info", s];
+    return `<span class="badge ${c}">${l}</span>`;
+  }
+%>
+<div class="card">
+  <div class="svc-head">
+    <span class="panel-title">Appointments</span>
+    <a class="mini-btn" href="/appointments/new?patient_id=<%= p.patient_id %>">+ Book appointment</a>
+  </div>
+  <% if (!appointments.length) { %>
+    <p class="muted" style="margin:6px 2px 0">No appointments yet.</p>
+  <% } else { %>
+    <table class="tbl">
+      <thead><tr><th>Date</th><th>Time</th><th>Service</th><th>Status</th></tr></thead>
+      <tbody>
+        <% appointments.forEach(a => { %>
+          <tr>
+            <td><a href="/appointments?date=<%= a.appointment_date %>"><%= longDate(a.appointment_date) %></a></td>
+            <td class="mono"><%= shortTime(a.appointment_time) || "—" %></td>
+            <td><%= pretty(a.service_name) %></td>
+            <td><%- statusBadge(a.status) %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>
+
+<%
+  function dispenseBadge(d) {
+    if (!d.requires_doctor_approval) return '<span class="badge ok">Completed</span>';
+    if (d.approved_at) return '<span class="badge info">Approved</span>';
+    return '<span class="badge warn">Pending approval</span>';
+  }
+%>
+<div class="card">
+  <div class="svc-head">
+    <span class="panel-title">Medicines</span>
+    <a class="mini-btn" href="/inventory/dispense/new?patient_id=<%= p.patient_id %>">+ Dispense medicine</a>
+  </div>
+  <% if (!dispenses.length) { %>
+    <p class="muted" style="margin:6px 2px 0">No medicines dispensed yet.</p>
+  <% } else { %>
+    <table class="tbl">
+      <thead><tr><th>Date</th><th>Medicine</th><th>Qty</th><th>Status</th></tr></thead>
+      <tbody>
+        <% dispenses.forEach(d => { %>
+          <tr>
+            <td><%= fmt(d.dispensed_at) %></td>
+            <td><a href="/inventory/<%= d.medicine_id %>"><%= d.medicine_name %></a></td>
+            <td><%= d.quantity %> <%= d.unit || "" %></td>
+            <td><%- dispenseBadge(d) %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>
+
+<div class="card">
+  <div class="svc-head">
+    <span class="panel-title">Portal account</span>
+    <% if (account) { %>
+      <% if (account.is_verified) { %><span class="badge ok">Verified</span>
+      <% } else { %><span class="badge warn">Pending ID check</span><% } %>
+    <% } %>
+  </div>
+
+  <% if (typeof acctErr !== "undefined" && acctErr) { %>
+    <div style="background:var(--bad-bg);color:var(--bad-ink);border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:12px"><%= acctErr %></div>
+  <% } %>
+
+  <% if (typeof secrets !== "undefined" && secrets) { %>
+    <div style="background:var(--ok-bg);border-radius:10px;padding:14px;margin-bottom:12px">
+      <b style="color:var(--ok-ink)">Give these to the patient — shown only once:</b>
+      <dl class="kv" style="margin-top:10px">
+        <div><dt>Username</dt><dd class="mono"><%= secrets.username %></dd></div>
+        <div><dt>Temporary password</dt><dd class="mono" style="font-weight:700"><%= secrets.temp_password %></dd></div>
+        <div><dt>Recovery code</dt><dd class="mono" style="font-weight:700"><%= secrets.recovery_code %></dd></div>
+        <div><dt>Portal address</dt><dd class="mono">/portal</dd></div>
+      </dl>
+      <p class="muted" style="font-size:12px;margin:10px 0 0">
+        Tell the patient: sign in, then use the recovery code at “Forgot password” to set their own password.
+      </p>
+    </div>
+  <% } %>
+
+  <% if (account) { %>
+    <dl class="kv">
+      <div><dt>Username</dt><dd class="mono"><%= account.username %></dd></div>
+      <div><dt>Valid ID</dt><dd><%= account.valid_id_type || "—" %><%= account.valid_id_number ? ` · ${account.valid_id_number}` : "" %></dd></div>
+    </dl>
+    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+      <% if (!account.is_verified) { %>
+        <form method="POST" action="/portal-accounts/<%= account.account_id %>/verify" style="margin:0"
+              onsubmit="return confirm('Confirm you checked the physical valid ID?')">
+          <input type="hidden" name="back" value="/patients/<%= p.patient_id %>" />
+          <button type="submit" class="mini-btn ok">Verify (ID checked)</button>
+        </form>
+      <% } %>
+      <form method="POST" action="/portal-accounts/<%= account.account_id %>/reset" style="margin:0"
+            onsubmit="return confirm('Issue a new temporary password + recovery code?')">
+        <button type="submit" class="mini-btn">Reset password</button>
+      </form>
+    </div>
+  <% } else { %>
+    <p class="muted" style="font-size:13px;margin:0 0 12px">
+      No portal account. Create one here after checking the patient's valid ID —
+      or the patient can self-register at <code class="mono">/portal/signup</code>.
+    </p>
+    <form method="POST" action="/patients/<%= p.patient_id %>/portal-account">
+      <div class="form-grid">
+        <label class="field"><span>Username</span>
+          <input type="text" name="username" placeholder="e.g. juan.dela.cruz" required autocapitalize="none" spellcheck="false" />
+        </label>
+        <label class="field"><span>Valid ID presented</span>
+          <select name="valid_id_type" required>
+            <option value="">— choose an ID —</option>
+            <% idTypes.forEach(t => { %><option value="<%= t %>"><%= t %></option><% }) %>
+          </select>
+        </label>
+        <label class="field"><span>Valid ID number</span>
+          <input type="text" name="valid_id_number" required />
+        </label>
+      </div>
+      <button type="submit" class="btn" style="margin-top:12px">Create account (verified)</button>
+    </form>
+  <% } %>
+</div>
+
+<p class="muted" style="font-size:12px">Added <%= fmt(p.created_at) %><%= p.created_by_name ? ` by ${p.created_by_name}` : "" %>.</p>

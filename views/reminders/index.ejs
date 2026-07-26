@@ -1,0 +1,88 @@
+<div class="page-head">
+  <h1>Reminders</h1>
+  <div class="sub">Email &amp; SMS appointment reminders &amp; delivery log</div>
+</div>
+
+<% if (flash) { %>
+  <div class="card" style="background:var(--accent-softer);border-color:var(--accent-soft)"><%= flash %></div>
+<% } %>
+
+<div class="card">
+  <div class="svc-head">
+    <div>
+      <span class="panel-title">Email</span>
+      <% if (emailLive) { %>
+        <span class="badge ok">LIVE — Gmail SMTP connected</span>
+      <% } else { %>
+        <span class="badge warn">SIMULATION — no SMTP credentials yet</span>
+      <% } %>
+    </div>
+  </div>
+  <p class="muted" style="margin:8px 2px 0;font-size:13px">
+    Reminders are emailed to the patient (or the family contact as fallback) the day before the appointment.
+  </p>
+  <div class="svc-head" style="margin-top:14px;opacity:.55" title="SMS is temporarily unavailable — looking for an affordable SMS provider to replace Semaphore.">
+    <div>
+      <span class="panel-title">SMS</span>
+      <% if (live) { %>
+        <span class="badge ok">LIVE — provider connected</span>
+      <% } else { %>
+        <span class="badge info">PENDING PROVIDER — simulation only</span>
+      <% } %>
+    </div>
+    <% if (live && balance !== null) { %>
+      <span class="muted">Credit balance: <b><%= balance %></b></span>
+    <% } %>
+  </div>
+  <% if (!live) { %>
+    <p class="muted" style="margin:8px 2px 0;font-size:13px;opacity:.7">
+      SMS sends are logged as a dry run. When an SMS provider is chosen, add its credentials to
+      <code class="mono">.env</code> to go live — no other change needed.
+    </p>
+  <% } %>
+</div>
+
+<div class="card">
+  <div class="panel-title" style="margin-bottom:12px">Send reminders</div>
+  <form method="POST" action="/reminders/run-now" class="daynav-left" style="gap:12px;flex-wrap:wrap;align-items:flex-end">
+    <label class="field" style="gap:4px">
+      <span>For appointments on</span>
+      <input type="date" name="date" value="<%= date %>" />
+    </label>
+    <label class="check" style="align-items:center">
+      <input type="checkbox" name="force" /> <span>Resend even if already reminded</span>
+    </label>
+    <button class="btn" type="submit">Send now (<%= pending %> scheduled)</button>
+  </form>
+  <p class="muted" style="font-size:12px;margin:10px 2px 0">
+    Runs automatically every day at the schedule <code class="mono"><%= cronExpr %></code> (Asia/Manila).
+    Use this to send manually or re-send for a specific date.
+  </p>
+</div>
+
+<div class="card">
+  <div class="panel-title" style="margin-bottom:12px">Recent reminders <span class="muted">(last 100)</span></div>
+  <% if (!log.length) { %>
+    <p class="muted" style="margin:0">No reminders sent yet. Book an appointment, then run a send above.</p>
+  <% } else { %>
+    <table class="tbl">
+      <thead><tr><th>When</th><th>Patient</th><th>Channel</th><th>To</th><th>Type</th><th>Status</th></tr></thead>
+      <tbody>
+        <% log.forEach(n => { %>
+          <tr>
+            <td class="mono" style="font-size:12px"><%= new Date(n.created_at).toLocaleString("en-PH", { timeZone:"Asia/Manila", month:"short", day:"numeric", hour:"numeric", minute:"2-digit" }) %></td>
+            <td><a href="/patients/<%= n.patient_id %>" title="<%= n.message %>"><%= n.full_name %></a></td>
+            <td><span class="badge <%= n.channel === 'email' ? 'ok' : 'info' %>"><%= n.channel %></span></td>
+            <td class="mono" style="font-size:12px"><%= n.recipient %></td>
+            <td><%= n.recipient_type %></td>
+            <td>
+              <% if (n.status === 'sent') { %><span class="badge ok">sent</span>
+              <% } else if (n.status === 'failed') { %><span class="badge bad">failed</span>
+              <% } else { %><span class="badge info"><%= n.status %></span><% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>

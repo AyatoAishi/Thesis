@@ -1,0 +1,84 @@
+<%
+  function badge(ok) { return ok ? '<span class="badge ok">ready</span>' : '<span class="badge warn">needed</span>'; }
+%>
+<div class="page-head">
+  <h1>Dashboard</h1>
+  <div class="sub"><%= today %></div>
+</div>
+
+<!-- Setup status: doubles as your live checklist while you create accounts -->
+<section class="card">
+  <div class="panel-head">
+    <div class="panel-title">Setup status <span class="muted">— fill these in <code class="mono">.env</code></span></div>
+  </div>
+  <div class="status-list">
+    <div class="status-row">
+      <div class="status-label">
+        Database (PostgreSQL)
+        <small>Paste your Neon connection string into <code class="mono">DATABASE_URL</code>, then run <code class="mono">npm run db:setup</code></small>
+      </div>
+      <%- badge(setup.database) %>
+    </div>
+    <div class="status-row">
+      <div class="status-label">
+        Live DB connection
+        <small><%= dbStatus.ok ? 'SELECT 1 succeeded — tables can be created next' : dbStatus.reason %></small>
+      </div>
+      <% if (dbStatus.ok) { %><span class="badge ok">connected</span><% } else { %><span class="badge bad">offline</span><% } %>
+    </div>
+    <div class="status-row">
+      <div class="status-label">
+        SMS (Semaphore)
+        <small>Add <code class="mono">SEMAPHORE_API_KEY</code>; register your Sender ID early (2–4 wk wait)</small>
+      </div>
+      <%- badge(setup.semaphore) %>
+    </div>
+    <div class="status-row">
+      <div class="status-label">
+        Email (SMTP, optional)
+        <small>Brevo or Gmail app password → <code class="mono">SMTP_USER</code> / <code class="mono">SMTP_PASS</code></small>
+      </div>
+      <%- badge(setup.smtp) %>
+    </div>
+    <div class="status-row">
+      <div class="status-label">
+        Session secret
+        <small>A long random string for signing login cookies</small>
+      </div>
+      <%- badge(setup.session) %>
+    </div>
+  </div>
+</section>
+
+<!-- Live metrics -->
+<div class="stat-grid">
+  <a class="stat-card" href="/appointments?date=<%= todayISO %>" style="text-decoration:none;color:inherit">
+    <div class="stat-label">Expected today</div>
+    <div class="stat-value"><%= stats ? stats.today : "—" %></div>
+    <div class="stat-note">scheduled + done + missed</div>
+  </a>
+  <a class="stat-card" href="/patients" style="text-decoration:none;color:inherit">
+    <div class="stat-label">Patients</div>
+    <div class="stat-value"><%= stats ? stats.patients : "—" %></div>
+    <div class="stat-note">total records</div>
+  </a>
+  <div class="stat-card">
+    <div class="stat-label">Completed today</div>
+    <div class="stat-value"><%= stats ? stats.done : "—" %></div>
+    <div class="stat-note">marked done</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Missed today</div>
+    <div class="stat-value"><%= stats ? stats.missed : "—" %></div>
+    <div class="stat-note">no-shows</div>
+  </div>
+</div>
+
+<section class="card">
+  <div class="panel-head"><div class="panel-title">Quick actions</div></div>
+  <ol class="steps">
+    <li><a href="/patients/new">Add a patient</a>, then <a href="/appointments/new">book an appointment</a> into one of the 3 services.</li>
+    <li>Open the <a href="/appointments?date=<%= todayISO %>">daily list</a> to mark patients done / missed as they arrive.</li>
+    <li>Register your <b>Semaphore</b> Sender ID early (2–4 wk wait) so SMS reminders are ready for M4.</li>
+  </ol>
+</section>

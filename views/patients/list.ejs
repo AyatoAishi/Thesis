@@ -1,0 +1,49 @@
+<%
+  function age(bd) {
+    if (!bd) return "—";
+    const d = new Date(bd), n = new Date();
+    let a = n.getFullYear() - d.getFullYear();
+    const m = n.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && n.getDate() < d.getDate())) a--;
+    return a;
+  }
+%>
+<div class="page-head" style="display:flex;align-items:center;justify-content:space-between">
+  <div>
+    <h1>Patients</h1>
+    <div class="sub"><%= patients.length %> record<%= patients.length === 1 ? "" : "s" %><%= q ? ` matching “${q}”` : "" %></div>
+  </div>
+  <a class="btn" href="/patients/new">+ Add patient</a>
+</div>
+
+<div class="card">
+  <form method="GET" action="/patients" style="margin-bottom:14px">
+    <input class="search" type="search" name="q" value="<%= q %>"
+           placeholder="Search name, patient number, or contact…" style="max-width:100%" />
+  </form>
+
+  <% if (!patients.length) { %>
+    <p class="muted" style="padding:8px 2px">No patients yet. Click <b>Add patient</b> to create the first record.</p>
+  <% } else { %>
+    <table class="tbl">
+      <thead>
+        <tr><th>Patient #</th><th>Name</th><th>Sex</th><th>Age</th><th>Contact</th><th></th></tr>
+      </thead>
+      <tbody>
+        <% patients.forEach(p => { %>
+          <tr>
+            <td class="mono"><%= p.patient_number %></td>
+            <td>
+              <a href="/patients/<%= p.patient_id %>"><%= p.full_name %></a>
+              <% if (p.is_minor) { %><span class="badge info" style="margin-left:6px">Minor</span><% } %>
+            </td>
+            <td><%= p.sex || "—" %></td>
+            <td><%= age(p.birthdate) %></td>
+            <td><%= p.contact_number || "—" %></td>
+            <td style="text-align:right"><a href="/patients/<%= p.patient_id %>/edit" class="muted">Edit</a></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>

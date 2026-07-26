@@ -1,0 +1,57 @@
+<%
+  const isEdit = mode === "edit";
+  const m = medicine || {};
+  const action = isEdit ? `/inventory/${m.medicine_id}` : "/inventory";
+%>
+<div class="page-head">
+  <h1><%= isEdit ? "Edit medicine" : "Add medicine" %></h1>
+  <div class="sub"><a href="/inventory" class="muted">← Back to inventory</a></div>
+</div>
+
+<% if (errors && errors.length) { %>
+  <div class="card" style="border-color:#f3c9cb;background:var(--bad-bg)">
+    <b style="color:var(--bad-ink)">Please fix:</b>
+    <ul style="margin:8px 0 0;color:var(--bad-ink);font-size:13px">
+      <% errors.forEach(e => { %><li><%= e %></li><% }) %>
+    </ul>
+  </div>
+<% } %>
+
+<form method="POST" action="<%= action %>">
+  <div class="card">
+    <div class="panel-title" style="margin-bottom:14px">Medicine details</div>
+    <div class="form-grid">
+      <label class="field"><span>Name *</span>
+        <input type="text" name="name" value="<%= m.name || '' %>" required />
+      </label>
+      <label class="field"><span>Unit</span>
+        <input type="text" name="unit" value="<%= m.unit || '' %>" placeholder="tablet, vial, bottle…" />
+      </label>
+      <label class="field" style="grid-column:1/-1"><span>Description</span>
+        <input type="text" name="description" value="<%= m.description || '' %>" />
+      </label>
+      <label class="field"><span>Stock quantity *</span>
+        <input type="number" name="stock_quantity" min="0" step="1" value="<%= m.stock_quantity ?? 0 %>" required />
+      </label>
+      <label class="field"><span>Low-stock threshold *</span>
+        <input type="number" name="low_stock_threshold" min="0" step="1" value="<%= m.low_stock_threshold ?? 10 %>" required />
+        <span class="muted" style="font-size:11.5px">Flagged “Low” on the list once stock drops below this.</span>
+      </label>
+      <label class="field" style="grid-column:1/-1"><span>Source</span>
+        <input type="text" name="source" value="<%= m.source || '' %>" placeholder="e.g. DOH, hospital donation" />
+      </label>
+    </div>
+  </div>
+
+  <div class="card">
+    <label class="check">
+      <input type="checkbox" name="requires_doctor_approval" <%= m.requires_doctor_approval ? 'checked' : '' %> />
+      <span>Requires <b>doctor approval</b> before dispensing (e.g. controlled/prescription medicine)</span>
+    </label>
+    <p class="muted" style="font-size:12px;margin:10px 0 0">
+      When checked, dispensing this medicine stays pending — stock isn't deducted — until a doctor approves it.
+    </p>
+  </div>
+
+  <button type="submit" class="btn"><%= isEdit ? "Save changes" : "Create medicine" %></button>
+</form>

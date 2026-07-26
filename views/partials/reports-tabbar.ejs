@@ -1,0 +1,13 @@
+<%
+  const tabs = [
+    ["attendance", "Attendance"],
+    ["no-shows", "No-shows"],
+    ["trend", "Seasonal trend"],
+    ["inventory", "Inventory"],
+  ];
+%>
+<div class="tabbar">
+  <% tabs.forEach(t => { %>
+    <a href="/reports/<%= t[0] %>?from=<%= from %>&to=<%= to %>" class="tab <%= active === t[0] ? 'active' : '' %>"><%= t[1] %></a>
+  <% }) %>
+</div>

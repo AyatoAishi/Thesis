@@ -1,0 +1,91 @@
+<%
+  function statusBadge(s) {
+    const m = { scheduled:["info","Scheduled"], completed:["ok","Completed"], missed:["bad","Missed"], cancelled:["warn","Cancelled"] };
+    const [c, l] = m[s] || ["info", s];
+    return `<span class="badge ${c}">${l}</span>`;
+  }
+  const backUrl = `/appointments?date=${date}`;
+%>
+<div class="page-head" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+  <div>
+    <h1>Appointments</h1>
+    <div class="sub"><%= longDate %><%= date === today ? " · Today" : "" %></div>
+  </div>
+  <div style="display:flex;gap:8px">
+    <a class="logout-btn" href="/appointments/upcoming" style="text-decoration:none;display:inline-flex;align-items:center">All / upcoming</a>
+    <a class="btn" href="/appointments/new?date=<%= date %>">+ Book appointment</a>
+  </div>
+</div>
+
+<div class="card daynav">
+  <div class="daynav-left">
+    <a class="nav-btn" href="/appointments?date=<%= prevDate %>" title="Previous day">‹</a>
+    <form method="GET" action="/appointments" style="margin:0">
+      <input type="date" name="date" value="<%= date %>" onchange="this.form.submit()" />
+    </form>
+    <a class="nav-btn" href="/appointments?date=<%= nextDate %>" title="Next day">›</a>
+    <% if (date !== today) { %>
+      <a class="logout-btn" href="/appointments?date=<%= today %>" style="text-decoration:none">Jump to today</a>
+    <% } %>
+  </div>
+  <div class="sum">
+    <span class="sum-pill"><b><%= summary.total %></b> total</span>
+    <span class="sum-pill"><b><%= summary.scheduled %></b> scheduled</span>
+    <span class="sum-pill ok"><b><%= summary.completed %></b> done</span>
+    <span class="sum-pill bad"><b><%= summary.missed %></b> missed</span>
+    <% if (summary.cancelled) { %><span class="sum-pill warn"><b><%= summary.cancelled %></b> cancelled</span><% } %>
+  </div>
+</div>
+
+<% if (!groups.length) { %>
+  <div class="card">
+    <p class="muted" style="margin:0">No service runs on a <%= longDate.split(",")[0] %>, and nothing is booked for this date.
+    Use <b>Book appointment</b> to add one anyway.</p>
+  </div>
+<% } %>
+
+<% groups.forEach(g => { %>
+  <div class="card">
+    <div class="svc-head">
+      <div>
+        <span class="panel-title"><%= pretty(g.name) %></span>
+        <% if (g.day) { %><span class="badge info"><%= g.day %></span><% } %>
+      </div>
+      <span class="muted"><%= g.items.length %> patient<%= g.items.length === 1 ? "" : "s" %></span>
+    </div>
+
+    <% if (!g.items.length) { %>
+      <p class="muted" style="margin:6px 2px 0">No bookings yet. <a href="/appointments/new?date=<%= date %>">Book one →</a></p>
+    <% } else { %>
+      <table class="tbl">
+        <thead><tr><th>Time</th><th>Patient</th><th>Contact</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead>
+        <tbody>
+          <% g.items.forEach(it => { %>
+            <tr>
+              <td class="mono"><%= shortTime(it.appointment_time) || "—" %></td>
+              <td>
+                <a href="/patients/<%= it.patient_id %>"><%= it.full_name %></a>
+                <div class="muted mono" style="font-size:11px"><%= it.patient_number %></div>
+                <% if (it.notes) { %><div class="muted" style="font-size:11.5px">“<%= it.notes %>”</div><% } %>
+              </td>
+              <td><%= it.contact_number || it.family_contact_number || "—" %></td>
+              <td><%- statusBadge(it.status) %></td>
+              <td>
+                <div class="appt-actions">
+                  <% if (it.status === 'scheduled') { %>
+                    <form method="POST" action="/appointments/<%= it.appointment_id %>/status"><input type="hidden" name="status" value="completed"><input type="hidden" name="back" value="<%= backUrl %>"><button class="mini-btn ok">Done</button></form>
+                    <form method="POST" action="/appointments/<%= it.appointment_id %>/status"><input type="hidden" name="status" value="missed"><input type="hidden" name="back" value="<%= backUrl %>"><button class="mini-btn bad">Missed</button></form>
+                    <a class="mini-btn" href="/appointments/<%= it.appointment_id %>/edit">Reschedule</a>
+                    <form method="POST" action="/appointments/<%= it.appointment_id %>/status"><input type="hidden" name="status" value="cancelled"><input type="hidden" name="back" value="<%= backUrl %>"><button class="mini-btn">Cancel</button></form>
+                  <% } else { %>
+                    <form method="POST" action="/appointments/<%= it.appointment_id %>/status"><input type="hidden" name="status" value="scheduled"><input type="hidden" name="back" value="<%= backUrl %>"><button class="mini-btn">Undo</button></form>
+                  <% } %>
+                </div>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+<% }) %>

@@ -82,17 +82,18 @@ app.get("/health", async (req, res) => {
 
 // External daily reminder trigger for cron-job.org (free hosting sleeps, so the
 // in-process cron below may not fire). No session — guarded by CRON_SECRET.
-app.all("/tasks/run-reminders", async (req, res) => {
+// Responds immediately and processes in the background: a cold Render
+// instance can take longer to wake up than cron-job.org's 30s test-run cap,
+// so waiting for the full job to finish before replying risks a false
+// "timeout" every single morning. The actual outcome is still logged to the
+// notifications table and viewable on /reminders regardless.
+app.all("/tasks/run-reminders", (req, res) => {
   const token = req.query.token || req.get("x-cron-token");
   if (!process.env.CRON_SECRET || token !== process.env.CRON_SECRET) {
     return res.status(403).json({ ok: false, error: "forbidden" });
   }
-  try {
-    const summary = await reminders.processReminders({});
-    res.json({ ok: true, ...summary });
-  } catch (e) {
-    res.status(500).json({ ok: false, error: e.message });
-  }
+  res.json({ ok: true, status: "started" });
+  reminders.processReminders({}).catch((e) => console.error("[tasks/run-reminders]", e.message));
 });
 
 // Auth (login / logout) — public

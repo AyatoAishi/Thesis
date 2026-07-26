@@ -27,6 +27,12 @@ const F = require("./lib/format");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Render (and most hosts) terminate HTTPS at their edge and forward to this
+// app over plain HTTP. Without this, Express never sees the connection as
+// secure, so the "secure" session cookie below never gets set/accepted —
+// login redirects, then immediately bounces back since no session survived.
+app.set("trust proxy", 1);
+
 // ----- Views (EJS + a single shared layout) ---------------------------------
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));

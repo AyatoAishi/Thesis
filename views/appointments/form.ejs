@@ -4,7 +4,7 @@
 %>
 <div class="page-head">
   <h1><%= isEdit ? "Reschedule appointment" : "Book appointment" %></h1>
-  <div class="sub"><a href="/appointments" class="muted">← Back to appointments</a></div>
+  <div class="sub"><a href="/appointments" class="back-link">← Back to appointments</a></div>
 </div>
 
 <% if (errors && errors.length) { %>
@@ -41,8 +41,8 @@
         <select name="service_id" id="svcSelect" required>
           <option value="">— choose —</option>
           <% services.forEach(s => { %>
-            <option value="<%= s.service_id %>" data-day="<%= s.schedule_day %>" <%= String(appt.service_id) === String(s.service_id) ? 'selected' : '' %>>
-              <%= pretty(s.name) %> (<%= s.schedule_day %>)
+            <option value="<%= s.service_id %>" <%= String(appt.service_id) === String(s.service_id) ? 'selected' : '' %>>
+              <%= pretty(s.name) %>
             </option>
           <% }) %>
         </select>
@@ -60,28 +60,7 @@
         <input type="text" name="notes" value="<%= appt.notes || '' %>" maxlength="255" />
       </label>
     </div>
-    <p class="muted" style="font-size:12px;margin:12px 2px 0">
-      Each service runs on a fixed weekday — choosing a service auto-fills the next matching date.
-    </p>
   </div>
 
   <button type="submit" class="btn"><%= isEdit ? "Save changes" : "Book appointment" %></button>
 </form>
-
-<script>
-  (function () {
-    var DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-    var TODAY = "<%= today %>";
-    var svc = document.getElementById("svcSelect");
-    var date = document.getElementById("dateInput");
-    function wd(s){ var p=s.split("-"); return new Date(Date.UTC(+p[0],+p[1]-1,+p[2])).getUTCDay(); }
-    function add(s,n){ var p=s.split("-"); var d=new Date(Date.UTC(+p[0],+p[1]-1,+p[2])); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); }
-    function nextFor(day){ var t=DAYS.indexOf(day); if(t<0) return ""; var c=TODAY; for(var i=0;i<7;i++){ if(wd(c)===t) return c; c=add(c,1);} return ""; }
-    function suggest(){
-      var opt = svc.options[svc.selectedIndex]; if(!opt) return;
-      var day = opt.getAttribute("data-day"); if(!day) return;
-      if(!date.value || wd(date.value) !== DAYS.indexOf(day)){ var n=nextFor(day); if(n) date.value=n; }
-    }
-    if (svc) svc.addEventListener("change", suggest);
-  })();
-</script>

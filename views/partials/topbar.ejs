@@ -1,9 +1,7 @@
 <%
-  // "Today's service" pill, derived from the weekday (matches the seeded services).
-  const dow = new Date().getDay(); // 0 Sun ... 6 Sat
-  const svcByDay = { 2: "Immunization", 4: "Prenatal", 5: "Medicine distribution" };
-  const todaySvc = svcByDay[dow] || "No scheduled service today";
   const u = typeof user !== "undefined" && user ? user : null;
+  const apptCount = typeof todayApptCount !== "undefined" ? todayApptCount : null;
+  const todayPill = apptCount === null ? "—" : apptCount === 0 ? "No appointments today" : `${apptCount} appointment${apptCount === 1 ? "" : "s"} today`;
 %>
 <header class="topbar">
   <div class="brand">
@@ -11,28 +9,67 @@
     <span>Sampaguita&nbsp;HC</span>
   </div>
 
-  <input class="search" type="search" data-search
-         placeholder="Search patient by name or number…   (press / )" aria-label="Search patients" />
+  <form class="search-form" action="/patients" method="GET" style="flex:1;min-width:0">
+    <input class="search" type="search" name="q" data-search
+           placeholder="Search patient by name or number…   (press / )" aria-label="Search patients" />
+  </form>
 
   <div class="topbar-right">
-    <span class="pill">● <%= todaySvc %></span>
+    <span class="pill">● <%= todayPill %></span>
 
     <button class="icon-btn" title="Notifications" aria-label="Notifications">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
     </button>
 
-    <div class="user-chip">
-      <span class="user-avatar"><%= u ? (u.full_name || "?").charAt(0).toUpperCase() : "·" %></span>
-      <span class="user-meta">
-        <b><%= u ? u.full_name : "Not signed in" %></b>
-        <span><%= u ? u.role : "—" %></span>
-      </span>
-    </div>
-
     <% if (u) { %>
-      <form method="POST" action="/logout" style="margin:0">
-        <button type="submit" class="logout-btn" title="Sign out">Logout</button>
-      </form>
+      <div class="user-menu" data-user-menu>
+        <button type="button" class="user-chip" data-user-menu-toggle style="border:0;background:none;cursor:pointer">
+          <span class="user-avatar"><%= (u.full_name || "?").charAt(0).toUpperCase() %></span>
+          <span class="user-meta">
+            <b><%= u.full_name %></b>
+            <span><%= u.role %></span>
+          </span>
+        </button>
+        <div class="user-menu-dropdown" data-user-menu-dropdown hidden>
+          <a href="/account">Update profile</a>
+          <a href="/account">Change password</a>
+          <form method="POST" action="/logout" style="margin:0">
+            <button type="submit" class="user-menu-logout">Logout</button>
+          </form>
+        </div>
+      </div>
+    <% } else { %>
+      <div class="user-chip">
+        <span class="user-avatar">·</span>
+        <span class="user-meta"><b>Not signed in</b></span>
+      </div>
     <% } %>
   </div>
 </header>
+
+<script>
+  (function () {
+    var menu = document.querySelector("[data-user-menu]");
+    if (menu) {
+      var toggle = menu.querySelector("[data-user-menu-toggle]");
+      var dropdown = menu.querySelector("[data-user-menu-dropdown]");
+      toggle.addEventListener("click", function (e) {
+        e.stopPropagation();
+        dropdown.hidden = !dropdown.hidden;
+      });
+      document.addEventListener("click", function (e) {
+        if (!menu.contains(e.target)) dropdown.hidden = true;
+      });
+    }
+    var search = document.querySelector("[data-search]");
+    if (search) {
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "/" && document.activeElement !== search &&
+            !/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName)) {
+          e.preventDefault();
+          search.focus();
+        }
+      });
+    }
+  })();
+</script>

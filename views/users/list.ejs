@@ -1,0 +1,41 @@
+<div class="page-head" style="display:flex;align-items:center;justify-content:space-between">
+  <div>
+    <h1>Staff accounts</h1>
+    <div class="sub"><%= staff.length %> account<%= staff.length === 1 ? "" : "s" %></div>
+  </div>
+  <a class="btn" href="/admin/users/new">+ Add staff</a>
+</div>
+
+<div class="card">
+  <table class="tbl">
+    <thead>
+      <tr><th>Name</th><th>Username</th><th>Role &amp; status</th></tr>
+    </thead>
+    <tbody>
+      <% staff.forEach(s => { %>
+        <tr>
+          <td><%= s.full_name %></td>
+          <td class="mono"><%= s.username %></td>
+          <td>
+            <% if (s.user_id === user.user_id) { %>
+              <span class="muted" style="font-size:12px"><%= s.role %> · <%= s.status %> (you)</span>
+            <% } else { %>
+              <form method="POST" action="/admin/users/<%= s.user_id %>/update" style="display:inline-flex;gap:6px;align-items:center">
+                <select name="role">
+                  <% ["nurse","facilitator","recorder","doctor","admin"].forEach(r => { %>
+                    <option value="<%= r %>" <%= s.role === r ? "selected" : "" %>><%= r %></option>
+                  <% }) %>
+                </select>
+                <select name="status">
+                  <option value="active" <%= s.status === "active" ? "selected" : "" %>>active</option>
+                  <option value="inactive" <%= s.status === "inactive" ? "selected" : "" %>>inactive</option>
+                </select>
+                <button type="submit" class="mini-btn">Save</button>
+              </form>
+            <% } %>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>

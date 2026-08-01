@@ -38,7 +38,12 @@
 
         <label class="field">
           <span>Password</span>
-          <input type="password" name="password" required />
+          <div class="pw-wrap">
+            <input type="password" name="password" id="pw" required />
+            <button type="button" class="pw-toggle" data-pw-toggle aria-label="Show password">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
         </label>
 
         <button type="submit" class="btn auth-submit">Sign in</button>
@@ -47,5 +52,14 @@
       <p class="auth-foot muted">Authorized clinic staff only · RA 10173 protected</p>
     </div>
   </main>
+  <script>
+    (function () {
+      var btn = document.querySelector("[data-pw-toggle]");
+      var pw = document.getElementById("pw");
+      if (btn && pw) btn.addEventListener("click", function () {
+        pw.type = pw.type === "password" ? "text" : "password";
+      });
+    })();
+  </script>
 </body>
 </html>

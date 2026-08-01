@@ -8,6 +8,8 @@ const express = require("express");
 const db = require("../db");
 const F = require("../lib/format");
 const ID_TYPES = require("../lib/idTypes");
+const audit = require("../lib/audit");
+const { requireRole } = require("../middleware/auth");
 
 const router = express.Router();
 
@@ -31,23 +33,38 @@ async function nextPatientNumber() {
   return prefix + String(n).padStart(4, "0");
 }
 
+// Minor status is never taken from the client — always derived from birthdate
+// (professor's revision note: "auto-calculate from birthdate").
+function calcIsMinor(birthdate) {
+  if (!birthdate) return false;
+  const bd = new Date(birthdate);
+  if (Number.isNaN(bd.getTime())) return false;
+  const today = new Date();
+  let age = today.getFullYear() - bd.getFullYear();
+  const m = today.getMonth() - bd.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < bd.getDate())) age--;
+  return age < 18;
+}
+
 // Pull + normalize the patient fields from a submitted form.
 function readForm(body) {
-  const isMinor = body.is_minor === "on" || body.is_minor === "true";
+  const birthdate = body.birthdate || null;
   return {
     full_name: (body.full_name || "").trim(),
-    birthdate: body.birthdate || null,
+    birthdate,
     sex: body.sex || null,
     address: (body.address || "").trim() || null,
     contact_number: (body.contact_number || "").trim() || null,
     email: (body.email || "").trim().toLowerCase() || null,
+    family_number: (body.family_number || "").trim() || null,
     family_contact_name: (body.family_contact_name || "").trim() || null,
     family_contact_relation: (body.family_contact_relation || "").trim() || null,
     family_contact_number: (body.family_contact_number || "").trim() || null,
     family_email: (body.family_email || "").trim().toLowerCase() || null,
-    is_minor: isMinor,
+    is_minor: calcIsMinor(birthdate),
     guardian_name: (body.guardian_name || "").trim() || null,
     guardian_consent: body.guardian_consent === "on" || body.guardian_consent === "true",
+    privacy_consent: body.privacy_consent === "on" || body.privacy_consent === "true",
   };
 }
 
@@ -65,10 +82,13 @@ function validate(p) {
     if (!p.guardian_name) errors.push("Guardian name is required for a minor.");
     if (!p.guardian_consent)
       errors.push("Guardian consent must be recorded for a minor.");
+  } else {
+    // Only the head of household needs a reachable contact number (panel note) —
+    // minors can be registered under a family/household number instead.
+    if (!p.contact_number && !p.family_contact_number)
+      errors.push("Provide a contact number (patient or family contact).");
   }
-  // Must be reachable somehow (patient phone OR a family contact number).
-  if (!p.contact_number && !p.family_contact_number)
-    errors.push("Provide a contact number (patient or family contact).");
+  if (!p.privacy_consent) errors.push("Data privacy consent must be recorded.");
   return errors;
 }
 
@@ -135,17 +155,18 @@ router.post("/patients", async (req, res, next) => {
     const { rows } = await db.query(
       `INSERT INTO patients
          (patient_number, full_name, birthdate, sex, address, contact_number, email,
-          family_contact_name, family_contact_relation, family_contact_number, family_email,
-          is_minor, guardian_name, guardian_consent, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+          family_number, family_contact_name, family_contact_relation, family_contact_number, family_email,
+          is_minor, guardian_name, guardian_consent, privacy_consent, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
        RETURNING patient_id`,
       [
         patient_number, p.full_name, p.birthdate, p.sex, p.address,
-        p.contact_number, p.email, p.family_contact_name, p.family_contact_relation,
+        p.contact_number, p.email, p.family_number, p.family_contact_name, p.family_contact_relation,
         p.family_contact_number, p.family_email, p.is_minor, p.guardian_name,
-        p.guardian_consent, req.session.user.user_id,
+        p.guardian_consent, p.privacy_consent, req.session.user.user_id,
       ]
     );
+    audit.log(req.session.user.user_id, "create", "patient", rows[0].patient_id, p.full_name);
     res.redirect(`/patients/${rows[0].patient_id}`);
   } catch (e) {
     next(e);
@@ -256,18 +277,45 @@ router.post("/patients/:id", async (req, res, next) => {
     const { rowCount } = await db.query(
       `UPDATE patients SET
          full_name=$1, birthdate=$2, sex=$3, address=$4, contact_number=$5, email=$6,
-         family_contact_name=$7, family_contact_relation=$8, family_contact_number=$9,
-         family_email=$10, is_minor=$11, guardian_name=$12, guardian_consent=$13, updated_at=now()
-       WHERE patient_id=$14`,
+         family_number=$7, family_contact_name=$8, family_contact_relation=$9, family_contact_number=$10,
+         family_email=$11, is_minor=$12, guardian_name=$13, guardian_consent=$14, privacy_consent=$15, updated_at=now()
+       WHERE patient_id=$16`,
       [
         p.full_name, p.birthdate, p.sex, p.address, p.contact_number, p.email,
-        p.family_contact_name, p.family_contact_relation, p.family_contact_number,
-        p.family_email, p.is_minor, p.guardian_name, p.guardian_consent, req.params.id,
+        p.family_number, p.family_contact_name, p.family_contact_relation, p.family_contact_number,
+        p.family_email, p.is_minor, p.guardian_name, p.guardian_consent, p.privacy_consent, req.params.id,
       ]
     );
     if (!rowCount) return next();
+    audit.log(req.session.user.user_id, "update", "patient", req.params.id, p.full_name);
     res.redirect(`/patients/${req.params.id}`);
   } catch (e) {
+    next(e);
+  }
+});
+
+// ---- DELETE  POST /patients/:id/delete (admin only) -------------------------
+// FK ON DELETE CASCADE (appointments, patient_accounts, visits) means this
+// removes every record tied to the patient, not just the patients row.
+router.post("/patients/:id/delete", requireRole("admin"), async (req, res, next) => {
+  try {
+    const { rows } = await db.query(
+      "DELETE FROM patients WHERE patient_id=$1 RETURNING full_name",
+      [req.params.id]
+    );
+    if (!rows[0]) return next();
+    audit.log(req.session.user.user_id, "delete", "patient", req.params.id, rows[0].full_name);
+    res.redirect("/patients");
+  } catch (e) {
+    // medicine_dispenses has no ON DELETE CASCADE (medicine history is kept on
+    // purpose) — a patient with dispense records can't be hard-deleted.
+    if (e.code === "23503") {
+      return res.redirect(
+        `/patients/${req.params.id}?acct_err=${encodeURIComponent(
+          "This patient has medicine dispense history and can't be deleted."
+        )}`
+      );
+    }
     next(e);
   }
 });

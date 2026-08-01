@@ -42,18 +42,6 @@ function genCode() {
   return s;
 }
 
-// Next `count` calendar dates (starting tomorrow) that fall on a service's
-// fixed weekday — powers the booking form's date dropdown.
-function nextServiceDates(scheduleDay, count = 4) {
-  const dates = [];
-  let d = F.addDays(F.manilaToday(), 1);
-  for (let i = 0; i < BOOKING_HORIZON && dates.length < count; i++) {
-    if (F.weekdayName(d) === scheduleDay) dates.push(d);
-    d = F.addDays(d, 1);
-  }
-  return dates;
-}
-
 // ---- LOGIN ------------------------------------------------------------------
 router.get("/portal/login", (req, res) => {
   if (req.session.patient) return res.redirect("/portal");
@@ -281,15 +269,6 @@ router.get("/portal", requirePatient, async (req, res, next) => {
       .filter((a) => a.status === "scheduled" && a.appointment_date >= today)
       .sort((a, b) => (a.appointment_date < b.appointment_date ? -1 : 1));
 
-    // Booking choices: the next 4 valid dates per service.
-    const bookOptions = services.rows.map((s) => ({
-      service_id: s.service_id,
-      name: s.name,
-      schedule_day: s.schedule_day,
-      description: s.description,
-      dates: nextServiceDates(s.schedule_day),
-    }));
-
     res.render("portal/home", {
       title: "My clinic portal · Sampaguita HC",
       layout: "portal-layout",
@@ -298,7 +277,9 @@ router.get("/portal", requirePatient, async (req, res, next) => {
       appointments: apptsQ.rows,
       upcoming,
       visits: visitsQ.rows,
-      bookOptions,
+      bookOptions: services.rows,
+      minBookDate: F.addDays(today, 1),
+      maxBookDate: F.addDays(today, BOOKING_HORIZON),
       canBookMore: upcoming.length < MAX_OPEN_BOOKINGS,
       maxOpen: MAX_OPEN_BOOKINGS,
       flash: {
@@ -334,7 +315,7 @@ router.post("/portal/book", requirePatient, async (req, res, next) => {
     const notes = (req.body.notes || "").trim().slice(0, 255) || null;
 
     const svcQ = await db.query(
-      "SELECT name, schedule_day FROM services WHERE service_id = $1", [service_id]
+      "SELECT name FROM services WHERE service_id = $1", [service_id]
     );
     const svc = svcQ.rows[0];
     const today = F.manilaToday();
@@ -343,9 +324,6 @@ router.post("/portal/book", requirePatient, async (req, res, next) => {
     if (!isDate(date)) return oops("Choose a date.");
     if (date <= today) return oops("Online booking starts from tomorrow — for today, please walk in.");
     if (date > F.addDays(today, BOOKING_HORIZON)) return oops("That date is too far ahead.");
-    if (F.weekdayName(date) !== svc.schedule_day) {
-      return oops(`${F.prettyService(svc.name)} is held on ${svc.schedule_day}s — please pick one of the listed dates.`);
-    }
 
     const dup = await db.query(
       `SELECT 1 FROM appointments

@@ -15,6 +15,7 @@
 -- ============================================================================
 
 -- Clean start (safe to re-run during development). Order matters (children first).
+DROP TABLE IF EXISTS audit_log          CASCADE;
 DROP TABLE IF EXISTS notifications      CASCADE;
 DROP TABLE IF EXISTS immunization_records CASCADE;
 DROP TABLE IF EXISTS medicine_dispenses CASCADE;
@@ -64,6 +65,10 @@ CREATE TABLE patients (
     is_minor                BOOLEAN NOT NULL DEFAULT false,
     guardian_name           VARCHAR(150),
     guardian_consent        BOOLEAN NOT NULL DEFAULT false,
+
+    -- household grouping + Data Privacy Act disclosure (v1 update)
+    family_number           VARCHAR(30),
+    privacy_consent         BOOLEAN NOT NULL DEFAULT false,
 
     created_by              INTEGER REFERENCES users(user_id),
     created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -197,6 +202,21 @@ CREATE TABLE notifications (
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_notifications_status ON notifications (status);
+
+CREATE INDEX idx_patients_family_number ON patients (family_number);
+
+
+-- 11) AUDIT_LOG — who did what, when (role accountability, panel requirement) ----
+CREATE TABLE audit_log (
+    audit_id     SERIAL PRIMARY KEY,
+    user_id      INTEGER REFERENCES users(user_id),
+    action       VARCHAR(40) NOT NULL,
+    entity_type  VARCHAR(30),
+    entity_id    INTEGER,
+    details      VARCHAR(255),
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_audit_log_created ON audit_log (created_at DESC);
 
 
 -- ---- Seed the 3 services so the app has something to point at -----------------

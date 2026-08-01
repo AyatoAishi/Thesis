@@ -6,6 +6,7 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const db = require("../db");
+const audit = require("../lib/audit");
 
 const router = express.Router();
 
@@ -60,6 +61,8 @@ router.post("/login", async (req, res) => {
       role: u.role,
     };
 
+    audit.log(u.user_id, "login", "user", u.user_id, `${u.username} signed in`);
+
     const dest = req.session.returnTo || "/";
     delete req.session.returnTo;
     res.redirect(dest);
@@ -71,6 +74,8 @@ router.post("/login", async (req, res) => {
 
 // ---- POST /logout ----------------------------------------------------------
 router.post("/logout", (req, res) => {
+  const u = req.session.user;
+  if (u) audit.log(u.user_id, "logout", "user", u.user_id, `${u.username} signed out`);
   req.session.destroy(() => {
     res.clearCookie("connect.sid");
     res.redirect("/login");

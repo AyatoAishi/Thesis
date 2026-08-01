@@ -1,0 +1,41 @@
+<div class="page-head">
+  <h1>My account</h1>
+  <div class="sub"><%= user.username %> · <%= user.role %></div>
+</div>
+
+<% if (notice) { %>
+  <div class="card" style="border-color:#bfe3c9;background:var(--ok-bg,#eefbf2)"><%= notice %></div>
+<% } %>
+<% if (errors && errors.length) { %>
+  <div class="card" style="border-color:#f3c9cb;background:var(--bad-bg)">
+    <ul style="margin:0;color:var(--bad-ink);font-size:13px">
+      <% errors.forEach(e => { %><li><%= e %></li><% }) %>
+    </ul>
+  </div>
+<% } %>
+
+<div class="card">
+  <div class="panel-title" style="margin-bottom:14px">Update profile</div>
+  <form method="POST" action="/account/profile" class="form-grid">
+    <label class="field"><span>Full name</span>
+      <input type="text" name="full_name" value="<%= user.full_name %>" required />
+    </label>
+    <button type="submit" class="btn" style="align-self:flex-end">Save</button>
+  </form>
+</div>
+
+<div class="card">
+  <div class="panel-title" style="margin-bottom:14px">Change password</div>
+  <form method="POST" action="/account/password" class="form-grid">
+    <label class="field"><span>Current password</span>
+      <input type="password" name="current_password" required />
+    </label>
+    <label class="field"><span>New password</span>
+      <input type="password" name="new_password" minlength="8" required />
+    </label>
+    <label class="field"><span>Confirm new password</span>
+      <input type="password" name="confirm_password" minlength="8" required />
+    </label>
+    <button type="submit" class="btn" style="align-self:flex-end">Change password</button>
+  </form>
+</div>

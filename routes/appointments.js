@@ -3,8 +3,8 @@
 // Behind requireLogin (mounted after the gate in server.js).
 //
 // Domain rules enforced here:
-//   - Each service runs on a fixed weekday (services.schedule_day). A booking's
-//     date must fall on that weekday.
+//   - Services are just a category (v1 update) — no fixed weekday. Staff/patients
+//     pick the service and the date independently.
 //   - No double-booking the same patient for the same service on the same date.
 //   - No booking in the past.
 // The daily schedule is the view staff use every clinic day, and is what the
@@ -42,15 +42,8 @@ function validateAppt(body, services) {
 
   if (isDate(date) && date < F.manilaToday()) errors.push("That date is in the past.");
 
-  const svc = services.find((s) => s.service_id === service_id);
-  if (svc && isDate(date) && svc.schedule_day) {
-    const wname = F.weekdayName(date);
-    if (wname !== svc.schedule_day) {
-      errors.push(
-        `${F.prettyService(svc.name)} is held on ${svc.schedule_day}s — ${date} is a ${wname}.`
-      );
-    }
-  }
+  // Services are no longer locked to a fixed weekday (v1 update) — staff choose
+  // the service and the date independently.
   return { errors, value: { patient_id, service_id, date, time, notes } };
 }
 
@@ -105,17 +98,13 @@ router.get("/appointments", async (req, res, next) => {
       [date]
     );
 
-    // Build sections: every service scheduled on this weekday (even if empty),
-    // plus any service that actually has a booking on this date.
-    const wname = F.weekdayName(date);
+    // Build sections: one per service that actually has a booking on this date
+    // (services no longer map to a fixed weekday — v1 update).
     const byId = new Map();
     const section = (id, name, day) => {
       if (!byId.has(id)) byId.set(id, { service_id: id, name, day, items: [] });
       return byId.get(id);
     };
-    services.forEach((s) => {
-      if (s.schedule_day === wname) section(s.service_id, s.name, s.schedule_day);
-    });
     rows.forEach((r) => section(r.service_id, r.service_name, r.schedule_day).items.push(r));
     const groups = [...byId.values()].sort((a, b) => a.service_id - b.service_id);
 

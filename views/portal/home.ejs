@@ -49,7 +49,7 @@
 <div class="card">
   <div class="panel-title" style="margin-bottom:4px">Book an appointment</div>
   <p class="muted" style="margin:0 0 14px;font-size:13px">
-    Each service has a fixed clinic day — pick a service and choose from its upcoming dates.
+    Pick a service and any available date.
   </p>
   <% if (!canBookMore) { %>
     <p class="muted" style="margin:0">You already have <%= maxOpen %> upcoming appointments — cancel one below to book another.</p>
@@ -59,14 +59,15 @@
       <label class="field">
         <span>Service</span>
         <select name="service_id" id="bk-service" required>
-          <% bookOptions.forEach((s, i) => { %>
-            <option value="<%= s.service_id %>"><%= pretty(s.name) %> (every <%= s.schedule_day %>)</option>
+          <% bookOptions.forEach((s) => { %>
+            <option value="<%= s.service_id %>"><%= pretty(s.name) %></option>
           <% }) %>
         </select>
       </label>
       <label class="field">
         <span>Date</span>
-        <select name="appointment_date" id="bk-date" required></select>
+        <input type="date" name="appointment_date" id="bk-date" required
+               min="<%= minBookDate %>" max="<%= maxBookDate %>" />
       </label>
       <label class="field" style="grid-column:1/-1">
         <span>Note for the clinic <span class="muted">(optional)</span></span>
@@ -75,25 +76,6 @@
     </div>
     <button type="submit" class="btn" style="align-self:flex-start">Book appointment</button>
   </form>
-  <script>
-    // Swap the date choices when the service changes (server re-validates anyway).
-    (function () {
-      var DATA = <%- JSON.stringify(bookOptions.map(s => ({ id: String(s.service_id), dates: s.dates, labels: s.dates.map(d => longDate(d)) }))) %>;
-      var svc = document.getElementById("bk-service");
-      var dt = document.getElementById("bk-date");
-      function fill() {
-        var row = DATA.find(function (r) { return r.id === svc.value; }) || DATA[0];
-        dt.innerHTML = "";
-        row.dates.forEach(function (d, i) {
-          var o = document.createElement("option");
-          o.value = d; o.textContent = row.labels[i];
-          dt.appendChild(o);
-        });
-      }
-      svc.addEventListener("change", fill);
-      fill();
-    })();
-  </script>
   <% } %>
 </div>
 <% } %>

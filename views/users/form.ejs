@@ -1,0 +1,40 @@
+<div class="page-head">
+  <h1>Add staff</h1>
+  <div class="sub"><a href="/admin/users" class="back-link">← Back to staff accounts</a></div>
+</div>
+
+<% if (errors && errors.length) { %>
+  <div class="card" style="border-color:#f3c9cb;background:var(--bad-bg)">
+    <ul style="margin:0;color:var(--bad-ink);font-size:13px">
+      <% errors.forEach(e => { %><li><%= e %></li><% }) %>
+    </ul>
+  </div>
+<% } %>
+
+<form method="POST" action="/admin/users">
+  <div class="card">
+    <div class="form-grid">
+      <label class="field"><span>Full name *</span>
+        <input type="text" name="full_name" value="<%= values.full_name || '' %>" required />
+      </label>
+      <label class="field"><span>Username *</span>
+        <input type="text" name="username" value="<%= values.username || '' %>" placeholder="lowercase, no spaces" required />
+      </label>
+      <label class="field"><span>Email <span class="muted">(optional)</span></span>
+        <input type="email" name="email" value="<%= values.email || '' %>" />
+      </label>
+      <label class="field"><span>Role *</span>
+        <select name="role" required>
+          <option value="">— choose —</option>
+          <% roles.forEach(r => { %>
+            <option value="<%= r %>" <%= values.role === r ? "selected" : "" %>><%= r %></option>
+          <% }) %>
+        </select>
+      </label>
+      <label class="field"><span>Temporary password *</span>
+        <input type="password" name="password" minlength="8" required />
+      </label>
+    </div>
+  </div>
+  <button type="submit" class="btn">Create staff account</button>
+</form>

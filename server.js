@@ -20,6 +20,8 @@ const inventoryRoutes = require("./routes/inventory");
 const reportRoutes = require("./routes/reports");
 const portalRoutes = require("./routes/portal");
 const portalAccountRoutes = require("./routes/portalAccounts");
+const accountRoutes = require("./routes/account");
+const userRoutes = require("./routes/users");
 const reminders = require("./services/reminders");
 const { requireLogin } = require("./middleware/auth");
 const F = require("./lib/format");
@@ -105,6 +107,21 @@ app.use("/", portalRoutes);
 // Everything below here requires a signed-in staff user.
 app.use(requireLogin);
 
+// Real "today" stat for the topbar pill (services no longer map to a fixed
+// weekday, so the old day-name lookup was showing a made-up service).
+app.use(async (req, res, next) => {
+  try {
+    const { rows } = await db.query(
+      "SELECT count(*)::int n FROM appointments WHERE appointment_date=$1",
+      [F.manilaToday()]
+    );
+    res.locals.todayApptCount = rows[0].n;
+  } catch (_) {
+    res.locals.todayApptCount = null;
+  }
+  next();
+});
+
 // Feature routes
 app.use("/", patientRoutes);
 app.use("/", appointmentRoutes);
@@ -112,6 +129,8 @@ app.use("/", reminderRoutes);
 app.use("/", inventoryRoutes);
 app.use("/", reportRoutes);
 app.use("/", portalAccountRoutes);
+app.use("/", accountRoutes);
+app.use("/", userRoutes);
 
 // Dashboard — live setup checklist + real stats (best-effort if DB is up)
 app.get("/", async (req, res) => {

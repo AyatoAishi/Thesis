@@ -21,7 +21,13 @@
   <div style="display:flex;gap:8px">
     <a class="mini-btn" href="/reports/export/patient/<%= p.patient_id %>" target="_blank" rel="noopener">Export PDF</a>
     <a class="btn" href="/patients/<%= p.patient_id %>/edit">Edit</a>
-    <a class="logout-btn" href="/patients" style="display:inline-flex;align-items:center;text-decoration:none">Back</a>
+    <% if (typeof user !== "undefined" && user && user.role === "admin") { %>
+      <form method="POST" action="/patients/<%= p.patient_id %>/delete"
+            onsubmit="return confirm('Permanently delete this patient and all linked records? This cannot be undone.');">
+        <button type="submit" class="logout-btn">Delete</button>
+      </form>
+    <% } %>
+    <a class="back-link" href="/patients" style="display:inline-flex;align-items:center">Back</a>
   </div>
 </div>
 
@@ -32,6 +38,11 @@
     <div><dt>Birthdate</dt><dd><%= fmt(p.birthdate) %><%= a !== null ? ` (${a} yrs)` : "" %></dd></div>
     <div><dt>Patient contact</dt><dd><%= p.contact_number || "—" %></dd></div>
     <div><dt>Email</dt><dd><%= p.email || "—" %></dd></div>
+    <div><dt>Family / household #</dt><dd><%= p.family_number || "—" %></dd></div>
+    <div><dt>Privacy consent</dt><dd>
+      <% if (p.privacy_consent) { %><span class="badge ok">Recorded</span>
+      <% } else { %><span class="badge bad">Missing</span><% } %>
+    </dd></div>
     <div style="grid-column:1/-1"><dt>Address</dt><dd><%= p.address || "—" %></dd></div>
   </dl>
 </div>

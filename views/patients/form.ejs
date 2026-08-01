@@ -6,7 +6,7 @@
 %>
 <div class="page-head">
   <h1><%= isEdit ? "Edit patient" : "Add patient" %></h1>
-  <div class="sub"><a href="/patients" class="muted">← Back to patients</a></div>
+  <div class="sub"><a href="/patients" class="back-link">← Back to patients</a></div>
 </div>
 
 <% if (errors && errors.length) { %>
@@ -41,6 +41,9 @@
       <label class="field"><span>Patient email <span class="muted">(for reminders)</span></span>
         <input type="email" name="email" value="<%= p.email || '' %>" placeholder="name@gmail.com" />
       </label>
+      <label class="field"><span>Family / household #<span class="muted"> (optional — groups relatives together)</span></span>
+        <input type="text" name="family_number" value="<%= p.family_number || '' %>" placeholder="e.g. FAM-0001" />
+      </label>
       <label class="field" style="grid-column:1/-1"><span>Address</span>
         <input type="text" name="address" value="<%= p.address || '' %>" />
       </label>
@@ -48,7 +51,7 @@
   </div>
 
   <div class="card">
-    <div class="panel-title" style="margin-bottom:6px">Family contact <span class="muted">(used if the patient has no phone)</span></div>
+    <div class="panel-title" style="margin-bottom:6px">Emergency / family contact <span class="muted">(required if the patient has no phone of their own)</span></div>
     <div class="form-grid">
       <label class="field"><span>Name</span>
         <input type="text" name="family_contact_name" value="<%= p.family_contact_name || '' %>" />
@@ -59,19 +62,18 @@
       <label class="field"><span>Contact #</span>
         <input type="text" name="family_contact_number" value="<%= p.family_contact_number || '' %>" placeholder="09xxxxxxxxx" />
       </label>
-      <label class="field"><span>Email <span class="muted">(fallback for reminders)</span></span>
+      <label class="field"><span>Emergency contact email <span class="muted">(optional)</span></span>
         <input type="email" name="family_email" value="<%= p.family_email || '' %>" placeholder="name@gmail.com" />
       </label>
     </div>
   </div>
 
   <div class="card">
-    <label class="check">
-      <input type="checkbox" name="is_minor" data-minor-toggle <%= p.is_minor ? 'checked' : '' %> />
-      <span>Patient is a <b>minor</b> (under 18)</span>
-    </label>
-
-    <div class="minor-fields" data-minor-fields style="<%= p.is_minor ? '' : 'display:none' %>;margin-top:14px">
+    <div class="panel-title" style="margin-bottom:4px">Guardian details</div>
+    <p class="muted" style="margin:0 0 10px;font-size:13px" data-minor-note>
+      Minor status is calculated automatically from the birthdate above.
+    </p>
+    <div class="minor-fields" data-minor-fields style="<%= p.is_minor ? '' : 'display:none' %>">
       <div class="form-grid">
         <label class="field"><span>Guardian name *</span>
           <input type="text" name="guardian_name" value="<%= p.guardian_name || '' %>" />
@@ -84,16 +86,35 @@
     </div>
   </div>
 
+  <div class="card">
+    <label class="check">
+      <input type="checkbox" name="privacy_consent" required <%= p.privacy_consent ? 'checked' : '' %> />
+      <span>Patient (or guardian) agrees to the clinic's <b>data privacy disclosure</b> — records are collected and stored per RA 10173. *</span>
+    </label>
+  </div>
+
   <button type="submit" class="btn"><%= isEdit ? "Save changes" : "Create patient" %></button>
 </form>
 
 <script>
-  // Show/hide guardian fields when "minor" is toggled.
+  // Show/hide guardian fields as soon as the birthdate implies "under 18"
+  // (the server is the source of truth — this is just for a smoother form).
   (function () {
-    var box = document.querySelector("[data-minor-toggle]");
+    var bdInput = document.querySelector('input[name="birthdate"]');
     var fields = document.querySelector("[data-minor-fields]");
-    if (box && fields) box.addEventListener("change", function () {
-      fields.style.display = box.checked ? "" : "none";
-    });
+    function isMinor(dateStr) {
+      if (!dateStr) return false;
+      var bd = new Date(dateStr + "T00:00:00");
+      var today = new Date();
+      var age = today.getFullYear() - bd.getFullYear();
+      var m = today.getMonth() - bd.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < bd.getDate())) age--;
+      return age < 18;
+    }
+    function sync() {
+      if (bdInput && fields) fields.style.display = isMinor(bdInput.value) ? "" : "none";
+    }
+    if (bdInput) bdInput.addEventListener("change", sync);
+    sync();
   })();
 </script>

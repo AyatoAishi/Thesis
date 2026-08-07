@@ -182,6 +182,7 @@ CREATE TABLE immunization_records (
     status          VARCHAR(12) NOT NULL DEFAULT 'scheduled'
                     CHECK (status IN ('scheduled','given','missed')),
     administered_by INTEGER REFERENCES users(user_id),
+    remarks         VARCHAR(255),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

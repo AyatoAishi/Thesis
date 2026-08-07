@@ -22,6 +22,7 @@ const portalRoutes = require("./routes/portal");
 const portalAccountRoutes = require("./routes/portalAccounts");
 const accountRoutes = require("./routes/account");
 const userRoutes = require("./routes/users");
+const immunizationRoutes = require("./routes/immunization");
 const reminders = require("./services/reminders");
 const { requireLogin } = require("./middleware/auth");
 const F = require("./lib/format");
@@ -131,6 +132,7 @@ app.use("/", reportRoutes);
 app.use("/", portalAccountRoutes);
 app.use("/", accountRoutes);
 app.use("/", userRoutes);
+app.use("/", immunizationRoutes);
 
 // Dashboard — live setup checklist + real stats (best-effort if DB is up)
 app.get("/", async (req, res) => {

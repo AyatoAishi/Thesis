@@ -1,0 +1,90 @@
+<%
+  function fmtDate(d) { return d ? new Date(d).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "—"; }
+  const CATS = [
+    ["infant", "Infant"],
+    ["school", "School-aged children"],
+    ["senior", "Senior citizen"],
+  ];
+%>
+<div class="page-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+  <div>
+    <h1><%= patient.full_name %> — Immunization</h1>
+    <div class="sub mono"><%= patient.patient_number %></div>
+  </div>
+  <div style="display:flex;gap:8px">
+    <a class="mini-btn" href="/patients/<%= patient.patient_id %>/immunization/export" target="_blank" rel="noopener">Export PDF</a>
+    <a class="btn" href="/patients/<%= patient.patient_id %>/immunization/new">+ Record a dose</a>
+    <a class="back-link" href="/patients/<%= patient.patient_id %>" style="display:inline-flex;align-items:center">Back to patient</a>
+  </div>
+</div>
+
+<% if (flash) { %>
+  <div class="card" style="background:var(--accent-softer);border-color:var(--accent-soft)"><%= flash %></div>
+<% } %>
+
+<% CATS.forEach(([catKey, catLabel]) => { %>
+  <% const rows = schedule.filter(v => v.category === catKey); %>
+  <% if (rows.length) { %>
+    <div class="card">
+      <div class="panel-title" style="margin-bottom:12px"><%= catLabel %></div>
+      <table class="tbl">
+        <thead><tr><th>Vaccine</th><th>Schedule</th><th>Doses</th></tr></thead>
+        <tbody>
+          <% rows.forEach(v => { %>
+            <tr>
+              <td><%= v.name %></td>
+              <td class="muted"><%= v.schedule %></td>
+              <td>
+                <div style="display:flex;gap:10px;flex-wrap:wrap">
+                  <% v.doseSlots.forEach(slot => { %>
+                    <% if (slot.given) { %>
+                      <span class="badge ok" title="<%= slot.remarks || '' %>">
+                        Dose <%= slot.doseNumber %>: <%= fmtDate(slot.date) %>
+                      </span>
+                      <form method="POST" action="/patients/<%= patient.patient_id %>/immunization/<%= slot.imm_id %>/delete"
+                            onsubmit="return confirm('Remove this dose record?');" style="display:inline">
+                        <button type="submit" class="mini-btn" style="padding:2px 8px;font-size:11px">Undo</button>
+                      </form>
+                    <% } else { %>
+                      <a class="mini-btn" style="padding:2px 8px;font-size:11px"
+                         href="/patients/<%= patient.patient_id %>/immunization/new?vaccine=<%= encodeURIComponent(v.name) %>&dose=<%= slot.doseNumber %>">
+                        Dose <%= slot.doseNumber %>: Record
+                      </a>
+                    <% } %>
+                  <% }) %>
+                </div>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+<% }) %>
+
+<div class="card">
+  <div class="panel-title" style="margin-bottom:12px">Other vaccines given</div>
+  <% if (!other.length) { %>
+    <p class="muted" style="margin:0">None recorded. Use <b>+ Record a dose</b> and choose "Other" for anything not on the standard schedule above.</p>
+  <% } else { %>
+    <table class="tbl">
+      <thead><tr><th>Vaccine</th><th>Dose</th><th>Date given</th><th>Remarks</th><th></th></tr></thead>
+      <tbody>
+        <% other.forEach(r => { %>
+          <tr>
+            <td><%= r.vaccine_name %></td>
+            <td><%= r.dose_number %></td>
+            <td><%= fmtDate(r.given_date) %></td>
+            <td class="muted"><%= r.remarks || "—" %></td>
+            <td style="text-align:right">
+              <form method="POST" action="/patients/<%= patient.patient_id %>/immunization/<%= r.imm_id %>/delete"
+                    onsubmit="return confirm('Remove this dose record?');">
+                <button type="submit" class="mini-btn">Undo</button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>

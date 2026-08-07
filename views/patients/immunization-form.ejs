@@ -1,0 +1,61 @@
+<div class="page-head">
+  <h1>Record a dose</h1>
+  <div class="sub"><a href="/patients/<%= patient.patient_id %>/immunization" class="back-link">← Back to immunization record</a></div>
+</div>
+
+<% if (errors && errors.length) { %>
+  <div class="card" style="border-color:#f3c9cb;background:var(--bad-bg)">
+    <b style="color:var(--bad-ink)">Please fix:</b>
+    <ul style="margin:8px 0 0;color:var(--bad-ink);font-size:13px">
+      <% errors.forEach(e => { %><li><%= e %></li><% }) %>
+    </ul>
+  </div>
+<% } %>
+
+<form method="POST" action="/patients/<%= patient.patient_id %>/immunization">
+  <div class="card">
+    <div class="panel-title" style="margin-bottom:14px"><%= patient.full_name %></div>
+    <div class="form-grid">
+      <label class="field" style="grid-column:1/-1"><span>Vaccine *</span>
+        <select name="vaccine_name" id="vaccineSelect" required>
+          <option value="">— choose —</option>
+          <% vaccines.forEach(v => { %>
+            <option value="<%= v.name %>" <%= values.vaccine_name === v.name ? 'selected' : '' %>><%= v.name %> (<%= v.schedule %>)</option>
+          <% }) %>
+          <option value="__other__" <%= values.vaccine_name && !vaccines.some(v => v.name === values.vaccine_name) ? 'selected' : '' %>>Other (type below)</option>
+        </select>
+      </label>
+
+      <label class="field" style="grid-column:1/-1" id="otherNameField" <%= values.vaccine_name === "__other__" || (values.vaccine_name && !vaccines.some(v => v.name === values.vaccine_name)) ? '' : 'hidden' %>>
+        <span>Vaccine name</span>
+        <input type="text" name="other_vaccine_name" value="<%= vaccines.some(v => v.name === values.vaccine_name) ? '' : values.vaccine_name %>" placeholder="e.g. Yellow Fever Vaccine" />
+      </label>
+
+      <label class="field"><span>Dose number *</span>
+        <input type="number" name="dose_number" id="doseNumber" min="1" step="1" value="<%= values.dose_number || 1 %>" required />
+      </label>
+
+      <label class="field"><span>Date given *</span>
+        <input type="date" name="given_date" value="<%= values.given_date %>" max="<%= new Date().toISOString().slice(0,10) %>" required />
+      </label>
+
+      <label class="field" style="grid-column:1/-1"><span>Remarks <span class="muted">(optional)</span></span>
+        <input type="text" name="remarks" value="<%= values.remarks || '' %>" maxlength="255" placeholder="e.g. mild fever after, given at RHU" />
+      </label>
+    </div>
+  </div>
+
+  <button type="submit" class="btn">Record dose</button>
+</form>
+
+<script>
+  (function () {
+    var select = document.getElementById("vaccineSelect");
+    var otherField = document.getElementById("otherNameField");
+    if (select && otherField) {
+      select.addEventListener("change", function () {
+        otherField.hidden = select.value !== "__other__";
+      });
+    }
+  })();
+</script>

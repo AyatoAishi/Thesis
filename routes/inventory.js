@@ -39,6 +39,7 @@ function readMedicineForm(body) {
     low_stock_threshold: toInt(body.low_stock_threshold, 10),
     source: (body.source || "").trim() || null,
     requires_doctor_approval: body.requires_doctor_approval === "on" || body.requires_doctor_approval === "true",
+    is_family_planning: body.is_family_planning === "on" || body.is_family_planning === "true",
   };
 }
 
@@ -126,7 +127,7 @@ router.get("/inventory", async (req, res, next) => {
     const [{ rows }, totalQ, lowQ, pendingQ] = await Promise.all([
       db.query(
         `SELECT medicine_id, name, description, unit, dosage, stock_quantity, low_stock_threshold,
-                source, requires_doctor_approval
+                source, requires_doctor_approval, is_family_planning
            FROM medicines ${where}
           ORDER BY name LIMIT 500`,
         params
@@ -211,10 +212,10 @@ router.post("/inventory", async (req, res, next) => {
     }
     const { rows } = await db.query(
       `INSERT INTO medicines
-         (name, description, unit, dosage, stock_quantity, low_stock_threshold, source, requires_doctor_approval)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+         (name, description, unit, dosage, stock_quantity, low_stock_threshold, source, requires_doctor_approval, is_family_planning)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
        RETURNING medicine_id`,
-      [m.name, m.description, m.unit, m.dosage, m.stock_quantity, m.low_stock_threshold, m.source, m.requires_doctor_approval]
+      [m.name, m.description, m.unit, m.dosage, m.stock_quantity, m.low_stock_threshold, m.source, m.requires_doctor_approval, m.is_family_planning]
     );
     res.redirect(`/inventory/${rows[0].medicine_id}`);
   } catch (e) {
@@ -522,9 +523,9 @@ router.post("/inventory/:id", async (req, res, next) => {
     const { rowCount } = await db.query(
       `UPDATE medicines SET
          name=$1, description=$2, unit=$3, dosage=$4, stock_quantity=$5, low_stock_threshold=$6,
-         source=$7, requires_doctor_approval=$8, updated_at=now()
-       WHERE medicine_id=$9`,
-      [m.name, m.description, m.unit, m.dosage, m.stock_quantity, m.low_stock_threshold, m.source, m.requires_doctor_approval, req.params.id]
+         source=$7, requires_doctor_approval=$8, is_family_planning=$9, updated_at=now()
+       WHERE medicine_id=$10`,
+      [m.name, m.description, m.unit, m.dosage, m.stock_quantity, m.low_stock_threshold, m.source, m.requires_doctor_approval, m.is_family_planning, req.params.id]
     );
     if (!rowCount) return next();
     res.redirect(`/inventory/${req.params.id}`);

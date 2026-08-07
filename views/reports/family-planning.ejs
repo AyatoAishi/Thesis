@@ -1,0 +1,41 @@
+<div class="page-head" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+  <div>
+    <h1>Reports</h1>
+    <div class="sub">Family planning acceptors</div>
+  </div>
+  <a class="mini-btn" href="/reports/family-planning?from=<%= from %>&to=<%= to %>&format=pdf" target="_blank">Export PDF</a>
+</div>
+
+<div class="card">
+  <%- include("../partials/reports-tabbar", { active: "family-planning", from, to }) %>
+
+  <form method="GET" action="/reports/family-planning" class="form-grid" style="align-items:flex-end;margin-bottom:16px">
+    <%- include("../partials/reports-daterange", { from, to }) %>
+    <div class="field"><button class="btn" type="submit">Apply</button></div>
+  </form>
+
+  <% if (!items.length) { %>
+    <p class="muted" style="padding:8px 2px">
+      No family planning commodities dispensed in this range. Medicines only show up here once they're marked
+      "family planning commodity" under <a href="/inventory">Inventory</a> → Add/Edit medicine.
+    </p>
+  <% } else { %>
+    <div class="sub" style="margin-bottom:10px"><%= acceptorCount %> acceptor<%= acceptorCount === 1 ? "" : "s" %> in this range</div>
+    <table class="tbl">
+      <thead><tr><th>Date</th><th>Name of acceptor</th><th>Age</th><th>Address</th><th>Contact no.</th><th>Commodity received</th><th>Signature</th></tr></thead>
+      <tbody>
+        <% items.forEach(it => { %>
+          <tr>
+            <td><%= longDate(it.date) %></td>
+            <td><a href="/patients/<%= it.patient_id %>"><%= it.patient_name %></a></td>
+            <td><%= it.age %></td>
+            <td><%= it.address || "—" %></td>
+            <td><%= it.contact_number || it.family_contact_number || "—" %></td>
+            <td><%= it.medicine_name %> — <%= it.quantity %> <%= it.unit || "" %></td>
+            <td><%= it.dispensed_by_name || "—" %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>

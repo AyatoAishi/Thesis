@@ -498,6 +498,75 @@ router.get("/reports/senior-citizen", requireRole(...REPORT_ROLES), async (req, 
   }
 });
 
+// ---- FAMILY PLANNING ACCEPTORS  GET /reports/family-planning ---------------
+// Matches the barangay's paper "List of Acceptors" log: date, name, age,
+// address, contact, commodity received, signature. Unlike the senior-citizen
+// medicines, Alyanna's notes don't give a fixed name list for "family
+// planning commodity" — staff mark a medicine as one explicitly (Inventory →
+// Add/Edit medicine → "family planning commodity" checkbox) instead of the
+// report guessing from the name.
+router.get("/reports/family-planning", requireRole(...REPORT_ROLES), async (req, res, next) => {
+  try {
+    const { from, to } = dateRange(req.query);
+    const { rows } = await db.query(
+      `SELECT d.dispensed_at, p.patient_id, p.full_name AS patient_name, p.birthdate,
+              p.address, p.contact_number, p.family_contact_number,
+              m.name AS medicine_name, m.unit, d.quantity,
+              u.full_name AS dispensed_by_name
+         FROM medicine_dispenses d
+         JOIN patients p ON p.patient_id = d.patient_id
+         JOIN medicines m ON m.medicine_id = d.medicine_id
+         LEFT JOIN users u ON u.user_id = d.dispensed_by
+        WHERE d.dispensed_at::date BETWEEN $1 AND $2
+          AND (d.requires_doctor_approval = false OR d.approved_at IS NOT NULL)
+          AND m.is_family_planning = true
+        ORDER BY d.dispensed_at`,
+      [from, to]
+    );
+    const items = rows.map((r) => {
+      const date = manilaDateStr(r.dispensed_at);
+      return { ...r, date, age: ageAt(r.birthdate, date) };
+    });
+    const acceptorCount = new Set(items.map((it) => it.patient_id)).size;
+
+    if (req.query.format === "pdf") {
+      return sendReportPdf(res, `family-planning-${from}_to_${to}.pdf`, {
+        title: "Family planning acceptors",
+        subtitle: `${F.longDate(from)} – ${F.longDate(to)} · ${acceptorCount} acceptor${acceptorCount === 1 ? "" : "s"}`,
+        generatedBy: req.session.user.full_name,
+        sections: [
+          {
+            title: "List of acceptors",
+            headers: ["Date", "Name of acceptor", "Age", "Address", "Contact no.", "Commodity received", "Signature"],
+            rows: items.map((it) => [
+              F.longDate(it.date),
+              it.patient_name,
+              it.age,
+              it.address || "—",
+              it.contact_number || it.family_contact_number || "—",
+              `${it.medicine_name} — ${it.quantity} ${it.unit || ""}`.trim(),
+              it.dispensed_by_name || "—",
+            ]),
+            widths: [55, 95, 25, 105, 70, 100, 45],
+          },
+        ],
+      });
+    }
+
+    res.render("reports/family-planning", {
+      title: "Family planning acceptors · Sampaguita HC",
+      active: "reports",
+      from,
+      to,
+      items,
+      acceptorCount,
+      longDate: F.longDate,
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
 // ---- PDF EXPORT  GET /reports/export/patient/:id ---------------------------
 // Open to any signed-in staff (docs/ARCHITECTURE.md: export = "staff", wider
 // than the analytics pages above).

@@ -15,6 +15,7 @@
   <div>
     <h1><%= m.name %><% if (m.dosage) { %> <span class="muted" style="font-weight:400"><%= m.dosage %></span><% } %>
       <% if (m.requires_doctor_approval) { %><span class="badge warn" style="vertical-align:middle">Doctor approval</span><% } %>
+      <% if (m.is_family_planning) { %><span class="badge info" style="vertical-align:middle">Family planning</span><% } %>
       <% if (low) { %><span class="badge bad" style="vertical-align:middle">Low stock</span><% } %>
     </h1>
     <div class="sub"><%= m.description || " " %></div>

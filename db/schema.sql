@@ -148,6 +148,7 @@ CREATE TABLE medicines (
     low_stock_threshold INTEGER NOT NULL DEFAULT 10, -- flag when stock drops below this
     source              VARCHAR(150),                -- hospital / pharmacy it came from
     requires_doctor_approval BOOLEAN NOT NULL DEFAULT false, -- gates dispensing behind doctor sign-off (M6)
+    is_family_planning  BOOLEAN NOT NULL DEFAULT false, -- feeds the Family Planning Acceptors report
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );

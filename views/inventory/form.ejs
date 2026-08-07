@@ -57,5 +57,15 @@
     </p>
   </div>
 
+  <div class="card">
+    <label class="check">
+      <input type="checkbox" name="is_family_planning" <%= m.is_family_planning ? 'checked' : '' %> />
+      <span>This is a <b>family planning commodity</b> (pills, condoms, injectables, IUD, implant, etc.)</span>
+    </label>
+    <p class="muted" style="font-size:12px;margin:10px 0 0">
+      Included in the Family Planning Acceptors report when dispensed.
+    </p>
+  </div>
+
   <button type="submit" class="btn"><%= isEdit ? "Save changes" : "Create medicine" %></button>
 </form>

@@ -43,6 +43,7 @@
           <tr>
             <td>
               <a href="/inventory/<%= m.medicine_id %>"><%= m.name %></a><% if (m.dosage) { %> <span class="muted"><%= m.dosage %></span><% } %>
+              <% if (m.is_family_planning) { %> <span class="badge info">FP</span><% } %>
               <% if (m.description) { %><div class="muted" style="font-size:11.5px"><%= m.description %></div><% } %>
             </td>
             <td><%= m.unit || "—" %></td>

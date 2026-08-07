@@ -50,6 +50,27 @@ function sendReportPdf(res, filename, { title, subtitle, generatedBy, sections }
   doc.end();
 }
 
+// dispensed_at is a TIMESTAMPTZ — read its calendar date in the clinic's own
+// timezone (like manilaToday() does), so a dispense just after midnight
+// Manila time doesn't get attributed to the wrong day.
+function manilaDateStr(ts) {
+  return new Date(ts).toLocaleDateString("en-CA", { timeZone: F.TZ });
+}
+
+// Age as of a 'YYYY-MM-DD' date, in months if under 1 year (matches how the
+// barangay's paper consumption log records infants — "7mos" rather than "0").
+// birthdate is a DATE column (UTC-midnight Date object, no time-of-day
+// meaning), so UTC getters read it back exactly as stored.
+function ageAt(birthdate, atDateStr) {
+  if (!birthdate) return "—";
+  const bd = new Date(birthdate);
+  const [ay, am, ad] = atDateStr.split("-").map(Number);
+  let months = (ay - bd.getUTCFullYear()) * 12 + (am - 1 - bd.getUTCMonth());
+  if (ad < bd.getUTCDate()) months--;
+  months = Math.max(months, 0);
+  return months < 12 ? `${months} mos` : `${Math.floor(months / 12)}`;
+}
+
 async function loadServices() {
   const { rows } = await db.query("SELECT service_id, name FROM services ORDER BY service_id");
   return rows;
@@ -318,6 +339,69 @@ router.get("/reports/inventory", requireRole(...REPORT_ROLES), async (req, res, 
       to,
       lowStock: lowQ.rows,
       dispensed: dispensedQ.rows,
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ---- CONSUMPTION REPORT  GET /reports/consumption ---------------------------
+// Matches the barangay's existing paper "Consumption Report" log (date, patient,
+// age, medicine + quantity given, signature) so this can replace it directly —
+// same columns, same order. Only counts medicine that actually left the shelf
+// (completed, or approved if it needed doctor sign-off) — a still-pending
+// request was never consumed. Signature is the staff member who dispensed it,
+// the digital equivalent of the pen signature on the paper version.
+router.get("/reports/consumption", requireRole(...REPORT_ROLES), async (req, res, next) => {
+  try {
+    const { from, to } = dateRange(req.query);
+    const { rows } = await db.query(
+      `SELECT d.dispensed_at, p.full_name AS patient_name, p.birthdate,
+              m.name AS medicine_name, m.unit, d.quantity,
+              u.full_name AS dispensed_by_name
+         FROM medicine_dispenses d
+         JOIN patients p ON p.patient_id = d.patient_id
+         JOIN medicines m ON m.medicine_id = d.medicine_id
+         LEFT JOIN users u ON u.user_id = d.dispensed_by
+        WHERE d.dispensed_at::date BETWEEN $1 AND $2
+          AND (d.requires_doctor_approval = false OR d.approved_at IS NOT NULL)
+        ORDER BY d.dispensed_at`,
+      [from, to]
+    );
+    const items = rows.map((r) => {
+      const date = manilaDateStr(r.dispensed_at);
+      return { ...r, date, age: ageAt(r.birthdate, date) };
+    });
+
+    if (req.query.format === "pdf") {
+      return sendReportPdf(res, `consumption-${from}_to_${to}.pdf`, {
+        title: "Consumption report",
+        subtitle: `${F.longDate(from)} – ${F.longDate(to)}`,
+        generatedBy: req.session.user.full_name,
+        sections: [
+          {
+            title: "Medicine given",
+            headers: ["Date", "Name of patient", "Age", "Medicine / quantity given", "Signature"],
+            rows: items.map((it) => [
+              F.longDate(it.date),
+              it.patient_name,
+              it.age,
+              `${it.medicine_name} — ${it.quantity} ${it.unit || ""}`.trim(),
+              it.dispensed_by_name || "—",
+            ]),
+            widths: [75, 140, 45, 175, 60],
+          },
+        ],
+      });
+    }
+
+    res.render("reports/consumption", {
+      title: "Consumption report · Sampaguita HC",
+      active: "reports",
+      from,
+      to,
+      items,
+      longDate: F.longDate,
     });
   } catch (e) {
     next(e);

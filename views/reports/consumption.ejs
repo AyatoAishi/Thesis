@@ -1,0 +1,37 @@
+<div class="page-head" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+  <div>
+    <h1>Reports</h1>
+    <div class="sub">Consumption report</div>
+  </div>
+  <a class="mini-btn" href="/reports/consumption?from=<%= from %>&to=<%= to %>&format=pdf" target="_blank">Export PDF</a>
+</div>
+
+<div class="card">
+  <%- include("../partials/reports-tabbar", { active: "consumption", from, to }) %>
+
+  <form method="GET" action="/reports/consumption" class="form-grid" style="align-items:flex-end;margin-bottom:16px">
+    <%- include("../partials/reports-daterange", { from, to }) %>
+    <div class="field"><button class="btn" type="submit">Apply</button></div>
+  </form>
+
+  <div class="sub" style="margin-bottom:10px"><%= items.length %> medicine<%= items.length === 1 ? "" : "s" %> given in this range</div>
+
+  <% if (!items.length) { %>
+    <p class="muted" style="padding:8px 2px">No medicine dispensed in this range.</p>
+  <% } else { %>
+    <table class="tbl">
+      <thead><tr><th>Date</th><th>Name of patient</th><th>Age</th><th>Medicine / quantity given</th><th>Signature</th></tr></thead>
+      <tbody>
+        <% items.forEach(it => { %>
+          <tr>
+            <td><%= longDate(it.date) %></td>
+            <td><%= it.patient_name %></td>
+            <td><%= it.age %></td>
+            <td><%= it.medicine_name %> — <%= it.quantity %> <%= it.unit || "" %></td>
+            <td><%= it.dispensed_by_name || "—" %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>

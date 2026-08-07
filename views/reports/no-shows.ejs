@@ -1,6 +1,9 @@
-<div class="page-head">
-  <h1>Reports</h1>
-  <div class="sub">No-show list</div>
+<div class="page-head" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+  <div>
+    <h1>Reports</h1>
+    <div class="sub">No-show list</div>
+  </div>
+  <a class="mini-btn" href="/reports/no-shows?from=<%= from %>&to=<%= to %>&service_id=<%= service_id || '' %>&q=<%= encodeURIComponent(q || '') %>&format=pdf" target="_blank">Export PDF</a>
 </div>
 
 <div class="card">

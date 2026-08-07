@@ -14,7 +14,7 @@ const express = require("express");
 const PDFDocument = require("pdfkit");
 const db = require("../db");
 const F = require("../lib/format");
-const { buildPatientRecordPdf } = require("../lib/pdf");
+const { buildPatientRecordPdf, buildReportPdf } = require("../lib/pdf");
 const { requireRole } = require("../middleware/auth");
 
 const router = express.Router();
@@ -37,6 +37,17 @@ function dateRange(query) {
   const to = isDate(query.to) ? query.to : F.manilaToday();
   const from = isDate(query.from) && query.from <= to ? query.from : F.addDays(to, -29);
   return { from, to };
+}
+
+// Streams a report PDF and ends the response — call instead of res.render()
+// when ?format=pdf is present.
+function sendReportPdf(res, filename, { title, subtitle, generatedBy, sections }) {
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
+  const doc = new PDFDocument({ margin: 50, size: "A4", compress: false });
+  doc.pipe(res);
+  buildReportPdf(doc, { title, subtitle, generatedBy, sections });
+  doc.end();
 }
 
 async function loadServices() {
@@ -75,6 +86,32 @@ router.get("/reports/attendance", requireRole(...REPORT_ROLES), async (req, res,
       },
       { scheduled: 0, completed: 0, missed: 0, cancelled: 0, total: 0 }
     );
+
+    if (req.query.format === "pdf") {
+      return sendReportPdf(res, `attendance-${from}_to_${to}.pdf`, {
+        title: "Attendance report",
+        subtitle: `${F.longDate(from)} – ${F.longDate(to)}`,
+        generatedBy: req.session.user.full_name,
+        sections: [
+          {
+            title: "By service",
+            headers: ["Service", "Scheduled", "Completed", "Missed", "Cancelled", "Total"],
+            rows: rows.map((r) => [F.prettyService(r.name), r.scheduled, r.completed, r.missed, r.cancelled, r.total]),
+            widths: [175, 65, 70, 60, 70, 55],
+          },
+          {
+            title: "Overall totals",
+            kv: [
+              ["Scheduled", totals.scheduled],
+              ["Completed", totals.completed],
+              ["Missed", totals.missed],
+              ["Cancelled", totals.cancelled],
+              ["Total", totals.total],
+            ],
+          },
+        ],
+      });
+    }
 
     res.render("reports/attendance", {
       title: "Attendance report · Sampaguita HC",
@@ -122,6 +159,27 @@ router.get("/reports/no-shows", requireRole(...REPORT_ROLES), async (req, res, n
       ),
       loadServices(),
     ]);
+
+    if (req.query.format === "pdf") {
+      return sendReportPdf(res, `no-shows-${from}_to_${to}.pdf`, {
+        title: "No-show list",
+        subtitle: `${F.longDate(from)} – ${F.longDate(to)}`,
+        generatedBy: req.session.user.full_name,
+        sections: [
+          {
+            title: "Missed appointments",
+            headers: ["Date", "Patient", "Service", "Contact"],
+            rows: rows.map((r) => [
+              F.longDate(r.appointment_date),
+              `${r.full_name} (${r.patient_number})`,
+              F.prettyService(r.service_name),
+              r.contact_number || r.family_contact_number || "—",
+            ]),
+            widths: [90, 190, 130, 90],
+          },
+        ],
+      });
+    }
 
     res.render("reports/no-shows", {
       title: "No-show list · Sampaguita HC",
@@ -175,6 +233,22 @@ router.get("/reports/trend", requireRole(...REPORT_ROLES), async (req, res, next
       })),
     };
 
+    if (req.query.format === "pdf") {
+      return sendReportPdf(res, `trend-${from}_to_${to}.pdf`, {
+        title: "Seasonal / appointment trend",
+        subtitle: `${F.longDate(from)} – ${F.longDate(to)}`,
+        generatedBy: req.session.user.full_name,
+        sections: [
+          {
+            title: "Appointments per month, by service",
+            headers: ["Month", ...services.map((s) => F.prettyService(s.name))],
+            rows: months.map((m) => [m, ...services.map((s) => (grid[s.service_id] && grid[s.service_id][m]) || 0)]),
+            widths: [70, ...services.map(() => Math.floor(425 / Math.max(services.length, 1)))],
+          },
+        ],
+      });
+    }
+
     res.render("reports/trend", {
       title: "Seasonal trend · Sampaguita HC",
       active: "reports",
@@ -214,6 +288,28 @@ router.get("/reports/inventory", requireRole(...REPORT_ROLES), async (req, res, 
         [from, to]
       ),
     ]);
+
+    if (req.query.format === "pdf") {
+      return sendReportPdf(res, `inventory-${from}_to_${to}.pdf`, {
+        title: "Inventory report",
+        subtitle: `Dispensing activity ${F.longDate(from)} – ${F.longDate(to)}`,
+        generatedBy: req.session.user.full_name,
+        sections: [
+          {
+            title: "Low stock",
+            headers: ["Medicine", "Unit", "Stock", "Threshold"],
+            rows: lowQ.rows.map((m) => [m.name, m.unit || "—", m.stock_quantity, m.low_stock_threshold]),
+            widths: [220, 90, 90, 95],
+          },
+          {
+            title: "Dispensed in range",
+            headers: ["Medicine", "Dispenses", "Total qty", "Pending approval"],
+            rows: dispensedQ.rows.map((m) => [m.name, m.dispense_count, `${m.total_qty} ${m.unit || ""}`.trim(), m.pending_count]),
+            widths: [200, 90, 110, 95],
+          },
+        ],
+      });
+    }
 
     res.render("reports/inventory", {
       title: "Inventory report · Sampaguita HC",

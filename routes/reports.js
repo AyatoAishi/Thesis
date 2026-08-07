@@ -408,6 +408,96 @@ router.get("/reports/consumption", requireRole(...REPORT_ROLES), async (req, res
   }
 });
 
+// ---- SENIOR CITIZEN MEDICINE TRACKING  GET /reports/senior-citizen ---------
+// Matches the barangay's paper "Medicines for Senior Citizen" hypertension/
+// diabetes log: patients 60+ as rows, the maintenance medicines they're on as
+// columns, total packs given (within the date range) as the cell value.
+// Diagnosis and PhilHealth No. from the paper form are deliberately left out —
+// neither is captured anywhere in this system yet, and a column that's always
+// blank on an exported PDF reads as broken rather than "fill in by hand."
+// Medicine columns are matched by name against the clinic's own inventory
+// (not hardcoded IDs), so this works however each clinic has actually named
+// their stock, and simply shows nothing if a tracked medicine isn't in
+// inventory yet.
+const SENIOR_MED_PATTERNS = [
+  "%amlodipine%", "%losartan%", "%metoprolol%", "%simvastatin%", "%metformin%", "%gliclazide%",
+];
+
+router.get("/reports/senior-citizen", requireRole(...REPORT_ROLES), async (req, res, next) => {
+  try {
+    const { from, to } = dateRange(req.query);
+
+    const { rows: meds } = await db.query(
+      `SELECT medicine_id, name, dosage, unit FROM medicines
+        WHERE name ILIKE ANY ($1) ORDER BY name, dosage`,
+      [SENIOR_MED_PATTERNS]
+    );
+
+    let patientRows = [];
+    if (meds.length) {
+      const { rows } = await db.query(
+        `SELECT p.patient_id, p.full_name, p.sex, p.birthdate,
+                d.medicine_id, sum(d.quantity)::int AS qty
+           FROM medicine_dispenses d
+           JOIN patients p ON p.patient_id = d.patient_id
+          WHERE d.dispensed_at::date BETWEEN $1 AND $2
+            AND (d.requires_doctor_approval = false OR d.approved_at IS NOT NULL)
+            AND d.medicine_id = ANY ($3)
+            AND EXTRACT(YEAR FROM age($2::date, p.birthdate)) >= 60
+          GROUP BY p.patient_id, p.full_name, p.sex, p.birthdate, d.medicine_id`,
+        [from, to, meds.map((m) => m.medicine_id)]
+      );
+
+      const byPatient = new Map();
+      rows.forEach((r) => {
+        if (!byPatient.has(r.patient_id)) {
+          byPatient.set(r.patient_id, {
+            patient_id: r.patient_id,
+            full_name: r.full_name,
+            sex: r.sex,
+            age: ageAt(r.birthdate, to),
+            qty: {},
+          });
+        }
+        byPatient.get(r.patient_id).qty[r.medicine_id] = r.qty;
+      });
+      patientRows = [...byPatient.values()].sort((a, b) => a.full_name.localeCompare(b.full_name));
+    }
+
+    if (req.query.format === "pdf") {
+      return sendReportPdf(res, `senior-citizen-meds-${from}_to_${to}.pdf`, {
+        title: "Senior citizen medicine tracking",
+        subtitle: `Hypertension / diabetes maintenance medicines · ${F.longDate(from)} – ${F.longDate(to)}`,
+        generatedBy: req.session.user.full_name,
+        sections: [
+          {
+            title: "Packs given per patient",
+            headers: ["Name", "Age", "Sex", ...meds.map((m) => `${m.name}${m.dosage ? " " + m.dosage : ""}`)],
+            rows: patientRows.map((p) => [
+              p.full_name,
+              p.age,
+              p.sex || "—",
+              ...meds.map((m) => p.qty[m.medicine_id] ?? "—"),
+            ]),
+            widths: [110, 30, 35, ...meds.map(() => Math.floor(320 / Math.max(meds.length, 1)))],
+          },
+        ],
+      });
+    }
+
+    res.render("reports/senior-citizen", {
+      title: "Senior citizen medicine tracking · Sampaguita HC",
+      active: "reports",
+      from,
+      to,
+      meds,
+      patientRows,
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
 // ---- PDF EXPORT  GET /reports/export/patient/:id ---------------------------
 // Open to any signed-in staff (docs/ARCHITECTURE.md: export = "staff", wider
 // than the analytics pages above).

@@ -1,0 +1,46 @@
+<div class="page-head" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+  <div>
+    <h1>Reports</h1>
+    <div class="sub">Senior citizen medicine tracking</div>
+  </div>
+  <a class="mini-btn" href="/reports/senior-citizen?from=<%= from %>&to=<%= to %>&format=pdf" target="_blank">Export PDF</a>
+</div>
+
+<div class="card">
+  <%- include("../partials/reports-tabbar", { active: "senior-citizen", from, to }) %>
+
+  <form method="GET" action="/reports/senior-citizen" class="form-grid" style="align-items:flex-end;margin-bottom:16px">
+    <%- include("../partials/reports-daterange", { from, to }) %>
+    <div class="field"><button class="btn" type="submit">Apply</button></div>
+  </form>
+
+  <% if (!meds.length) { %>
+    <p class="muted" style="padding:8px 2px">
+      None of the tracked medicines (Amlodipine, Losartan, Metoprolol, Simvastatin, Metformin, Gliclazide) are in
+      inventory yet. <a href="/inventory/new">Add one</a> to start tracking senior citizens on it.
+    </p>
+  <% } else if (!patientRows.length) { %>
+    <p class="muted" style="padding:8px 2px">No patient 60 or older was given any of these medicines in this range.</p>
+  <% } else { %>
+    <div class="sub" style="margin-bottom:10px"><%= patientRows.length %> senior citizen<%= patientRows.length === 1 ? "" : "s" %> in this range</div>
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>Name</th><th>Age</th><th>Sex</th>
+          <% meds.forEach(m => { %><th><%= m.name %><%= m.dosage ? ` ${m.dosage}` : "" %></th><% }) %>
+        </tr>
+      </thead>
+      <tbody>
+        <% patientRows.forEach(p => { %>
+          <tr>
+            <td><a href="/patients/<%= p.patient_id %>"><%= p.full_name %></a></td>
+            <td><%= p.age %></td>
+            <td><%= p.sex || "—" %></td>
+            <% meds.forEach(m => { %><td><%= p.qty[m.medicine_id] ?? "—" %></td><% }) %>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+    <p class="muted" style="font-size:12px;margin-top:10px">Numbers are total packs/units given per medicine within this date range. Diagnosis and PhilHealth number from the paper log aren't tracked in the system yet.</p>
+  <% } %>
+</div>

@@ -1,0 +1,159 @@
+<%
+  function fmtDate(d) { return d ? new Date(d).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "—"; }
+  function statusBadge(s) {
+    const m = { active: ["info", "Active"], delivered: ["ok", "Delivered"], closed: ["warn", "Closed"] };
+    const [c, l] = m[s] || ["info", s];
+    return `<span class="badge ${c}">${l}</span>`;
+  }
+  function symptomList(v) {
+    const flags = [];
+    if (v.abdominal_contractions) flags.push("Abdominal contractions");
+    if (v.vaginal_spotting) flags.push("Vaginal spotting");
+    if (v.vaginal_discharge) flags.push("Vaginal discharge");
+    if (v.dysuria) flags.push("Dysuria");
+    if (v.low_back_pain) flags.push("Low back pain");
+    if (v.hypogastric_pain) flags.push("Hypogastric pain");
+    if (v.edema) flags.push("Edema");
+    return flags.length ? flags.join(", ") : "None reported";
+  }
+  const r = record;
+%>
+<div class="page-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+  <div>
+    <h1><%= patient.full_name %> — Prenatal <%- statusBadge(r.status) %></h1>
+    <div class="sub mono"><%= patient.patient_number %></div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <a class="mini-btn" href="/patients/<%= patient.patient_id %>/prenatal/<%= r.prenatal_id %>/export" target="_blank" rel="noopener">Export PDF</a>
+    <a class="mini-btn" href="/patients/<%= patient.patient_id %>/prenatal/<%= r.prenatal_id %>/edit">Edit intake</a>
+    <a class="back-link" href="/patients/<%= patient.patient_id %>/prenatal" style="display:inline-flex;align-items:center">Back to list</a>
+  </div>
+</div>
+
+<% if (flash) { %>
+  <div class="card" style="background:var(--accent-softer);border-color:var(--accent-soft)"><%= flash %></div>
+<% } %>
+
+<div class="card">
+  <div class="panel-title" style="margin-bottom:12px">Pregnancy basics</div>
+  <dl class="kv">
+    <div><dt>Husband's name</dt><dd><%= r.husband_name || "—" %></dd></div>
+    <div><dt>Occupation</dt><dd><%= r.occupation || "—" %></dd></div>
+    <div><dt>Gravida / Para</dt><dd>G<%= r.gravida ?? "—" %> P<%= r.para ?? "—" %></dd></div>
+    <div><dt>LMP</dt><dd><%= fmtDate(r.lmp) %></dd></div>
+    <div><dt>EDD</dt><dd><%= fmtDate(r.edd) %></dd></div>
+    <div><dt>AOG at intake</dt><dd><%= r.aog_at_intake || "—" %></dd></div>
+    <div><dt>BP at intake</dt><dd><%= r.bp_at_intake || "—" %></dd></div>
+    <div><dt>BMI</dt><dd><%= r.bmi ?? "—" %></dd></div>
+  </dl>
+</div>
+
+<div class="card">
+  <div class="panel-title" style="margin-bottom:12px">Lab results</div>
+  <dl class="kv">
+    <div><dt>VDRL</dt><dd><%= fmtDate(r.vdrl_date) %></dd></div>
+    <div><dt>HBsAg</dt><dd><%= fmtDate(r.hbsag_date) %></dd></div>
+    <div><dt>HIV screening</dt><dd><%= fmtDate(r.hiv_screening_date) %></dd></div>
+    <div><dt>OGTT/FBS/HbA1c</dt><dd><%= r.ogtt_fbs_hba1c || "—" %></dd></div>
+    <div><dt>CBC</dt><dd><%= fmtDate(r.cbc_date) %></dd></div>
+    <div><dt>Urinalysis</dt><dd><%= fmtDate(r.urinalysis_date) %></dd></div>
+  </dl>
+</div>
+
+<div class="card">
+  <div class="panel-title" style="margin-bottom:12px">Family history &amp; tetanus doses</div>
+  <dl class="kv">
+    <div><dt>Hypertension</dt><dd><%= r.fh_hypertension ? "Yes" : "No" %></dd></div>
+    <div><dt>Diabetes</dt><dd><%= r.fh_diabetes ? "Yes" : "No" %></dd></div>
+    <div><dt>Asthma</dt><dd><%= r.fh_asthma ? "Yes" : "No" %></dd></div>
+    <div><dt>Others</dt><dd><%= r.fh_others || "—" %></dd></div>
+    <div><dt>TT1/TD1</dt><dd><%= fmtDate(r.tt1_date) %></dd></div>
+    <div><dt>TT2/TD2</dt><dd><%= fmtDate(r.tt2_date) %></dd></div>
+    <div><dt>TT3/TD3</dt><dd><%= fmtDate(r.tt3_date) %></dd></div>
+    <div><dt>TT4/TD4</dt><dd><%= fmtDate(r.tt4_date) %></dd></div>
+    <div><dt>TT5/TD5</dt><dd><%= fmtDate(r.tt5_date) %></dd></div>
+  </dl>
+  <% if (r.status === "active") { %>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <form method="POST" action="/patients/<%= patient.patient_id %>/prenatal/<%= r.prenatal_id %>/status">
+        <input type="hidden" name="status" value="delivered" />
+        <button type="submit" class="mini-btn ok">Mark delivered</button>
+      </form>
+      <form method="POST" action="/patients/<%= patient.patient_id %>/prenatal/<%= r.prenatal_id %>/status">
+        <input type="hidden" name="status" value="closed" />
+        <button type="submit" class="mini-btn">Close record</button>
+      </form>
+    </div>
+  <% } else { %>
+    <form method="POST" action="/patients/<%= patient.patient_id %>/prenatal/<%= r.prenatal_id %>/status" style="margin-top:16px">
+      <input type="hidden" name="status" value="active" />
+      <button type="submit" class="mini-btn">Reopen as active</button>
+    </form>
+  <% } %>
+</div>
+
+<div class="card">
+  <div class="panel-head">
+    <div class="panel-title">Children / delivery history</div>
+    <a class="mini-btn" href="/patients/<%= patient.patient_id %>/prenatal/<%= r.prenatal_id %>/children/new">+ Add child</a>
+  </div>
+  <% if (!children.length) { %>
+    <p class="muted" style="margin:0">No previous children/deliveries recorded.</p>
+  <% } else { %>
+    <table class="tbl">
+      <thead><tr><th>#</th><th>DOB</th><th>Sex</th><th>Delivery</th><th>Attended by</th><th>Place of birth</th><th></th></tr></thead>
+      <tbody>
+        <% children.forEach(c => { %>
+          <tr>
+            <td><%= c.child_number %></td>
+            <td><%= fmtDate(c.dob) %></td>
+            <td><%= c.sex || "—" %></td>
+            <td><%= c.delivery_type || "—" %></td>
+            <td><%= c.attended_by_text || "—" %></td>
+            <td><%= c.place_of_birth || "—" %></td>
+            <td style="text-align:right">
+              <form method="POST" action="/patients/<%= patient.patient_id %>/prenatal/<%= r.prenatal_id %>/children/<%= c.child_id %>/delete"
+                    onsubmit="return confirm('Remove this child record?');">
+                <button type="submit" class="mini-btn">Remove</button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>
+
+<div class="card">
+  <div class="panel-head">
+    <div class="panel-title">Visit history</div>
+    <a class="mini-btn" href="/patients/<%= patient.patient_id %>/prenatal/<%= r.prenatal_id %>/visits/new">+ Add visit</a>
+  </div>
+  <% if (!visits.length) { %>
+    <p class="muted" style="margin:0">No follow-up visits recorded yet.</p>
+  <% } else { %>
+    <table class="tbl">
+      <thead><tr><th>Date</th><th>AOG</th><th>BP</th><th>Weight</th><th>FH</th><th>FHT</th><th>Symptoms</th><th>Notes</th><th></th></tr></thead>
+      <tbody>
+        <% visits.forEach(v => { %>
+          <tr>
+            <td><%= fmtDate(v.visit_date) %></td>
+            <td><%= v.aog || "—" %></td>
+            <td><%= v.bp || "—" %></td>
+            <td><%= v.weight_kg != null ? v.weight_kg + " kg" : "—" %></td>
+            <td><%= v.fundal_height_cm != null ? v.fundal_height_cm + " cm" : "—" %></td>
+            <td><%= v.fetal_heart_tone || "—" %></td>
+            <td class="muted" style="font-size:12px"><%= symptomList(v) %></td>
+            <td class="muted" style="font-size:12px"><%= v.notes || "—" %></td>
+            <td style="text-align:right">
+              <form method="POST" action="/patients/<%= patient.patient_id %>/prenatal/<%= r.prenatal_id %>/visits/<%= v.visit_id %>/delete"
+                    onsubmit="return confirm('Remove this visit record?');">
+                <button type="submit" class="mini-btn">Remove</button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>

@@ -1,0 +1,138 @@
+<%
+  const isEdit = mode === "edit";
+  const r = record || {};
+  const fmt = (v) => (v ? String(v).slice(0, 10) : "");
+  const action = isEdit ? `/patients/${patient.patient_id}/prenatal/${r.prenatal_id}` : `/patients/${patient.patient_id}/prenatal`;
+%>
+<div class="page-head">
+  <h1><%= isEdit ? "Edit prenatal record" : "New prenatal record" %></h1>
+  <div class="sub">
+    <a href="<%= isEdit ? `/patients/${patient.patient_id}/prenatal/${r.prenatal_id}` : `/patients/${patient.patient_id}/prenatal` %>" class="back-link">← Back</a>
+    — <%= patient.full_name %>
+  </div>
+</div>
+
+<% if (errors && errors.length) { %>
+  <div class="card" style="border-color:#f3c9cb;background:var(--bad-bg)">
+    <b style="color:var(--bad-ink)">Please fix:</b>
+    <ul style="margin:8px 0 0;color:var(--bad-ink);font-size:13px">
+      <% errors.forEach(e => { %><li><%= e %></li><% }) %>
+    </ul>
+  </div>
+<% } %>
+
+<form method="POST" action="<%= action %>">
+  <div class="card">
+    <div class="panel-title" style="margin-bottom:14px">Pregnancy basics</div>
+    <div class="form-grid">
+      <label class="field"><span>Husband's name</span>
+        <input type="text" name="husband_name" value="<%= r.husband_name || '' %>" />
+      </label>
+      <label class="field"><span>Husband's birthdate</span>
+        <input type="date" name="husband_birthdate" value="<%= fmt(r.husband_birthdate) %>" />
+      </label>
+      <label class="field"><span>Occupation</span>
+        <input type="text" name="occupation" value="<%= r.occupation || '' %>" />
+      </label>
+      <label class="field"><span>Gravida (G)</span>
+        <input type="number" name="gravida" min="0" step="1" value="<%= r.gravida ?? '' %>" />
+      </label>
+      <label class="field"><span>Para (P)</span>
+        <input type="number" name="para" min="0" step="1" value="<%= r.para ?? '' %>" />
+      </label>
+      <label class="field"><span>LMP <span class="muted">(last menstrual period)</span></span>
+        <input type="date" name="lmp" id="lmpInput" value="<%= fmt(r.lmp) %>" />
+      </label>
+      <label class="field"><span>EDD <span class="muted">(estimated date of delivery)</span></span>
+        <input type="date" name="edd" id="eddInput" value="<%= fmt(r.edd) %>" />
+        <span class="muted" style="font-size:11.5px">Auto-suggested from LMP (280 days) — change it if ultrasound dating differs.</span>
+      </label>
+      <label class="field"><span>AOG at intake <span class="muted">(age of gestation)</span></span>
+        <input type="text" name="aog_at_intake" value="<%= r.aog_at_intake || '' %>" placeholder="e.g. 9 2/7 wks" />
+      </label>
+      <label class="field"><span>BP at intake</span>
+        <input type="text" name="bp_at_intake" value="<%= r.bp_at_intake || '' %>" placeholder="e.g. 120/70" />
+      </label>
+      <label class="field"><span>Pregnancy test date</span>
+        <input type="date" name="pregnancy_test_date" value="<%= fmt(r.pregnancy_test_date) %>" />
+      </label>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="panel-title" style="margin-bottom:14px">Lab results</div>
+    <div class="form-grid">
+      <label class="field"><span>VDRL date</span>
+        <input type="date" name="vdrl_date" value="<%= fmt(r.vdrl_date) %>" />
+      </label>
+      <label class="field"><span>HBsAg date</span>
+        <input type="date" name="hbsag_date" value="<%= fmt(r.hbsag_date) %>" />
+      </label>
+      <label class="field"><span>HIV screening date</span>
+        <input type="date" name="hiv_screening_date" value="<%= fmt(r.hiv_screening_date) %>" />
+      </label>
+      <label class="field"><span>OGTT / FBS / HbA1c</span>
+        <input type="text" name="ogtt_fbs_hba1c" value="<%= r.ogtt_fbs_hba1c || '' %>" placeholder="result / date" />
+      </label>
+      <label class="field"><span>CBC date</span>
+        <input type="date" name="cbc_date" value="<%= fmt(r.cbc_date) %>" />
+      </label>
+      <label class="field"><span>Urinalysis date</span>
+        <input type="date" name="urinalysis_date" value="<%= fmt(r.urinalysis_date) %>" />
+      </label>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="panel-title" style="margin-bottom:14px">Family history &amp; BMI</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">
+      <label class="check">
+        <input type="checkbox" name="fh_hypertension" <%= r.fh_hypertension ? 'checked' : '' %> />
+        <span>Hypertension (HPN) in family history</span>
+      </label>
+      <label class="check">
+        <input type="checkbox" name="fh_diabetes" <%= r.fh_diabetes ? 'checked' : '' %> />
+        <span>Diabetes (DM) in family history</span>
+      </label>
+      <label class="check">
+        <input type="checkbox" name="fh_asthma" <%= r.fh_asthma ? 'checked' : '' %> />
+        <span>Asthma in family history</span>
+      </label>
+    </div>
+    <div class="form-grid">
+      <label class="field" style="grid-column:1/-1"><span>Other family history</span>
+        <input type="text" name="fh_others" value="<%= r.fh_others || '' %>" placeholder="e.g. heart disease" />
+      </label>
+      <label class="field"><span>BMI</span>
+        <input type="number" name="bmi" step="0.1" min="0" value="<%= r.bmi ?? '' %>" />
+      </label>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="panel-title" style="margin-bottom:14px">Tetanus status <span class="muted" style="font-weight:400">(TT/TD doses)</span></div>
+    <div class="form-grid">
+      <label class="field"><span>TT1 / TD1</span><input type="date" name="tt1_date" value="<%= fmt(r.tt1_date) %>" /></label>
+      <label class="field"><span>TT2 / TD2</span><input type="date" name="tt2_date" value="<%= fmt(r.tt2_date) %>" /></label>
+      <label class="field"><span>TT3 / TD3</span><input type="date" name="tt3_date" value="<%= fmt(r.tt3_date) %>" /></label>
+      <label class="field"><span>TT4 / TD4</span><input type="date" name="tt4_date" value="<%= fmt(r.tt4_date) %>" /></label>
+      <label class="field"><span>TT5 / TD5</span><input type="date" name="tt5_date" value="<%= fmt(r.tt5_date) %>" /></label>
+    </div>
+  </div>
+
+  <button type="submit" class="btn"><%= isEdit ? "Save changes" : "Start prenatal record" %></button>
+</form>
+
+<script>
+  (function () {
+    var lmp = document.getElementById("lmpInput");
+    var edd = document.getElementById("eddInput");
+    if (!lmp || !edd) return;
+    lmp.addEventListener("change", function () {
+      if (edd.value || !lmp.value) return; // don't override an already-set/edited EDD
+      var d = new Date(lmp.value + "T00:00:00Z");
+      d.setUTCDate(d.getUTCDate() + 280);
+      edd.value = d.toISOString().slice(0, 10);
+    });
+  })();
+</script>

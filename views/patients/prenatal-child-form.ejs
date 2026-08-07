@@ -1,0 +1,45 @@
+<div class="page-head">
+  <h1>Add child / delivery record</h1>
+  <div class="sub"><a href="/patients/<%= patient.patient_id %>/prenatal/<%= record.prenatal_id %>" class="back-link">← Back to prenatal record</a></div>
+</div>
+
+<% if (errors && errors.length) { %>
+  <div class="card" style="border-color:#f3c9cb;background:var(--bad-bg)">
+    <b style="color:var(--bad-ink)">Please fix:</b>
+    <ul style="margin:8px 0 0;color:var(--bad-ink);font-size:13px">
+      <% errors.forEach(e => { %><li><%= e %></li><% }) %>
+    </ul>
+  </div>
+<% } %>
+
+<form method="POST" action="/patients/<%= patient.patient_id %>/prenatal/<%= record.prenatal_id %>/children">
+  <div class="card">
+    <div class="panel-title" style="margin-bottom:14px"><%= patient.full_name %></div>
+    <div class="form-grid">
+      <label class="field"><span>Child # *</span>
+        <input type="number" name="child_number" min="1" step="1" value="<%= values.child_number %>" required />
+      </label>
+      <label class="field"><span>Date of birth</span>
+        <input type="date" name="dob" value="<%= values.dob %>" />
+      </label>
+      <label class="field"><span>Sex</span>
+        <select name="sex">
+          <option value="">—</option>
+          <option value="male" <%= values.sex === 'male' ? 'selected' : '' %>>Male</option>
+          <option value="female" <%= values.sex === 'female' ? 'selected' : '' %>>Female</option>
+        </select>
+      </label>
+      <label class="field"><span>Delivery type</span>
+        <input type="text" name="delivery_type" value="<%= values.delivery_type %>" placeholder="e.g. NSD, CS" />
+      </label>
+      <label class="field"><span>Attended by</span>
+        <input type="text" name="attended_by_text" value="<%= values.attended_by_text %>" placeholder="e.g. midwife, hospital staff" />
+      </label>
+      <label class="field" style="grid-column:1/-1"><span>Place of birth</span>
+        <input type="text" name="place_of_birth" value="<%= values.place_of_birth %>" />
+      </label>
+    </div>
+  </div>
+
+  <button type="submit" class="btn">Add child record</button>
+</form>

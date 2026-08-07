@@ -1,0 +1,61 @@
+<div class="page-head">
+  <h1>Add a follow-up visit</h1>
+  <div class="sub"><a href="/patients/<%= patient.patient_id %>/prenatal/<%= record.prenatal_id %>" class="back-link">← Back to prenatal record</a></div>
+</div>
+
+<% if (errors && errors.length) { %>
+  <div class="card" style="border-color:#f3c9cb;background:var(--bad-bg)">
+    <b style="color:var(--bad-ink)">Please fix:</b>
+    <ul style="margin:8px 0 0;color:var(--bad-ink);font-size:13px">
+      <% errors.forEach(e => { %><li><%= e %></li><% }) %>
+    </ul>
+  </div>
+<% } %>
+
+<form method="POST" action="/patients/<%= patient.patient_id %>/prenatal/<%= record.prenatal_id %>/visits">
+  <div class="card">
+    <div class="panel-title" style="margin-bottom:14px"><%= patient.full_name %></div>
+    <div class="form-grid">
+      <label class="field"><span>Visit date *</span>
+        <input type="date" name="visit_date" value="<%= values.visit_date || '' %>" max="<%= new Date().toISOString().slice(0,10) %>" required />
+      </label>
+      <label class="field"><span>AOG <span class="muted">(age of gestation)</span></span>
+        <input type="text" name="aog" value="<%= values.aog || '' %>" placeholder="e.g. 28 3/7 wks" />
+      </label>
+      <label class="field"><span>BP</span>
+        <input type="text" name="bp" value="<%= values.bp || '' %>" placeholder="e.g. 120/80" />
+      </label>
+      <label class="field"><span>Weight (kg)</span>
+        <input type="number" name="weight_kg" step="0.1" min="0" value="<%= values.weight_kg ?? '' %>" />
+      </label>
+      <label class="field"><span>Fundal height (cm)</span>
+        <input type="number" name="fundal_height_cm" step="0.1" min="0" value="<%= values.fundal_height_cm ?? '' %>" />
+      </label>
+      <label class="field"><span>Fetal heart tone</span>
+        <input type="text" name="fetal_heart_tone" value="<%= values.fetal_heart_tone || '' %>" placeholder="e.g. 140 bpm" />
+      </label>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="panel-title" style="margin-bottom:12px">Symptoms today</div>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">
+      <label class="check"><input type="checkbox" name="abdominal_contractions" <%= values.abdominal_contractions ? 'checked' : '' %> /><span>Abdominal contractions</span></label>
+      <label class="check"><input type="checkbox" name="vaginal_spotting" <%= values.vaginal_spotting ? 'checked' : '' %> /><span>Vaginal spotting</span></label>
+      <label class="check"><input type="checkbox" name="vaginal_discharge" <%= values.vaginal_discharge ? 'checked' : '' %> /><span>Vaginal discharge</span></label>
+      <label class="check"><input type="checkbox" name="dysuria" <%= values.dysuria ? 'checked' : '' %> /><span>Dysuria</span></label>
+      <label class="check"><input type="checkbox" name="low_back_pain" <%= values.low_back_pain ? 'checked' : '' %> /><span>Low back pain</span></label>
+      <label class="check"><input type="checkbox" name="hypogastric_pain" <%= values.hypogastric_pain ? 'checked' : '' %> /><span>Hypogastric pain</span></label>
+      <label class="check"><input type="checkbox" name="edema" <%= values.edema ? 'checked' : '' %> /><span>Edema</span></label>
+    </div>
+    <p class="muted" style="font-size:11.5px;margin:10px 0 0">Leave unchecked if not present — this list is what to watch for, not a default assumption.</p>
+  </div>
+
+  <div class="card">
+    <label class="field"><span>Notes <span class="muted">(optional)</span></span>
+      <input type="text" name="notes" value="<%= values.notes || '' %>" maxlength="500" placeholder="e.g. prescribed Ferrous Sulfate + Folic Acid" />
+    </label>
+  </div>
+
+  <button type="submit" class="btn">Record visit</button>
+</form>

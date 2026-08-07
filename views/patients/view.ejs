@@ -20,6 +20,7 @@
   </div>
   <div style="display:flex;gap:8px">
     <a class="mini-btn" href="/patients/<%= p.patient_id %>/immunization">Immunization</a>
+    <a class="mini-btn" href="/patients/<%= p.patient_id %>/prenatal">Prenatal</a>
     <a class="mini-btn" href="/reports/export/patient/<%= p.patient_id %>" target="_blank" rel="noopener">Export PDF</a>
     <a class="btn" href="/patients/<%= p.patient_id %>/edit">Edit</a>
     <% if (typeof user !== "undefined" && user && user.role === "admin") { %>

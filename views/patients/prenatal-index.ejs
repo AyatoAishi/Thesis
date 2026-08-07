@@ -1,0 +1,43 @@
+<%
+  function statusBadge(s) {
+    const m = { active: ["info", "Active"], delivered: ["ok", "Delivered"], closed: ["warn", "Closed"] };
+    const [c, l] = m[s] || ["info", s];
+    return `<span class="badge ${c}">${l}</span>`;
+  }
+%>
+<div class="page-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+  <div>
+    <h1><%= patient.full_name %> — Prenatal</h1>
+    <div class="sub mono"><%= patient.patient_number %></div>
+  </div>
+  <div style="display:flex;gap:8px">
+    <a class="btn" href="/patients/<%= patient.patient_id %>/prenatal/new">+ Start prenatal record</a>
+    <a class="back-link" href="/patients/<%= patient.patient_id %>" style="display:inline-flex;align-items:center">Back to patient</a>
+  </div>
+</div>
+
+<% if (flash) { %>
+  <div class="card" style="background:var(--accent-softer);border-color:var(--accent-soft)"><%= flash %></div>
+<% } %>
+
+<div class="card">
+  <% if (!records.length) { %>
+    <p class="muted" style="margin:0">No prenatal record yet. Click <b>+ Start prenatal record</b> to begin one.</p>
+  <% } else { %>
+    <table class="tbl">
+      <thead><tr><th>Started</th><th>LMP</th><th>EDD</th><th>Gravida / Para</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        <% records.forEach(r => { %>
+          <tr>
+            <td><%= r.startedDisplay %></td>
+            <td><%= r.lmpDisplay %></td>
+            <td><%= r.eddDisplay %></td>
+            <td>G<%= r.gravida ?? "—" %> P<%= r.para ?? "—" %></td>
+            <td><%- statusBadge(r.status) %></td>
+            <td style="text-align:right"><a class="mini-btn" href="/patients/<%= patient.patient_id %>/prenatal/<%= r.prenatal_id %>">Open</a></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>

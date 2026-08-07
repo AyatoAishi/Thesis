@@ -1,0 +1,106 @@
+<%
+  const periods = [["week", "This week"], ["month", "This month"], ["year", "This year"]];
+%>
+<div class="page-head">
+  <h1>Reports</h1>
+  <div class="sub">Analytics</div>
+</div>
+
+<div class="card">
+  <%- include("../partials/reports-tabbar", { active: "analytics", from, to }) %>
+
+  <div class="tabbar" style="margin-top:2px">
+    <% periods.forEach(p => { %>
+      <a href="/reports/analytics?period=<%= p[0] %>" class="tab <%= period === p[0] ? 'active' : '' %>"><%= p[1] %></a>
+    <% }) %>
+  </div>
+
+  <form method="GET" action="/reports/analytics" class="form-grid" style="align-items:flex-end;margin:16px 0 0">
+    <%- include("../partials/reports-daterange", { from, to }) %>
+    <div class="field"><button class="btn" type="submit">Custom range</button></div>
+  </form>
+  <p class="muted" style="font-size:12px;margin:10px 2px 0">Showing <%= from %> to <%= to %>.</p>
+</div>
+
+<div class="card">
+  <div class="panel-title" style="margin-bottom:12px">Appointments</div>
+  <div class="stat-grid">
+    <div class="stat-card">
+      <div class="stat-label">Completed</div>
+      <div class="stat-value"><%= appt.completed %></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Missed</div>
+      <div class="stat-value"><%= appt.missed %></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Rescheduled</div>
+      <div class="stat-value"><%= rescheduled %></div>
+      <div class="stat-note">counted from when this tracking started — no history before that</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Cancelled</div>
+      <div class="stat-value"><%= appt.cancelled %></div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="panel-title" style="margin-bottom:12px">Family planning &amp; senior citizen medicines</div>
+  <div class="stat-grid">
+    <a class="stat-card" href="/reports/family-planning?from=<%= from %>&to=<%= to %>" style="text-decoration:none;color:inherit">
+      <div class="stat-label">Family planning acceptors</div>
+      <div class="stat-value"><%= fpAcceptors %></div>
+      <div class="stat-note">patients, this range</div>
+    </a>
+    <a class="stat-card" href="/reports/senior-citizen?from=<%= from %>&to=<%= to %>" style="text-decoration:none;color:inherit">
+      <div class="stat-label">Seniors given HTN/DM meds</div>
+      <div class="stat-value"><%= seniorOnMeds %></div>
+      <div class="stat-note">patients, this range</div>
+    </a>
+    <div class="stat-card">
+      <div class="stat-label">Families availed FP</div>
+      <div class="stat-value"><%= fpFamilies %></div>
+      <div class="stat-note">all-time, not just this range</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Families not under FP</div>
+      <div class="stat-value"><%= notFpFamilies %></div>
+      <div class="stat-note">of <%= totalFamilies %> total families, all-time</div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="panel-title" style="margin-bottom:6px">Medicine stock consumption</div>
+  <p class="muted" style="font-size:12px;margin:0 0 12px">Senior-citizen hypertension/diabetes medicines only — the same list as the Senior citizen report.</p>
+  <% if (!stock.length) { %>
+    <p class="muted" style="margin:0">None of the tracked medicines are in inventory yet.</p>
+  <% } else { %>
+    <table class="tbl">
+      <thead><tr><th>Medicine</th><th>Stock now</th><th>Given this range</th><th>Per day</th><th>Est. days left</th></tr></thead>
+      <tbody>
+        <% stock.forEach(m => { %>
+          <tr>
+            <td><a href="/inventory/<%= m.medicine_id %>"><%= m.name %><%= m.dosage ? ' ' + m.dosage : '' %></a></td>
+            <td><%= m.stock_quantity %> <%= m.unit || '' %></td>
+            <td><%= m.qty_in_range %></td>
+            <td><%= m.perDay %> / day</td>
+            <td>
+              <% if (m.daysRemaining === null) { %>
+                <span class="muted">—</span>
+              <% } else if (m.daysRemaining < 14) { %>
+                <span class="badge bad"><%= m.daysRemaining %> days</span>
+              <% } else if (m.daysRemaining < 30) { %>
+                <span class="badge warn"><%= m.daysRemaining %> days</span>
+              <% } else { %>
+                <%= m.daysRemaining %> days
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+    <p class="muted" style="font-size:11.5px;margin-top:10px">"Est. days left" assumes the same daily rate as this range continues — a rough planning number, not a guarantee.</p>
+  <% } %>
+</div>

@@ -7,6 +7,7 @@
     const m = {
       login: ["ok", "Login"], logout: ["info", "Logout"], create: ["ok", "Create"],
       update: ["info", "Update"], delete: ["bad", "Delete"], password_change: ["warn", "Password change"],
+      reschedule: ["warn", "Reschedule"],
     };
     const [c, l] = m[a] || ["info", a];
     return `<span class="badge ${c}">${l}</span>`;

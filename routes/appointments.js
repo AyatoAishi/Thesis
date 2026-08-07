@@ -13,6 +13,7 @@
 const express = require("express");
 const db = require("../db");
 const F = require("../lib/format");
+const audit = require("../lib/audit");
 const { sendBookingConfirmation } = require("../services/reminders");
 
 const router = express.Router();
@@ -327,6 +328,7 @@ router.post("/appointments/:id", async (req, res, next) => {
       [value.service_id, value.date, value.time, value.notes, req.params.id]
     );
     if (!rowCount) return next();
+    audit.log(req.session.user.user_id, "reschedule", "appointment", req.params.id, `moved to ${value.date}`);
     // Instant "rescheduled" email — fire-and-forget.
     sendBookingConfirmation(req.params.id, "rescheduled")
       .catch((e) => console.error("[confirmation email]", e.message));

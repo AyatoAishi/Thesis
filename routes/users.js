@@ -129,7 +129,7 @@ router.post("/admin/users/:id/update", async (req, res, next) => {
 // create/update/delete, and staff account changes. Panel's accountability
 // requirement needed somewhere staff/admin can actually see it, not just a
 // table quietly filling up in the database.
-const AUDIT_ACTIONS = ["login", "logout", "create", "update", "delete", "password_change"];
+const AUDIT_ACTIONS = ["login", "logout", "create", "update", "delete", "password_change", "reschedule"];
 
 router.get("/admin/audit-log", async (req, res, next) => {
   try {

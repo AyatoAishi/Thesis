@@ -567,6 +567,127 @@ router.get("/reports/family-planning", requireRole(...REPORT_ROLES), async (req,
   }
 });
 
+// Monday-of-this-week / 1st-of-this-month / Jan-1-of-this-year, through today
+// (Manila time) — the "per week/month/year" presets Alyanna's notes asked for,
+// on top of the same custom date range every other report already has.
+function periodBounds(period, today) {
+  if (period === "week") {
+    const dow = F.weekdayOf(today); // 0=Sun..6=Sat
+    return { from: F.addDays(today, dow === 0 ? -6 : -(dow - 1)), to: today };
+  }
+  if (period === "month") return { from: `${today.slice(0, 7)}-01`, to: today };
+  if (period === "year") return { from: `${today.slice(0, 4)}-01-01`, to: today };
+  return null;
+}
+
+// ---- ANALYTICS  GET /reports/analytics --------------------------------------
+// Every number Alyanna's notes asked for that didn't already have a home on
+// one of the other report tabs. "Families availed FP" / "not under FP" are
+// deliberately NOT limited to the selected period — they're a standing count
+// (has this family ever used FP here), not an activity count for a date
+// range, so period presets above only affect the other tiles.
+router.get("/reports/analytics", requireRole(...REPORT_ROLES), async (req, res, next) => {
+  try {
+    const today = F.manilaToday();
+    const period = ["week", "month", "year"].includes(req.query.period) ? req.query.period : null;
+    const { from, to } = period ? periodBounds(period, today) : dateRange(req.query);
+
+    const [apptQ, rescheduleQ, fpAcceptorsQ, seniorQ, stockQ, familyQ] = await Promise.all([
+      db.query(
+        `SELECT count(*) FILTER (WHERE status='scheduled')::int AS scheduled,
+                count(*) FILTER (WHERE status='completed')::int AS completed,
+                count(*) FILTER (WHERE status='missed')::int AS missed,
+                count(*) FILTER (WHERE status='cancelled')::int AS cancelled
+           FROM appointments WHERE appointment_date BETWEEN $1 AND $2`,
+        [from, to]
+      ),
+      db.query(
+        `SELECT count(*)::int n FROM audit_log WHERE action='reschedule' AND created_at::date BETWEEN $1 AND $2`,
+        [from, to]
+      ),
+      db.query(
+        `SELECT count(DISTINCT d.patient_id)::int n
+           FROM medicine_dispenses d JOIN medicines m ON m.medicine_id=d.medicine_id
+          WHERE d.dispensed_at::date BETWEEN $1 AND $2
+            AND (d.requires_doctor_approval=false OR d.approved_at IS NOT NULL)
+            AND m.is_family_planning=true`,
+        [from, to]
+      ),
+      db.query(
+        `SELECT count(DISTINCT d.patient_id)::int n
+           FROM medicine_dispenses d
+           JOIN patients p ON p.patient_id=d.patient_id
+           JOIN medicines m ON m.medicine_id=d.medicine_id
+          WHERE d.dispensed_at::date BETWEEN $1 AND $2
+            AND (d.requires_doctor_approval=false OR d.approved_at IS NOT NULL)
+            AND m.name ILIKE ANY ($3)
+            AND EXTRACT(YEAR FROM age($2::date, p.birthdate)) >= 60`,
+        [from, to, SENIOR_MED_PATTERNS]
+      ),
+      db.query(
+        `SELECT m.medicine_id, m.name, m.dosage, m.unit, m.stock_quantity,
+                coalesce(sum(d.quantity) FILTER (
+                  WHERE d.dispensed_at::date BETWEEN $1 AND $2
+                    AND (d.requires_doctor_approval=false OR d.approved_at IS NOT NULL)
+                ), 0)::int AS qty_in_range
+           FROM medicines m
+           LEFT JOIN medicine_dispenses d ON d.medicine_id = m.medicine_id
+          WHERE m.name ILIKE ANY ($3)
+          GROUP BY m.medicine_id, m.name, m.dosage, m.unit, m.stock_quantity
+          ORDER BY m.name`,
+        [from, to, SENIOR_MED_PATTERNS]
+      ),
+      db.query(
+        `WITH fam AS (
+           SELECT patient_id, coalesce(family_number, 'solo:' || patient_id::text) AS fam_key FROM patients
+         ),
+         fp_fam AS (
+           SELECT DISTINCT f.fam_key
+             FROM medicine_dispenses d
+             JOIN fam f ON f.patient_id = d.patient_id
+             JOIN medicines m ON m.medicine_id = d.medicine_id
+            WHERE m.is_family_planning = true
+              AND (d.requires_doctor_approval=false OR d.approved_at IS NOT NULL)
+         )
+         SELECT (SELECT count(DISTINCT fam_key) FROM fam) AS total_families,
+                (SELECT count(*) FROM fp_fam) AS fp_families`
+      ),
+    ]);
+
+    const days = Math.max(1, Math.round((new Date(to) - new Date(from)) / 86400000) + 1);
+    const stock = stockQ.rows.map((m) => {
+      const perDay = m.qty_in_range / days;
+      return {
+        ...m,
+        perDay: perDay > 0 ? perDay.toFixed(2) : "0",
+        daysRemaining: perDay > 0 ? Math.round(m.stock_quantity / perDay) : null,
+      };
+    });
+
+    const totalFamilies = parseInt(familyQ.rows[0].total_families, 10);
+    const fpFamilies = parseInt(familyQ.rows[0].fp_families, 10);
+
+    res.render("reports/analytics", {
+      title: "Analytics · Sampaguita HC",
+      active: "reports",
+      from,
+      to,
+      period,
+      today,
+      appt: apptQ.rows[0],
+      rescheduled: rescheduleQ.rows[0].n,
+      fpAcceptors: fpAcceptorsQ.rows[0].n,
+      seniorOnMeds: seniorQ.rows[0].n,
+      stock,
+      totalFamilies,
+      fpFamilies,
+      notFpFamilies: totalFamilies - fpFamilies,
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
 // ---- PDF EXPORT  GET /reports/export/patient/:id ---------------------------
 // Open to any signed-in staff (docs/ARCHITECTURE.md: export = "staff", wider
 // than the analytics pages above).

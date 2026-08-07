@@ -124,4 +124,42 @@ router.post("/admin/users/:id/update", async (req, res, next) => {
   }
 });
 
+// ---- ACTIVITY LOG  GET /admin/audit-log ------------------------------------
+// Read-only view over audit_log (lib/audit.js) — logins/logouts, patient
+// create/update/delete, and staff account changes. Panel's accountability
+// requirement needed somewhere staff/admin can actually see it, not just a
+// table quietly filling up in the database.
+const AUDIT_ACTIONS = ["login", "logout", "create", "update", "delete", "password_change"];
+
+router.get("/admin/audit-log", async (req, res, next) => {
+  try {
+    const action = AUDIT_ACTIONS.includes(req.query.action) ? req.query.action : "";
+    const params = [];
+    let where = "";
+    if (action) {
+      params.push(action);
+      where = `WHERE al.action = $${params.length}`;
+    }
+    const { rows } = await db.query(
+      `SELECT al.audit_id, al.action, al.entity_type, al.entity_id, al.details, al.created_at,
+              u.full_name AS actor_name, u.username AS actor_username
+         FROM audit_log al
+         LEFT JOIN users u ON u.user_id = al.user_id
+         ${where}
+        ORDER BY al.created_at DESC
+        LIMIT 300`,
+      params
+    );
+    res.render("users/audit-log", {
+      title: "Activity log · Sampaguita HC",
+      active: "settings",
+      rows,
+      action,
+      actions: AUDIT_ACTIONS,
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
 module.exports = router;

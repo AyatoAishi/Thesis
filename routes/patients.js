@@ -33,6 +33,23 @@ async function nextPatientNumber() {
   return prefix + String(n).padStart(4, "0");
 }
 
+// Next household/family number for the current year, e.g. 26-00, 26-01…
+// (teammate spec: 2-digit year, sequence starting at 00 — separate scheme
+// from patient_number since one family groups several patients). Only rows
+// that already match the YY-N pattern count toward the sequence, so old
+// free-text values entered before this existed don't break the count.
+async function nextFamilyNumber() {
+  const yy = String(new Date().getFullYear()).slice(-2);
+  const { rows } = await db.query(
+    `SELECT max(split_part(family_number, '-', 2)::int) AS max_seq
+       FROM patients
+      WHERE family_number ~ '^\\d{2}-\\d+$' AND split_part(family_number, '-', 1) = $1`,
+    [yy]
+  );
+  const n = rows[0].max_seq === null ? 0 : rows[0].max_seq + 1;
+  return `${yy}-${String(n).padStart(2, "0")}`;
+}
+
 // Minor status is never taken from the client — always derived from birthdate
 // (professor's revision note: "auto-calculate from birthdate").
 function calcIsMinor(birthdate) {
@@ -135,6 +152,17 @@ router.get("/patients/new", (req, res) => {
     patient: {},
     errors: [],
   });
+});
+
+// ---- NEXT FAMILY NUMBER  GET /patients/next-family-number ------------------
+// Fetched client-side (a "Generate" button) so the rest of an in-progress
+// registration form isn't lost to a full-page round trip for one field.
+router.get("/patients/next-family-number", async (req, res, next) => {
+  try {
+    res.json({ family_number: await nextFamilyNumber() });
+  } catch (e) {
+    next(e);
+  }
 });
 
 // ---- CREATE  POST /patients ------------------------------------------------

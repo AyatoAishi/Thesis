@@ -1,0 +1,18 @@
+<%
+  // Searchable replacement for a plain <select name="patient_id">. Expects
+  // `patients` (rows with patient_id/full_name/patient_number) and optional
+  // `selectedId` (preselect after a validation re-render). Filtering runs
+  // client-side (app.js) against the same ≤500-row list already sent to the
+  // page, so no extra request is made as the user types.
+  const _list = (patients || []).map(p => ({ id: p.patient_id, name: p.full_name, num: p.patient_number }));
+  const _preId = (typeof selectedId !== "undefined" && selectedId) ? String(selectedId) : "";
+  const _pre = _list.find(p => String(p.id) === _preId);
+%>
+<div class="patient-picker" data-patient-picker>
+  <input type="hidden" name="patient_id" data-patient-picker-id value="<%= _preId %>" />
+  <input type="text" data-patient-picker-search autocomplete="off"
+         placeholder="Search by name or patient number…"
+         value="<%= _pre ? `${_pre.name} — ${_pre.num}` : '' %>" />
+  <div class="patient-picker-results" data-patient-picker-results hidden></div>
+  <script type="application/json" data-patient-picker-data><%- JSON.stringify(_list) %></script>
+</div>

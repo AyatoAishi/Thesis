@@ -26,14 +26,7 @@
         <% } else if (!patients.length) { %>
           <p class="muted" style="margin:6px 0 0">No patients registered yet. <a href="/patients/new">Add one first →</a></p>
         <% } else { %>
-          <select name="patient_id" required>
-            <option value="">— choose patient —</option>
-            <% patients.forEach(p => { %>
-              <option value="<%= p.patient_id %>" <%= String(appt.patient_id) === String(p.patient_id) ? 'selected' : '' %>>
-                <%= p.full_name %> — <%= p.patient_number %>
-              </option>
-            <% }) %>
-          </select>
+          <%- include("../partials/patient-picker", { patients, selectedId: appt.patient_id }) %>
         <% } %>
       </label>
 

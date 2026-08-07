@@ -1,0 +1,51 @@
+<%
+  function fmt(ts) {
+    if (!ts) return "—";
+    return new Date(ts).toLocaleString("en-PH", { timeZone: "Asia/Manila", year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  }
+  function actionBadge(a) {
+    const m = {
+      login: ["ok", "Login"], logout: ["info", "Logout"], create: ["ok", "Create"],
+      update: ["info", "Update"], delete: ["bad", "Delete"], password_change: ["warn", "Password change"],
+    };
+    const [c, l] = m[a] || ["info", a];
+    return `<span class="badge ${c}">${l}</span>`;
+  }
+  const filters = [["", "All"], ...actions.map(a => [a, a.replace("_", " ")])];
+%>
+<div class="page-head">
+  <h1>Staff accounts</h1>
+  <div class="sub">Activity log</div>
+</div>
+
+<div class="card">
+  <div class="tabbar">
+    <a href="/admin/users" class="tab">Staff accounts</a>
+    <a href="/admin/audit-log" class="tab active">Activity log</a>
+  </div>
+
+  <div class="tabbar" style="margin-top:2px">
+    <% filters.forEach(f => { %>
+      <a href="/admin/audit-log<%= f[0] ? '?action=' + f[0] : '' %>" class="tab <%= action === f[0] ? 'active' : '' %>" style="text-transform:capitalize"><%= f[1] %></a>
+    <% }) %>
+  </div>
+
+  <% if (!rows.length) { %>
+    <p class="muted" style="padding:8px 2px;margin:0">No activity recorded<%= action ? ` for “${action}”` : "" %> yet.</p>
+  <% } else { %>
+    <table class="tbl">
+      <thead><tr><th>When</th><th>Who</th><th>Action</th><th>On</th><th>Details</th></tr></thead>
+      <tbody>
+        <% rows.forEach(r => { %>
+          <tr>
+            <td class="mono" style="white-space:nowrap"><%= fmt(r.created_at) %></td>
+            <td><%= r.actor_name || "—" %><% if (r.actor_username) { %><div class="muted mono" style="font-size:11px"><%= r.actor_username %></div><% } %></td>
+            <td><%- actionBadge(r.action) %></td>
+            <td class="muted"><%= r.entity_type || "—" %><%= r.entity_id ? ` #${r.entity_id}` : "" %></td>
+            <td><%= r.details || "—" %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>

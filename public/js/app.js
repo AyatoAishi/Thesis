@@ -12,72 +12,49 @@
     }
   });
 
-  // "Generate new" family number button (views/patients/form.ejs).
-  var genFamilyBtn = document.querySelector("[data-gen-family-number]");
-  if (genFamilyBtn) {
-    genFamilyBtn.addEventListener("click", function () {
-      genFamilyBtn.disabled = true;
-      fetch("/patients/next-family-number")
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-          document.getElementById("familyNumber").value = data.family_number;
-        })
-        .catch(function () {
-          alert("Couldn't generate a number right now — check your connection and try again.");
-        })
-        .finally(function () {
-          genFamilyBtn.disabled = false;
-        });
-    });
-  }
-
-  // "Link to existing family member" search (views/partials/family-lookup.ejs).
-  document.querySelectorAll("[data-family-lookup]").forEach(function (root) {
-    var search = root.querySelector("[data-family-lookup-search]");
-    var results = root.querySelector("[data-family-lookup-results]");
-    var dataEl = root.querySelector("[data-family-lookup-data]");
-    var note = root.querySelector("[data-family-lookup-note]");
-    var target = document.getElementById("familyNumber");
+  // "Link to family" (views/partials/family-lookup.ejs) — search a relative
+  // by name; picking one shows a plain confirmation chip instead of any raw
+  // code, and never asks staff to go make a second manual edit elsewhere.
+  document.querySelectorAll("[data-family-link]").forEach(function (root) {
+    var valueInput = root.querySelector("[data-family-link-value]");
+    var chip = root.querySelector("[data-family-link-chip]");
+    var chipText = root.querySelector("[data-family-link-chip-text]");
+    var clearBtn = root.querySelector("[data-family-link-clear]");
+    var searchWrap = root.querySelector("[data-family-link-search-wrap]");
+    var search = root.querySelector("[data-family-link-search]");
+    var results = root.querySelector("[data-family-link-results]");
+    var dataEl = root.querySelector("[data-family-link-data]");
     var people = JSON.parse(dataEl.textContent || "[]");
 
-    function setNote(text, link) {
-      note.textContent = "";
-      if (text) note.appendChild(document.createTextNode(text + " "));
-      if (link) {
-        var a = document.createElement("a");
-        a.href = link.href;
-        a.textContent = link.text;
-        a.target = "_blank";
-        a.className = "back-link";
-        note.appendChild(a);
-      }
+    function showChip(text) {
+      chipText.textContent = text;
+      chip.hidden = false;
+      searchWrap.hidden = true;
     }
 
+    function showSearch() {
+      valueInput.value = "";
+      chip.hidden = true;
+      searchWrap.hidden = false;
+      search.value = "";
+      results.hidden = true;
+      search.focus();
+    }
+
+    if (clearBtn) clearBtn.addEventListener("click", showSearch);
+
     function choose(p) {
-      if (p.fam) {
-        target.value = p.fam;
-        setNote("Copied " + p.name + "'s family number.");
-        results.hidden = true;
-        search.value = "";
-        return;
-      }
-      // No family number on that record yet — generate one for this form,
-      // and point staff at the other record so they can add it there too.
-      setNote("Generating…");
-      fetch("/patients/next-family-number")
+      results.hidden = true;
+      showChip("Linking with " + p.name + "…");
+      fetch("/patients/" + p.id + "/ensure-family-number", { method: "POST" })
         .then(function (r) { return r.json(); })
         .then(function (data) {
-          target.value = data.family_number;
-          setNote(p.name + " doesn't have a family number yet. Generated " + data.family_number + " — also add it to", {
-            href: "/patients/" + p.id + "/edit",
-            text: p.name + "'s record",
-          });
+          valueInput.value = data.family_number;
+          showChip("Linked with " + p.name);
         })
         .catch(function () {
-          setNote("Couldn't generate a number right now — try again.");
+          showChip("Couldn't link right now — try again.");
         });
-      results.hidden = true;
-      search.value = "";
     }
 
     function render(matches) {
@@ -94,11 +71,11 @@
           btn.className = "patient-picker-result";
           var nameSpan = document.createElement("span");
           nameSpan.textContent = p.name;
-          var metaSpan = document.createElement("span");
-          metaSpan.className = "muted";
-          metaSpan.textContent = p.num + (p.fam ? " · " + p.fam : " · no family #");
+          var numSpan = document.createElement("span");
+          numSpan.className = "muted";
+          numSpan.textContent = p.num;
           btn.appendChild(nameSpan);
-          btn.appendChild(metaSpan);
+          btn.appendChild(numSpan);
           btn.addEventListener("click", function () { choose(p); });
           results.appendChild(btn);
         });

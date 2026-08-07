@@ -1,19 +1,26 @@
 <%
-  // "Link to an existing family member" search — staff look up a relative by
-  // name/patient number (which they actually remember) instead of needing to
-  // know or retype a household number. Selecting a match copies that
-  // patient's family_number into #familyNumber; if that match doesn't have
-  // one yet, one is generated fresh and the staff is told to also add it to
-  // the matched patient's record, rather than this silently editing a
-  // different patient behind their back.
-  const _list = (familyLookup || []).map(p => ({
-    id: p.patient_id, name: p.full_name, num: p.patient_number, fam: p.family_number || "",
-  }));
+  // Plain-language family linking: staff search a relative by name (never a
+  // code) and either see a confirmation chip (already linked) or a search
+  // box (not linked yet) — never both, never a raw "26-00"-style number.
+  const _list = (familyLookup || []).map(p => ({ id: p.patient_id, name: p.full_name, num: p.patient_number }));
+  const _members = ((typeof familyMembers !== "undefined" ? familyMembers : []) || []).map(m => m.full_name);
+  const _famNum = typeof selectedFamilyNumber !== "undefined" ? (selectedFamilyNumber || "") : (patient && patient.family_number) || "";
+  const _linked = !!_famNum;
+  const _chipText = _members.length ? `Linked with ${_members.join(", ")}` : "Linked with a family";
 %>
-<div class="patient-picker" data-family-lookup>
-  <input type="text" data-family-lookup-search autocomplete="off"
-         placeholder="Or search a family member already registered…" />
-  <div class="patient-picker-results" data-family-lookup-results hidden></div>
-  <script type="application/json" data-family-lookup-data><%- JSON.stringify(_list) %></script>
-  <p class="muted" data-family-lookup-note style="font-size:11.5px;margin:6px 0 0"></p>
+<div class="family-link" data-family-link>
+  <input type="hidden" name="family_number" data-family-link-value value="<%= _famNum %>" />
+
+  <div class="family-chip" data-family-link-chip <%= _linked ? "" : "hidden" %>>
+    <span data-family-link-chip-text><%= _chipText %></span>
+    <button type="button" class="mini-btn" data-family-link-clear>Remove</button>
+  </div>
+
+  <div data-family-link-search-wrap <%= _linked ? "hidden" : "" %>>
+    <input type="text" data-family-link-search autocomplete="off"
+           placeholder="Search a family member's name — only if they're already registered" />
+    <div class="patient-picker-results" data-family-link-results hidden></div>
+  </div>
+
+  <script type="application/json" data-family-link-data><%- JSON.stringify(_list) %></script>
 </div>

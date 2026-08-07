@@ -122,6 +122,8 @@ body {
 
 .patient-picker { position: relative; }
 .patient-picker input[type="text"] { width: 100%; }
+.family-link [data-family-link-search-wrap] { position: relative; }
+.family-link input[type="text"] { width: 100%; }
 .patient-picker-results {
   position: absolute; left: 0; right: 0; top: calc(100% + 4px); max-height: 260px; overflow-y: auto;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm);
@@ -135,6 +137,13 @@ body {
 .patient-picker-result:hover, .patient-picker-result.active { background: var(--accent-softer); }
 .patient-picker-result .muted { font-size: 11.5px; }
 .patient-picker-empty { padding: 8px 10px; font-size: 12.5px; color: var(--ink-3); }
+
+.family-chip {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: var(--accent-softer); border: 1px solid var(--accent-soft); border-radius: var(--r-sm);
+  padding: 10px 12px; font-size: 13.5px; color: var(--ink); font-weight: 600;
+}
+.family-chip[hidden] { display: none; }
 
 /* Content area */
 .content { padding: 22px; max-width: 1100px; }

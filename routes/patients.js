@@ -65,6 +65,17 @@ async function loadFamilyLookup(excludeId) {
   return rows;
 }
 
+// Other patients sharing a family number, for a friendly "linked with
+// Name, Name" display instead of ever showing the raw code to staff.
+async function loadFamilyMembers(family_number, excludeId) {
+  if (!family_number) return [];
+  const { rows } = await db.query(
+    "SELECT patient_id, full_name, patient_number FROM patients WHERE family_number=$1 AND patient_id<>$2 ORDER BY full_name",
+    [family_number, excludeId || 0]
+  );
+  return rows;
+}
+
 // Minor status is never taken from the client — always derived from birthdate
 // (professor's revision note: "auto-calculate from birthdate").
 function calcIsMinor(birthdate) {
@@ -167,19 +178,9 @@ router.get("/patients/new", async (req, res, next) => {
       mode: "new",
       patient: {},
       familyLookup: await loadFamilyLookup(),
+      familyMembers: [],
       errors: [],
     });
-  } catch (e) {
-    next(e);
-  }
-});
-
-// ---- NEXT FAMILY NUMBER  GET /patients/next-family-number ------------------
-// Fetched client-side (a "Generate" button) so the rest of an in-progress
-// registration form isn't lost to a full-page round trip for one field.
-router.get("/patients/next-family-number", async (req, res, next) => {
-  try {
-    res.json({ family_number: await nextFamilyNumber() });
   } catch (e) {
     next(e);
   }
@@ -196,6 +197,7 @@ router.post("/patients", async (req, res, next) => {
       mode: "new",
       patient: p,
       familyLookup: await loadFamilyLookup(),
+      familyMembers: await loadFamilyMembers(p.family_number),
       errors,
     });
   }
@@ -234,7 +236,7 @@ router.get("/patients/:id", async (req, res, next) => {
     );
     if (!rows[0]) return next();
 
-    const [appts, acctQ, dispensesQ] = await Promise.all([
+    const [appts, acctQ, dispensesQ, familyMembers] = await Promise.all([
       db.query(
         `SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.status,
                 s.name AS service_name
@@ -260,6 +262,7 @@ router.get("/patients/:id", async (req, res, next) => {
           LIMIT 50`,
         [req.params.id]
       ),
+      loadFamilyMembers(rows[0].family_number, req.params.id),
     ]);
 
     // One-time credentials flash (set by portal-account create/reset) — read once, then gone.
@@ -277,6 +280,7 @@ router.get("/patients/:id", async (req, res, next) => {
       appointments: appts.rows,
       dispenses: dispensesQ.rows,
       account: acctQ.rows[0] || null,
+      familyMembers,
       secrets,
       acctErr: req.query.acct_err || null,
       idTypes: ID_TYPES,
@@ -303,6 +307,7 @@ router.get("/patients/:id/edit", async (req, res, next) => {
       mode: "edit",
       patient: rows[0],
       familyLookup: await loadFamilyLookup(req.params.id),
+      familyMembers: await loadFamilyMembers(rows[0].family_number, req.params.id),
       errors: [],
     });
   } catch (e) {
@@ -321,6 +326,7 @@ router.post("/patients/:id", async (req, res, next) => {
       mode: "edit",
       patient: { ...p, patient_id: req.params.id },
       familyLookup: await loadFamilyLookup(req.params.id),
+      familyMembers: await loadFamilyMembers(p.family_number, req.params.id),
       errors,
     });
   }
@@ -340,6 +346,38 @@ router.post("/patients/:id", async (req, res, next) => {
     if (!rowCount) return next();
     audit.log(req.session.user.user_id, "update", "patient", req.params.id, p.full_name);
     res.redirect(`/patients/${req.params.id}`);
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ---- LINK TO FAMILY  POST /patients/:id/ensure-family-number ---------------
+// Fired when staff search-select an existing patient as "this patient's
+// family" on the registration form. If that patient doesn't have a family
+// number yet, assigns one now instead of telling staff to remember to add
+// it on a second, separate edit — most people won't reliably do that.
+router.post("/patients/:id/ensure-family-number", async (req, res, next) => {
+  try {
+    const { rows } = await db.query(
+      "SELECT patient_id, family_number FROM patients WHERE patient_id=$1",
+      [req.params.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: "Patient not found." });
+    if (rows[0].family_number) return res.json({ family_number: rows[0].family_number });
+
+    const family_number = await nextFamilyNumber();
+    await db.query("UPDATE patients SET family_number=$1, updated_at=now() WHERE patient_id=$2", [
+      family_number,
+      req.params.id,
+    ]);
+    audit.log(
+      req.session.user.user_id,
+      "update",
+      "patient",
+      req.params.id,
+      `assigned family number (linked while registering another family member)`
+    );
+    res.json({ family_number });
   } catch (e) {
     next(e);
   }

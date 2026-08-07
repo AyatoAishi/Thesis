@@ -41,17 +41,16 @@
       <label class="field"><span>Patient email <span class="muted">(for reminders)</span></span>
         <input type="email" name="email" value="<%= p.email || '' %>" placeholder="name@gmail.com" />
       </label>
-      <label class="field"><span>Family / household #<span class="muted"> (optional — groups relatives together)</span></span>
-        <div style="display:flex;gap:6px">
-          <input type="text" name="family_number" id="familyNumber" value="<%= p.family_number || '' %>" placeholder="e.g. 26-00 — same # for every household member" style="flex:1" />
-          <button type="button" class="mini-btn" data-gen-family-number>Generate new</button>
-        </div>
-        <%- include("../partials/family-lookup", { familyLookup }) %>
-      </label>
       <label class="field" style="grid-column:1/-1"><span>Address</span>
         <input type="text" name="address" value="<%= p.address || '' %>" />
       </label>
     </div>
+  </div>
+
+  <div class="card" style="overflow:visible">
+    <div class="panel-title" style="margin-bottom:6px">Family</div>
+    <p class="muted" style="font-size:12.5px;margin:0 0 12px">If this patient has family already registered in the system, search for them below — this groups them together automatically.</p>
+    <%- include("../partials/family-lookup", { familyLookup, familyMembers, patient: p }) %>
   </div>
 
   <div class="card">

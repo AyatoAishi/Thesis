@@ -136,13 +136,15 @@ router.get("/appointments", async (req, res, next) => {
 // ---- UPCOMING / status-filtered list  GET /appointments/upcoming -----------
 router.get("/appointments/upcoming", async (req, res, next) => {
   try {
-    const status = STATUSES.includes(req.query.status) ? req.query.status : "scheduled";
+    const status = req.query.status === "all" || STATUSES.includes(req.query.status) ? req.query.status : "all";
     const today = F.manilaToday();
     const where =
-      status === "scheduled"
+      status === "all"
+        ? "TRUE"
+        : status === "scheduled"
         ? "a.status='scheduled' AND a.appointment_date >= $1"
         : "a.status=$1";
-    const params = status === "scheduled" ? [today] : [status];
+    const params = status === "all" ? [] : status === "scheduled" ? [today] : [status];
     const { rows } = await db.query(
       `SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.status,
               s.name AS service_name, p.patient_id, p.patient_number, p.full_name

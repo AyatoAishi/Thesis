@@ -13,7 +13,7 @@
 %>
 <div class="page-head" style="display:flex;align-items:center;justify-content:space-between">
   <div>
-    <h1><%= m.name %>
+    <h1><%= m.name %><% if (m.dosage) { %> <span class="muted" style="font-weight:400"><%= m.dosage %></span><% } %>
       <% if (m.requires_doctor_approval) { %><span class="badge warn" style="vertical-align:middle">Doctor approval</span><% } %>
       <% if (low) { %><span class="badge bad" style="vertical-align:middle">Low stock</span><% } %>
     </h1>

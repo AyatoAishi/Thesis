@@ -36,7 +36,7 @@
       <label class="field" style="grid-column:1/-1"><span>Medicine *</span>
         <% if (medicine) { %>
           <input type="hidden" name="medicine_id" value="<%= medicine.medicine_id %>" />
-          <input type="text" value="<%= medicine.name %> (<%= medicine.unit || 'unit' %>) — <%= medicine.stock_quantity %> in stock" disabled />
+          <input type="text" value="<%= medicine.name %><%= medicine.dosage ? ' ' + medicine.dosage : '' %> (<%= medicine.unit || 'unit' %>) — <%= medicine.stock_quantity %> in stock" disabled />
           <% if (medicine.requires_doctor_approval) { %>
             <span class="muted" style="font-size:11.5px">Requires doctor approval — stock won't be deducted until approved.</span>
           <% } %>
@@ -47,7 +47,7 @@
             <option value="">— choose medicine —</option>
             <% medicines.forEach(med => { %>
               <option value="<%= med.medicine_id %>" <%= String(dispense.medicine_id) === String(med.medicine_id) ? 'selected' : '' %>>
-                <%= med.name %> (<%= med.unit || "unit" %>) — <%= med.stock_quantity %> in stock
+                <%= med.name %><%= med.dosage ? ' ' + med.dosage : '' %> (<%= med.unit || "unit" %>) — <%= med.stock_quantity %> in stock
               </option>
             <% }) %>
           </select>

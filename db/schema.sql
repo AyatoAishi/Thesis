@@ -143,6 +143,7 @@ CREATE TABLE medicines (
     name                VARCHAR(150) NOT NULL,
     description         VARCHAR(255),
     unit                VARCHAR(30),                 -- 'tablet','vial','bottle'
+    dosage              VARCHAR(30),                 -- '500mg', '2g' — distinguishes same-named medicines
     stock_quantity      INTEGER NOT NULL DEFAULT 0,
     low_stock_threshold INTEGER NOT NULL DEFAULT 10, -- flag when stock drops below this
     source              VARCHAR(150),                -- hospital / pharmacy it came from

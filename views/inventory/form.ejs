@@ -24,6 +24,10 @@
       <label class="field"><span>Name *</span>
         <input type="text" name="name" value="<%= m.name || '' %>" required />
       </label>
+      <label class="field"><span>Dosage <span class="muted">(optional)</span></span>
+        <input type="text" name="dosage" value="<%= m.dosage || '' %>" placeholder="e.g. 500mg, 2g" />
+        <span class="muted" style="font-size:11.5px">Different dosages of the same name (e.g. Paracetamol 250mg vs 500mg) are separate entries.</span>
+      </label>
       <label class="field"><span>Unit</span>
         <input type="text" name="unit" value="<%= m.unit || '' %>" placeholder="tablet, vial, bottle…" />
       </label>

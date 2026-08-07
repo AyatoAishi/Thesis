@@ -34,6 +34,7 @@ function readMedicineForm(body) {
     name: (body.name || "").trim(),
     description: (body.description || "").trim() || null,
     unit: (body.unit || "").trim() || null,
+    dosage: (body.dosage || "").trim() || null,
     stock_quantity: toInt(body.stock_quantity, 0),
     low_stock_threshold: toInt(body.low_stock_threshold, 10),
     source: (body.source || "").trim() || null,
@@ -93,7 +94,7 @@ async function rerenderDispenseForm(res, { body, medicine, errors }) {
     ? null
     : (
         await db.query(
-          "SELECT medicine_id, name, unit, stock_quantity FROM medicines ORDER BY name LIMIT 500"
+          "SELECT medicine_id, name, unit, dosage, stock_quantity FROM medicines ORDER BY name LIMIT 500"
         )
       ).rows;
   return res.status(400).render("inventory/dispense-form", {
@@ -124,7 +125,7 @@ router.get("/inventory", async (req, res, next) => {
 
     const [{ rows }, totalQ, lowQ, pendingQ] = await Promise.all([
       db.query(
-        `SELECT medicine_id, name, description, unit, stock_quantity, low_stock_threshold,
+        `SELECT medicine_id, name, description, unit, dosage, stock_quantity, low_stock_threshold,
                 source, requires_doctor_approval
            FROM medicines ${where}
           ORDER BY name LIMIT 500`,
@@ -164,6 +165,22 @@ router.get("/inventory/new", (req, res) => {
   });
 });
 
+// Same name + same dosage (case-insensitive, blank dosage treated as its own
+// value) already exists → treat as a duplicate. Different dosage of the same
+// name is a distinct medicine and is allowed. `excludeId` skips a row's own
+// id, so editing a medicine doesn't flag itself as a duplicate of itself.
+async function findDuplicateMedicine(m, excludeId) {
+  const { rows } = await db.query(
+    `SELECT medicine_id, name, dosage FROM medicines
+      WHERE lower(name) = lower($1)
+        AND lower(coalesce(dosage,'')) = lower(coalesce($2,''))
+        AND medicine_id <> coalesce($3, -1)
+      LIMIT 1`,
+    [m.name, m.dosage, excludeId || null]
+  );
+  return rows[0] || null;
+}
+
 // ---- CREATE  POST /inventory ------------------------------------------------
 router.post("/inventory", async (req, res, next) => {
   const m = readMedicineForm(req.body);
@@ -178,12 +195,26 @@ router.post("/inventory", async (req, res, next) => {
     });
   }
   try {
+    const dup = await findDuplicateMedicine(m);
+    if (dup) {
+      return res.status(400).render("inventory/form", {
+        title: "Add medicine · Sampaguita HC",
+        active: "inventory",
+        mode: "new",
+        medicine: m,
+        errors: [
+          `"${dup.name}"${dup.dosage ? ` (${dup.dosage})` : ""} already exists in inventory. ` +
+            `Open it and adjust its stock quantity instead of adding a duplicate entry.`,
+        ],
+        dupId: dup.medicine_id,
+      });
+    }
     const { rows } = await db.query(
       `INSERT INTO medicines
-         (name, description, unit, stock_quantity, low_stock_threshold, source, requires_doctor_approval)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)
+         (name, description, unit, dosage, stock_quantity, low_stock_threshold, source, requires_doctor_approval)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
        RETURNING medicine_id`,
-      [m.name, m.description, m.unit, m.stock_quantity, m.low_stock_threshold, m.source, m.requires_doctor_approval]
+      [m.name, m.description, m.unit, m.dosage, m.stock_quantity, m.low_stock_threshold, m.source, m.requires_doctor_approval]
     );
     res.redirect(`/inventory/${rows[0].medicine_id}`);
   } catch (e) {
@@ -267,7 +298,7 @@ router.get("/inventory/dispense/new", async (req, res, next) => {
     }
     if (!medicine) {
       medicines = (
-        await db.query("SELECT medicine_id, name, unit, stock_quantity FROM medicines ORDER BY name LIMIT 500")
+        await db.query("SELECT medicine_id, name, unit, dosage, stock_quantity FROM medicines ORDER BY name LIMIT 500")
       ).rows;
     }
 
@@ -475,12 +506,25 @@ router.post("/inventory/:id", async (req, res, next) => {
     });
   }
   try {
+    const dup = await findDuplicateMedicine(m, parseInt(req.params.id, 10));
+    if (dup) {
+      return res.status(400).render("inventory/form", {
+        title: "Edit medicine · Sampaguita HC",
+        active: "inventory",
+        mode: "edit",
+        medicine: { ...m, medicine_id: req.params.id },
+        errors: [
+          `"${dup.name}"${dup.dosage ? ` (${dup.dosage})` : ""} already exists as a separate entry — ` +
+            `merge stock there instead of having two entries for the same medicine.`,
+        ],
+      });
+    }
     const { rowCount } = await db.query(
       `UPDATE medicines SET
-         name=$1, description=$2, unit=$3, stock_quantity=$4, low_stock_threshold=$5,
-         source=$6, requires_doctor_approval=$7, updated_at=now()
-       WHERE medicine_id=$8`,
-      [m.name, m.description, m.unit, m.stock_quantity, m.low_stock_threshold, m.source, m.requires_doctor_approval, req.params.id]
+         name=$1, description=$2, unit=$3, dosage=$4, stock_quantity=$5, low_stock_threshold=$6,
+         source=$7, requires_doctor_approval=$8, updated_at=now()
+       WHERE medicine_id=$9`,
+      [m.name, m.description, m.unit, m.dosage, m.stock_quantity, m.low_stock_threshold, m.source, m.requires_doctor_approval, req.params.id]
     );
     if (!rowCount) return next();
     res.redirect(`/inventory/${req.params.id}`);

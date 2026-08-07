@@ -46,7 +46,7 @@
           <input type="text" name="family_number" id="familyNumber" value="<%= p.family_number || '' %>" placeholder="e.g. 26-00 — same # for every household member" style="flex:1" />
           <button type="button" class="mini-btn" data-gen-family-number>Generate new</button>
         </div>
-        <span class="muted" style="font-size:11.5px">Already have this family's number? Type it in instead — don't generate a new one.</span>
+        <%- include("../partials/family-lookup", { familyLookup }) %>
       </label>
       <label class="field" style="grid-column:1/-1"><span>Address</span>
         <input type="text" name="address" value="<%= p.address || '' %>" />

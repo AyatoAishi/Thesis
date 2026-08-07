@@ -1,0 +1,19 @@
+<%
+  // "Link to an existing family member" search — staff look up a relative by
+  // name/patient number (which they actually remember) instead of needing to
+  // know or retype a household number. Selecting a match copies that
+  // patient's family_number into #familyNumber; if that match doesn't have
+  // one yet, one is generated fresh and the staff is told to also add it to
+  // the matched patient's record, rather than this silently editing a
+  // different patient behind their back.
+  const _list = (familyLookup || []).map(p => ({
+    id: p.patient_id, name: p.full_name, num: p.patient_number, fam: p.family_number || "",
+  }));
+%>
+<div class="patient-picker" data-family-lookup>
+  <input type="text" data-family-lookup-search autocomplete="off"
+         placeholder="Or search a family member already registered…" />
+  <div class="patient-picker-results" data-family-lookup-results hidden></div>
+  <script type="application/json" data-family-lookup-data><%- JSON.stringify(_list) %></script>
+  <p class="muted" data-family-lookup-note style="font-size:11.5px;margin:6px 0 0"></p>
+</div>

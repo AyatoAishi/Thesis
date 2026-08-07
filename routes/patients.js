@@ -50,6 +50,21 @@ async function nextFamilyNumber() {
   return `${yy}-${String(n).padStart(2, "0")}`;
 }
 
+// Patients for the "link to existing family member" search on the form —
+// staff search by a name they actually know, instead of needing to remember
+// or copy-paste a household number.
+async function loadFamilyLookup(excludeId) {
+  const { rows } = await db.query(
+    excludeId
+      ? `SELECT patient_id, patient_number, full_name, family_number FROM patients
+          WHERE patient_id <> $1 ORDER BY full_name LIMIT 500`
+      : `SELECT patient_id, patient_number, full_name, family_number FROM patients
+          ORDER BY full_name LIMIT 500`,
+    excludeId ? [excludeId] : []
+  );
+  return rows;
+}
+
 // Minor status is never taken from the client — always derived from birthdate
 // (professor's revision note: "auto-calculate from birthdate").
 function calcIsMinor(birthdate) {
@@ -144,14 +159,19 @@ router.get("/patients", async (req, res, next) => {
 });
 
 // ---- NEW form  /patients/new ----------------------------------------------
-router.get("/patients/new", (req, res) => {
-  res.render("patients/form", {
-    title: "Add patient · Sampaguita HC",
-    active: "patients",
-    mode: "new",
-    patient: {},
-    errors: [],
-  });
+router.get("/patients/new", async (req, res, next) => {
+  try {
+    res.render("patients/form", {
+      title: "Add patient · Sampaguita HC",
+      active: "patients",
+      mode: "new",
+      patient: {},
+      familyLookup: await loadFamilyLookup(),
+      errors: [],
+    });
+  } catch (e) {
+    next(e);
+  }
 });
 
 // ---- NEXT FAMILY NUMBER  GET /patients/next-family-number ------------------
@@ -175,6 +195,7 @@ router.post("/patients", async (req, res, next) => {
       active: "patients",
       mode: "new",
       patient: p,
+      familyLookup: await loadFamilyLookup(),
       errors,
     });
   }
@@ -281,6 +302,7 @@ router.get("/patients/:id/edit", async (req, res, next) => {
       active: "patients",
       mode: "edit",
       patient: rows[0],
+      familyLookup: await loadFamilyLookup(req.params.id),
       errors: [],
     });
   } catch (e) {
@@ -298,6 +320,7 @@ router.post("/patients/:id", async (req, res, next) => {
       active: "patients",
       mode: "edit",
       patient: { ...p, patient_id: req.params.id },
+      familyLookup: await loadFamilyLookup(req.params.id),
       errors,
     });
   }

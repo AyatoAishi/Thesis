@@ -7,23 +7,29 @@
 </div>
 
 <div class="card">
-  <%- include("../partials/reports-tabbar", { active: "no-shows", from, to }) %>
+  <%- include("../partials/reports-tabbar", { active: "no-shows", from, to, period }) %>
 
-  <form method="GET" action="/reports/no-shows" class="form-grid" style="align-items:flex-end;margin-bottom:16px">
-    <%- include("../partials/reports-daterange", { from, to }) %>
+<%
+  // This tab has two filters the others don't (service + patient search), so
+  // they ride along inside the shared filter form via `slot`, and are kept in
+  // the URL when a period preset is clicked via `extra`.
+  const esc = (v) => String(v == null ? "" : v)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const options = services
+    .map(s => `<option value="${s.service_id}" ${String(service_id) === String(s.service_id) ? "selected" : ""}>${esc(pretty(s.name))}</option>`)
+    .join("");
+  const slot = `
     <label class="field"><span>Service</span>
-      <select name="service_id">
-        <option value="">All services</option>
-        <% services.forEach(s => { %>
-          <option value="<%= s.service_id %>" <%= String(service_id) === String(s.service_id) ? 'selected' : '' %>><%= pretty(s.name) %></option>
-        <% }) %>
-      </select>
+      <select name="service_id"><option value="">All services</option>${options}</select>
     </label>
     <label class="field"><span>Patient name or number</span>
-      <input type="search" name="q" value="<%= q %>" placeholder="Search…" />
-    </label>
-    <div class="field"><button class="btn" type="submit">Apply</button></div>
-  </form>
+      <input type="search" name="q" value="${esc(q)}" placeholder="Search…" />
+    </label>`;
+  const extra =
+    (service_id ? `&service_id=${encodeURIComponent(service_id)}` : "") +
+    (q ? `&q=${encodeURIComponent(q)}` : "");
+%>
+  <%- include("../partials/reports-filter", { action: "/reports/no-shows", from, to, period, slot, extra }) %>
 
   <div class="sub" style="margin-bottom:10px"><%= rows.length %> no-show<%= rows.length === 1 ? "" : "s" %> in this range</div>
 

@@ -21,6 +21,7 @@ const F = require("../lib/format");
 const VACCINES = require("../lib/vaccines");
 const audit = require("../lib/audit");
 const { buildReportPdf } = require("../lib/pdf");
+const { buildCard } = require("../lib/immunizationCard");
 
 const router = express.Router();
 
@@ -48,39 +49,8 @@ async function loadPatient(id) {
   return rows[0] || null;
 }
 
-// Cross-references the standard schedule against what's actually recorded
-// for this patient, plus any "other" (non-catalog) vaccines given.
-async function buildCard(patientId) {
-  const { rows } = await db.query(
-    `SELECT imm_id, vaccine_name, dose_number, given_date, remarks
-       FROM immunization_records
-      WHERE patient_id=$1 AND status='given'
-      ORDER BY given_date`,
-    [patientId]
-  );
-
-  const byVaccine = new Map();
-  rows.forEach((r) => {
-    if (!byVaccine.has(r.vaccine_name)) byVaccine.set(r.vaccine_name, new Map());
-    byVaccine.get(r.vaccine_name).set(r.dose_number, r);
-  });
-
-  const catalogNames = new Set(VACCINES.map((v) => v.name));
-  const schedule = VACCINES.map((v) => ({
-    ...v,
-    doseSlots: Array.from({ length: v.doses }, (_, i) => {
-      const doseNumber = i + 1;
-      const rec = byVaccine.get(v.name)?.get(doseNumber);
-      return rec
-        ? { doseNumber, given: true, date: rec.given_date, remarks: rec.remarks, imm_id: rec.imm_id }
-        : { doseNumber, given: false };
-    }),
-  }));
-
-  const other = rows.filter((r) => !catalogNames.has(r.vaccine_name));
-
-  return { schedule, other };
-}
+// buildCard() moved to lib/immunizationCard.js — the patient portal renders
+// the same card read-only, so both sides share one implementation.
 
 // ---- CARD  GET /patients/:id/immunization -----------------------------------
 router.get("/patients/:id/immunization", async (req, res, next) => {

@@ -7,17 +7,14 @@
 </div>
 
 <div class="card">
-  <%- include("../partials/reports-tabbar", { active: "senior-citizen", from, to }) %>
+  <%- include("../partials/reports-tabbar", { active: "senior-citizen", from, to, period }) %>
 
   <p class="muted" style="font-size:12.5px;margin:12px 0 14px">
     Only patients who are <b>60 or older</b> are shown — that part isn't affected by the dates below.
     The date range only picks which <b>medicine dispenses</b> to count (like every other report tab).
   </p>
 
-  <form method="GET" action="/reports/senior-citizen" class="form-grid" style="align-items:flex-end;margin-bottom:16px">
-    <%- include("../partials/reports-daterange", { from, to }) %>
-    <div class="field"><button class="btn" type="submit">Apply</button></div>
-  </form>
+  <%- include("../partials/reports-filter", { action: "/reports/senior-citizen", from, to, period }) %>
 
   <% if (!meds.length) { %>
     <p class="muted" style="padding:8px 2px">

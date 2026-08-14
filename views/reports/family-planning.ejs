@@ -7,12 +7,9 @@
 </div>
 
 <div class="card">
-  <%- include("../partials/reports-tabbar", { active: "family-planning", from, to }) %>
+  <%- include("../partials/reports-tabbar", { active: "family-planning", from, to, period }) %>
 
-  <form method="GET" action="/reports/family-planning" class="form-grid" style="align-items:flex-end;margin-bottom:16px">
-    <%- include("../partials/reports-daterange", { from, to }) %>
-    <div class="field"><button class="btn" type="submit">Apply</button></div>
-  </form>
+  <%- include("../partials/reports-filter", { action: "/reports/family-planning", from, to, period }) %>
 
   <% if (!items.length) { %>
     <p class="muted" style="padding:8px 2px">

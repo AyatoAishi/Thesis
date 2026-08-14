@@ -17,9 +17,20 @@
 </div>
 
 <div class="card">
-  <form method="GET" action="/patients" style="margin-bottom:14px">
-    <input class="search" type="search" name="q" value="<%= q %>"
-           placeholder="Search name, patient number, or contact…" style="max-width:100%" />
+  <form method="GET" action="/patients" class="list-controls">
+    <div class="search-wrap search-wrap-lg">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-3.6-3.6"/></svg>
+      <input class="search search-lg" type="search" name="q" value="<%= q %>"
+             placeholder="Search name, patient number, or contact…" autofocus />
+    </div>
+    <label class="field list-sort"><span>Sort by</span>
+      <select name="sort" onchange="this.form.submit()">
+        <% Object.keys(sorts).forEach(k => { %>
+          <option value="<%= k %>" <%= sort === k ? 'selected' : '' %>><%= sorts[k].label %></option>
+        <% }) %>
+      </select>
+    </label>
+    <button class="btn" type="submit">Search</button>
   </form>
 
   <% if (!patients.length) { %>

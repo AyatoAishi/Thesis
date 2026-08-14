@@ -31,12 +31,31 @@ function isDate(s) {
   return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
 }
 
-// Defaults to the last 30 days (inclusive of today); falls back to that
-// default whenever the query string is missing or the range is invalid.
+// Monday-of-this-week / 1st-of-this-month / Jan-1-of-this-year, through today
+// (Manila time) — the "per week/month/year" presets Alyanna's notes asked for,
+// on top of the custom date range every report already had.
+function periodBounds(period, today) {
+  if (period === "week") {
+    const dow = F.weekdayOf(today); // 0=Sun..6=Sat
+    return { from: F.addDays(today, dow === 0 ? -6 : -(dow - 1)), to: today };
+  }
+  if (period === "month") return { from: `${today.slice(0, 7)}-01`, to: today };
+  if (period === "year") return { from: `${today.slice(0, 4)}-01-01`, to: today };
+  return null;
+}
+
+const PERIODS = ["week", "month", "year"];
+
+// ?period=week|month|year wins when present; otherwise ?from/?to, falling back
+// to the last 30 days (inclusive of today) whenever either is missing or
+// invalid. `period` comes back out so views can light up the right preset tab.
 function dateRange(query) {
-  const to = isDate(query.to) ? query.to : F.manilaToday();
+  const today = F.manilaToday();
+  const period = PERIODS.includes(query.period) ? query.period : null;
+  if (period) return { ...periodBounds(period, today), period };
+  const to = isDate(query.to) ? query.to : today;
   const from = isDate(query.from) && query.from <= to ? query.from : F.addDays(to, -29);
-  return { from, to };
+  return { from, to, period: null };
 }
 
 // Streams a report PDF and ends the response — call instead of res.render()
@@ -82,7 +101,7 @@ router.get("/reports", (req, res) => res.redirect("/reports/attendance"));
 // ---- ATTENDANCE SUMMARY  GET /reports/attendance ---------------------------
 router.get("/reports/attendance", requireRole(...REPORT_ROLES), async (req, res, next) => {
   try {
-    const { from, to } = dateRange(req.query);
+    const { from, to, period } = dateRange(req.query);
     const { rows } = await db.query(
       `SELECT s.service_id, s.name,
               count(*) FILTER (WHERE a.status='scheduled')::int AS scheduled,
@@ -139,6 +158,7 @@ router.get("/reports/attendance", requireRole(...REPORT_ROLES), async (req, res,
       active: "reports",
       from,
       to,
+      period,
       rows,
       totals,
       pretty: F.prettyService,
@@ -151,7 +171,7 @@ router.get("/reports/attendance", requireRole(...REPORT_ROLES), async (req, res,
 // ---- NO-SHOW LIST  GET /reports/no-shows -----------------------------------
 router.get("/reports/no-shows", requireRole(...REPORT_ROLES), async (req, res, next) => {
   try {
-    const { from, to } = dateRange(req.query);
+    const { from, to, period } = dateRange(req.query);
     const service_id = parseInt(req.query.service_id, 10) || null;
     const q = (req.query.q || "").trim();
 
@@ -207,6 +227,7 @@ router.get("/reports/no-shows", requireRole(...REPORT_ROLES), async (req, res, n
       active: "reports",
       from,
       to,
+      period,
       rows,
       services,
       service_id,
@@ -223,7 +244,7 @@ router.get("/reports/no-shows", requireRole(...REPORT_ROLES), async (req, res, n
 // ---- SEASONAL / APPOINTMENT TREND  GET /reports/trend ----------------------
 router.get("/reports/trend", requireRole(...REPORT_ROLES), async (req, res, next) => {
   try {
-    const { from, to } = dateRange(req.query);
+    const { from, to, period } = dateRange(req.query);
     const { rows } = await db.query(
       `SELECT to_char(date_trunc('month', a.appointment_date), 'YYYY-MM') AS month,
               s.service_id, s.name AS service_name,
@@ -275,6 +296,7 @@ router.get("/reports/trend", requireRole(...REPORT_ROLES), async (req, res, next
       active: "reports",
       from,
       to,
+      period,
       months,
       services,
       grid,
@@ -289,7 +311,7 @@ router.get("/reports/trend", requireRole(...REPORT_ROLES), async (req, res, next
 // ---- INVENTORY REPORT  GET /reports/inventory ------------------------------
 router.get("/reports/inventory", requireRole(...REPORT_ROLES), async (req, res, next) => {
   try {
-    const { from, to } = dateRange(req.query);
+    const { from, to, period } = dateRange(req.query);
     const [lowQ, dispensedQ] = await Promise.all([
       db.query(
         `SELECT medicine_id, name, unit, stock_quantity, low_stock_threshold
@@ -337,6 +359,7 @@ router.get("/reports/inventory", requireRole(...REPORT_ROLES), async (req, res, 
       active: "reports",
       from,
       to,
+      period,
       lowStock: lowQ.rows,
       dispensed: dispensedQ.rows,
     });
@@ -354,7 +377,7 @@ router.get("/reports/inventory", requireRole(...REPORT_ROLES), async (req, res, 
 // the digital equivalent of the pen signature on the paper version.
 router.get("/reports/consumption", requireRole(...REPORT_ROLES), async (req, res, next) => {
   try {
-    const { from, to } = dateRange(req.query);
+    const { from, to, period } = dateRange(req.query);
     const { rows } = await db.query(
       `SELECT d.dispensed_at, p.full_name AS patient_name, p.birthdate,
               m.name AS medicine_name, m.unit, d.quantity,
@@ -400,6 +423,7 @@ router.get("/reports/consumption", requireRole(...REPORT_ROLES), async (req, res
       active: "reports",
       from,
       to,
+      period,
       items,
       longDate: F.longDate,
     });
@@ -425,7 +449,7 @@ const SENIOR_MED_PATTERNS = [
 
 router.get("/reports/senior-citizen", requireRole(...REPORT_ROLES), async (req, res, next) => {
   try {
-    const { from, to } = dateRange(req.query);
+    const { from, to, period } = dateRange(req.query);
 
     const { rows: meds } = await db.query(
       `SELECT medicine_id, name, dosage, unit FROM medicines
@@ -490,6 +514,7 @@ router.get("/reports/senior-citizen", requireRole(...REPORT_ROLES), async (req, 
       active: "reports",
       from,
       to,
+      period,
       meds,
       patientRows,
     });
@@ -507,7 +532,7 @@ router.get("/reports/senior-citizen", requireRole(...REPORT_ROLES), async (req, 
 // report guessing from the name.
 router.get("/reports/family-planning", requireRole(...REPORT_ROLES), async (req, res, next) => {
   try {
-    const { from, to } = dateRange(req.query);
+    const { from, to, period } = dateRange(req.query);
     const { rows } = await db.query(
       `SELECT d.dispensed_at, p.patient_id, p.full_name AS patient_name, p.birthdate,
               p.address, p.contact_number, p.family_contact_number,
@@ -558,6 +583,7 @@ router.get("/reports/family-planning", requireRole(...REPORT_ROLES), async (req,
       active: "reports",
       from,
       to,
+      period,
       items,
       acceptorCount,
       longDate: F.longDate,
@@ -566,19 +592,6 @@ router.get("/reports/family-planning", requireRole(...REPORT_ROLES), async (req,
     next(e);
   }
 });
-
-// Monday-of-this-week / 1st-of-this-month / Jan-1-of-this-year, through today
-// (Manila time) — the "per week/month/year" presets Alyanna's notes asked for,
-// on top of the same custom date range every other report already has.
-function periodBounds(period, today) {
-  if (period === "week") {
-    const dow = F.weekdayOf(today); // 0=Sun..6=Sat
-    return { from: F.addDays(today, dow === 0 ? -6 : -(dow - 1)), to: today };
-  }
-  if (period === "month") return { from: `${today.slice(0, 7)}-01`, to: today };
-  if (period === "year") return { from: `${today.slice(0, 4)}-01-01`, to: today };
-  return null;
-}
 
 // ---- ANALYTICS  GET /reports/analytics --------------------------------------
 // Every number Alyanna's notes asked for that didn't already have a home on
@@ -589,8 +602,7 @@ function periodBounds(period, today) {
 router.get("/reports/analytics", requireRole(...REPORT_ROLES), async (req, res, next) => {
   try {
     const today = F.manilaToday();
-    const period = ["week", "month", "year"].includes(req.query.period) ? req.query.period : null;
-    const { from, to } = period ? periodBounds(period, today) : dateRange(req.query);
+    const { from, to, period } = dateRange(req.query);
 
     const [apptQ, rescheduleQ, fpAcceptorsQ, seniorQ, stockQ, familyQ] = await Promise.all([
       db.query(

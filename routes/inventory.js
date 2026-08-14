@@ -95,7 +95,7 @@ async function rerenderDispenseForm(res, { body, medicine, errors }) {
     ? null
     : (
         await db.query(
-          "SELECT medicine_id, name, unit, dosage, stock_quantity FROM medicines ORDER BY name LIMIT 500"
+          "SELECT medicine_id, name, unit, dosage, stock_quantity, requires_doctor_approval FROM medicines ORDER BY name LIMIT 500"
         )
       ).rows;
   return res.status(400).render("inventory/dispense-form", {
@@ -299,7 +299,7 @@ router.get("/inventory/dispense/new", async (req, res, next) => {
     }
     if (!medicine) {
       medicines = (
-        await db.query("SELECT medicine_id, name, unit, dosage, stock_quantity FROM medicines ORDER BY name LIMIT 500")
+        await db.query("SELECT medicine_id, name, unit, dosage, stock_quantity, requires_doctor_approval FROM medicines ORDER BY name LIMIT 500")
       ).rows;
     }
 

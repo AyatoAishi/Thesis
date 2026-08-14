@@ -1,0 +1,38 @@
+<%
+  // Period presets + custom range, shared by every report tab.
+  //   action  the report's own URL, e.g. "/reports/attendance"
+  //   from/to/period  from dateRange() in routes/reports.js
+  //   extra   optional "&name=value" pairs a tab needs to keep (no-shows'
+  //           service filter is the only one so far)
+  const _extra = typeof extra !== "undefined" && extra ? extra : "";
+  const _periods = [["week", "This week"], ["month", "This month"], ["year", "This year"]];
+  // Self-contained so this partial works on every report tab regardless of
+  // which formatting helpers that page happens to pass down. Built at UTC
+  // midnight and read back in UTC, so the day never shifts.
+  const _d = (s) => {
+    const [y, m, d] = s.split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-PH", {
+      timeZone: "UTC", year: "numeric", month: "long", day: "numeric",
+    });
+  };
+%>
+<div class="tabbar" style="margin-top:2px;border-bottom:0;margin-bottom:6px">
+  <% _periods.forEach(p => { %>
+    <a href="<%= action %>?period=<%= p[0] %><%= _extra %>" class="tab <%= period === p[0] ? 'active' : '' %>"><%= p[1] %></a>
+  <% }) %>
+  <a href="<%= action %>?from=<%= from %>&to=<%= to %><%= _extra %>" class="tab <%= period ? '' : 'active' %>">Custom range</a>
+</div>
+
+<form method="GET" action="<%= action %>" class="form-grid" style="align-items:flex-end;margin-bottom:16px">
+  <label class="field"><span>From</span>
+    <input type="date" name="from" value="<%= from %>" />
+  </label>
+  <label class="field"><span>To</span>
+    <input type="date" name="to" value="<%= to %>" />
+  </label>
+  <%- typeof slot !== "undefined" ? slot : "" %>
+  <div class="field"><button class="btn" type="submit">Apply</button></div>
+</form>
+<p class="muted" style="font-size:12px;margin:-6px 2px 14px">
+  Showing <b><%= _d(from) %></b> to <b><%= _d(to) %></b>.
+</p>

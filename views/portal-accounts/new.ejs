@@ -1,0 +1,64 @@
+<%
+  const chain = next === "book" ? "book" : "";
+  const skipHref = chain
+    ? `/appointments/new?patient_id=${patient.patient_id}&next=book`
+    : `/patients/${patient.patient_id}`;
+%>
+<div class="page-head">
+  <h1>Set up the portal account</h1>
+  <div class="sub"><%= patient.full_name %> · <span class="mono"><%= patient.patient_number %></span></div>
+</div>
+
+<%- include("../partials/flow-steps", { step: 2 }) %>
+
+<div class="card" style="background:var(--ok-bg);border-color:transparent">
+  <b style="color:var(--ok-ink)">✓ Patient record created.</b>
+  <p class="muted" style="margin:6px 0 0;font-size:13px">
+    Next, give them an account so they can check their own records and book online.
+    You'll get a username, a temporary password, and a recovery code to hand over.
+  </p>
+</div>
+
+<% if (error) { %>
+  <div class="card" style="border-color:#f3c9cb;background:var(--bad-bg)">
+    <b style="color:var(--bad-ink)">Please fix:</b>
+    <p style="margin:8px 0 0;color:var(--bad-ink);font-size:13px"><%= error %></p>
+  </div>
+<% } %>
+
+<form method="POST" action="/patients/<%= patient.patient_id %>/portal-account">
+  <input type="hidden" name="form" value="guided" />
+  <% if (chain) { %><input type="hidden" name="next" value="book" /><% } %>
+  <div class="card">
+    <div class="panel-title" style="margin-bottom:6px">Account details</div>
+    <p class="muted" style="font-size:12.5px;margin:0 0 14px">
+      Check the patient's physical valid ID first — creating the account here marks it verified straight away.
+    </p>
+    <div class="form-grid">
+      <label class="field"><span>Username *</span>
+        <input type="text" name="username" value="<%= suggestedUsername %>" required
+               autocapitalize="none" spellcheck="false" />
+        <span class="muted" style="font-size:11.5px;font-weight:500">Suggested from their name — change it if they'd rather use something else.</span>
+      </label>
+      <label class="field"><span>Valid ID presented *</span>
+        <select name="valid_id_type" required>
+          <option value="">— choose an ID —</option>
+          <% idTypes.forEach(t => { %><option value="<%= t %>"><%= t %></option><% }) %>
+        </select>
+      </label>
+      <label class="field"><span>Valid ID number *</span>
+        <input type="text" name="valid_id_number" required />
+      </label>
+    </div>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+    <button type="submit" class="btn">Create account</button>
+    <a class="back-link" href="<%= skipHref %>">Skip for now — no valid ID on hand</a>
+  </div>
+</form>
+
+<p class="muted" style="font-size:12px;margin-top:16px">
+  Skipping is fine: the account can be created later from the patient's profile, or the patient
+  can register themselves at <code class="mono">/portal/signup</code> and have staff verify the ID afterwards.
+</p>

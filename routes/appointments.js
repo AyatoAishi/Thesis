@@ -74,6 +74,7 @@ async function rerenderForm(res, { mode, body, services, errors, appointment_id 
     services,
     patient,
     patients,
+    next: body.next === "book" ? "book" : "",
     errors,
     pretty: F.prettyService,
     today: F.manilaToday(),
@@ -184,6 +185,18 @@ router.get("/appointments/new", async (req, res, next) => {
       );
       patient = r.rows[0] || null;
     }
+
+    // Teammates' note #8: ask "new or existing patient?" first. Without a
+    // patient already picked, the old form silently assumed the record
+    // existed, and staff had no in-flow way to register a first-timer.
+    if (!patient && req.query.who !== "existing") {
+      return res.render("appointments/who", {
+        title: "Book appointment · Sampaguita HC",
+        active: "appointments",
+        date: isDate(req.query.date) ? req.query.date : "",
+      });
+    }
+
     const patients = patient
       ? null
       : (
@@ -200,6 +213,7 @@ router.get("/appointments/new", async (req, res, next) => {
       services,
       patient,
       patients,
+      next: req.query.next === "book" ? "book" : "",
       errors: [],
       pretty: F.prettyService,
       today: F.manilaToday(),
@@ -270,6 +284,7 @@ router.get("/appointments/:id/edit", async (req, res, next) => {
       services,
       patient: { patient_id: a.patient_id, patient_number: a.patient_number, full_name: a.full_name },
       patients: null,
+      next: "",
       errors: [],
       pretty: F.prettyService,
       today: F.manilaToday(),

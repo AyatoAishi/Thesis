@@ -1,25 +1,12 @@
-<%
-  const periods = [["week", "This week"], ["month", "This month"], ["year", "This year"]];
-%>
 <div class="page-head">
   <h1>Reports</h1>
   <div class="sub">Analytics</div>
 </div>
 
 <div class="card">
-  <%- include("../partials/reports-tabbar", { active: "analytics", from, to }) %>
+  <%- include("../partials/reports-tabbar", { active: "analytics", from, to, period }) %>
 
-  <div class="tabbar" style="margin-top:2px">
-    <% periods.forEach(p => { %>
-      <a href="/reports/analytics?period=<%= p[0] %>" class="tab <%= period === p[0] ? 'active' : '' %>"><%= p[1] %></a>
-    <% }) %>
-  </div>
-
-  <form method="GET" action="/reports/analytics" class="form-grid" style="align-items:flex-end;margin:16px 0 0">
-    <%- include("../partials/reports-daterange", { from, to }) %>
-    <div class="field"><button class="btn" type="submit">Custom range</button></div>
-  </form>
-  <p class="muted" style="font-size:12px;margin:10px 2px 0">Showing <%= from %> to <%= to %>.</p>
+  <%- include("../partials/reports-filter", { action: "/reports/analytics", from, to, period }) %>
 </div>
 
 <div class="card">

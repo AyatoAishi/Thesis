@@ -13,7 +13,11 @@ const router = express.Router();
 const ROLES = ["nurse", "facilitator", "recorder", "doctor", "admin"];
 const USERNAME_RE = /^[a-z0-9._]{3,30}$/;
 
-router.use(requireRole("admin"));
+// Path-scoped ON PURPOSE. This router is mounted at "/" in server.js, so a
+// bare router.use(requireRole("admin")) runs on EVERY request that reaches it
+// — including ones meant for the routers mounted after it (immunization,
+// prenatal), which 403'd for every non-admin. Keep the "/admin" prefix here.
+router.use("/admin", requireRole("admin"));
 
 router.get("/admin/users", async (req, res, next) => {
   try {

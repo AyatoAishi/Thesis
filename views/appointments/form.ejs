@@ -1,6 +1,7 @@
 <%
   const isEdit = mode === "edit";
   const action = isEdit ? `/appointments/${appt.appointment_id}` : "/appointments";
+  const chain = typeof next !== "undefined" ? next : "";
 %>
 <div class="page-head">
   <h1><%= isEdit ? "Reschedule appointment" : "Book appointment" %></h1>
@@ -16,8 +17,15 @@
   </div>
 <% } %>
 
+<% if (chain === "book") { %>
+  <%- include("../partials/flow-steps", { step: 3 }) %>
+<% } %>
+
 <form method="POST" action="<%= action %>">
-  <div class="card">
+  <% if (chain) { %><input type="hidden" name="next" value="<%= chain %>" /><% } %>
+  <%# overflow:visible so the patient picker's result list isn't clipped by
+      .card's overflow-x. %>
+  <div class="card" style="overflow:visible">
     <div class="form-grid">
       <label class="field" style="grid-column:1/-1"><span>Patient *</span>
         <% if (patient) { %>

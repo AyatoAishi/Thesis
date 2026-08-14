@@ -18,6 +18,7 @@ const crypto = require("crypto");
 const db = require("../db");
 const F = require("../lib/format");
 const ID_TYPES = require("../lib/idTypes");
+const { buildCard } = require("../lib/immunizationCard");
 const { requirePatient } = require("../middleware/portalAuth");
 const { sendBookingConfirmation } = require("../services/reminders");
 
@@ -244,7 +245,10 @@ router.get("/portal", requirePatient, async (req, res, next) => {
     const me = acctQ.rows[0];
     const today = F.manilaToday();
 
-    const [apptsQ, visitsQ, services] = await Promise.all([
+    // Everything below the appointment list is a health record, so it's gated
+    // on is_verified the same way the visit list already was.
+    const none = Promise.resolve({ rows: [] });
+    const [apptsQ, visitsQ, services, medsQ, immCard, prenatalQ] = await Promise.all([
       db.query(
         `SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.status,
                 s.name AS service_name
@@ -261,9 +265,65 @@ router.get("/portal", requirePatient, async (req, res, next) => {
               ORDER BY visit_date DESC LIMIT 50`,
             [pid]
           )
-        : Promise.resolve({ rows: [] }),
+        : none,
       db.query("SELECT service_id, name, schedule_day, description FROM services ORDER BY service_id"),
+      // Only medicines that actually left the shelf — a dispense still waiting
+      // on a doctor's approval hasn't been handed over yet.
+      me.is_verified
+        ? db.query(
+            `SELECT d.dispensed_at, d.quantity, m.name AS medicine_name, m.dosage, m.unit
+               FROM medicine_dispenses d JOIN medicines m ON m.medicine_id = d.medicine_id
+              WHERE d.patient_id = $1
+                AND (d.requires_doctor_approval = false OR d.approved_at IS NOT NULL)
+              ORDER BY d.dispensed_at DESC
+              LIMIT 50`,
+            [pid]
+          )
+        : none,
+      me.is_verified ? buildCard(pid) : Promise.resolve({ schedule: [], other: [] }),
+      me.is_verified
+        ? db.query(
+            `SELECT prenatal_id, lmp, edd, gravida, para, status,
+                    tt1_date, tt2_date, tt3_date, tt4_date, tt5_date
+               FROM prenatal_records WHERE patient_id = $1
+              ORDER BY coalesce(lmp, created_at::date) DESC, prenatal_id DESC
+              LIMIT 1`,
+            [pid]
+          )
+        : none,
     ]);
+
+    // Only show vaccine categories the patient actually has doses in — an
+    // adult doesn't need a wall of empty infant rows, while a parent tracking
+    // a baby still sees which doses in that block are still missing.
+    const immCategories = ["infant", "school", "senior"]
+      .map((key) => ({
+        key,
+        label: { infant: "Infant", school: "School-aged", senior: "Senior citizen" }[key],
+        rows: immCard.schedule.filter((v) => v.category === key),
+      }))
+      .filter((c) => c.rows.some((v) => v.doseSlots.some((s) => s.given)));
+
+    // dispensed_at is a TIMESTAMPTZ, so its calendar date is resolved here in
+    // the clinic's timezone rather than in the template (DATE columns come
+    // back as plain 'YYYY-MM-DD' strings and need no such care).
+    const medicines = medsQ.rows.map((m) => ({
+      ...m,
+      date: new Date(m.dispensed_at).toLocaleDateString("en-CA", { timeZone: F.TZ }),
+    }));
+
+    const prenatal = prenatalQ.rows[0] || null;
+    let prenatalVisits = [];
+    if (prenatal) {
+      prenatalVisits = (
+        await db.query(
+          `SELECT visit_date, aog, bp, weight_kg, fundal_height_cm, fetal_heart_tone
+             FROM prenatal_visits WHERE prenatal_id = $1
+            ORDER BY visit_date DESC LIMIT 30`,
+          [prenatal.prenatal_id]
+        )
+      ).rows;
+    }
 
     const upcoming = apptsQ.rows
       .filter((a) => a.status === "scheduled" && a.appointment_date >= today)
@@ -277,6 +337,11 @@ router.get("/portal", requirePatient, async (req, res, next) => {
       appointments: apptsQ.rows,
       upcoming,
       visits: visitsQ.rows,
+      medicines,
+      immCategories,
+      immOther: immCard.other,
+      prenatal,
+      prenatalVisits,
       bookOptions: services.rows,
       minBookDate: F.addDays(today, 1),
       maxBookDate: F.addDays(today, BOOKING_HORIZON),

@@ -7,12 +7,9 @@
 </div>
 
 <div class="card">
-  <%- include("../partials/reports-tabbar", { active: "inventory", from, to }) %>
+  <%- include("../partials/reports-tabbar", { active: "inventory", from, to, period }) %>
 
-  <form method="GET" action="/reports/inventory" class="form-grid" style="align-items:flex-end;margin-bottom:16px">
-    <%- include("../partials/reports-daterange", { from, to }) %>
-    <div class="field"><button class="btn" type="submit">Apply</button></div>
-  </form>
+  <%- include("../partials/reports-filter", { action: "/reports/inventory", from, to, period }) %>
 
   <div class="panel-title" style="margin-bottom:10px">Dispensed in this range</div>
   <% if (!dispensed.length) { %>

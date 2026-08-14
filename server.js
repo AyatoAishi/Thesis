@@ -24,6 +24,7 @@ const accountRoutes = require("./routes/account");
 const userRoutes = require("./routes/users");
 const immunizationRoutes = require("./routes/immunization");
 const prenatalRoutes = require("./routes/prenatal");
+const formRoutes = require("./routes/forms");
 const reminders = require("./services/reminders");
 const { requireLogin } = require("./middleware/auth");
 const F = require("./lib/format");
@@ -135,6 +136,7 @@ app.use("/", accountRoutes);
 app.use("/", userRoutes);
 app.use("/", immunizationRoutes);
 app.use("/", prenatalRoutes);
+app.use("/", formRoutes);
 
 // Dashboard — live setup checklist + real stats (best-effort if DB is up)
 app.get("/", async (req, res) => {

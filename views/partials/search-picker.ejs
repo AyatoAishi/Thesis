@@ -1,0 +1,20 @@
+<%
+  // Searchable replacement for a long <select>. Filtering runs client-side
+  // (app.js) against the list already sent with the page, so typing costs no
+  // extra request. Callers pass:
+  //   items       [{ id, label, meta }]  — meta is the dimmed right-hand text
+  //   name        the hidden input's name (what the server reads)
+  //   selectedId  optional, to preselect after a validation re-render
+  //   placeholder optional
+  const _items = items || [];
+  const _preId = (typeof selectedId !== "undefined" && selectedId) ? String(selectedId) : "";
+  const _pre = _items.find(i => String(i.id) === _preId);
+  const _ph = typeof placeholder !== "undefined" && placeholder ? placeholder : "Type to search…";
+%>
+<div class="patient-picker" data-picker>
+  <input type="hidden" name="<%= name %>" data-picker-id value="<%= _preId %>" />
+  <input type="text" data-picker-search autocomplete="off" placeholder="<%= _ph %>"
+         value="<%= _pre ? (_pre.meta ? `${_pre.label} — ${_pre.meta}` : _pre.label) : '' %>" />
+  <div class="patient-picker-results" data-picker-results hidden></div>
+  <script type="application/json" data-picker-data><%- JSON.stringify(_items) %></script>
+</div>

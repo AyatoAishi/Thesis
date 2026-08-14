@@ -110,27 +110,146 @@
 </div>
 
 <% if (me.is_verified) { %>
+
 <div class="card">
-  <div class="panel-title" style="margin-bottom:12px">My visit records</div>
-  <% if (!visits.length) { %>
-    <p class="muted" style="margin:0">No visit records yet — they'll appear here after your check-ups.</p>
+  <div class="panel-title" style="margin-bottom:12px">💊 Medicines I received</div>
+  <% if (!medicines.length) { %>
+    <p class="muted" style="margin:0">Nothing yet — medicines handed to you at the clinic will show up here.</p>
   <% } else { %>
     <table class="tbl">
-      <thead><tr><th>Date</th><th>Blood pressure</th><th>Weight</th><th>Temp</th><th>Diagnosis</th></tr></thead>
+      <thead><tr><th>Date</th><th>Medicine</th><th>Quantity</th></tr></thead>
       <tbody>
-        <% visits.forEach(v => { %>
+        <% medicines.forEach(m => { %>
           <tr>
-            <td><%= longDate(v.visit_date) %></td>
-            <td class="mono"><%= v.bp_systolic && v.bp_diastolic ? `${v.bp_systolic}/${v.bp_diastolic}` : "—" %></td>
-            <td class="mono"><%= v.weight_kg ? v.weight_kg + " kg" : "—" %></td>
-            <td class="mono"><%= v.temperature_c ? v.temperature_c + " °C" : "—" %></td>
-            <td><%= v.diagnosis || "—" %></td>
+            <td><%= longDate(m.date) %></td>
+            <td><%= m.medicine_name %><%= m.dosage ? " " + m.dosage : "" %></td>
+            <td class="mono"><%= m.quantity %> <%= m.unit || "" %></td>
           </tr>
         <% }) %>
       </tbody>
     </table>
   <% } %>
 </div>
+
+<div class="card">
+  <div class="panel-title" style="margin-bottom:4px">💉 My immunization card</div>
+  <p class="muted" style="font-size:12.5px;margin:0 0 12px">
+    The same "Todo Ligtas" card the clinic keeps on paper. Empty boxes are doses not yet recorded here —
+    ask the staff on your next visit if one is already due.
+  </p>
+  <% if (!immCategories.length && !immOther.length) { %>
+    <p class="muted" style="margin:0">No vaccines recorded yet.</p>
+  <% } else { %>
+    <% immCategories.forEach(cat => { %>
+      <div class="sub" style="margin:14px 0 6px;font-weight:700"><%= cat.label %></div>
+      <table class="tbl">
+        <thead><tr><th>Vaccine</th><th>When it's due</th><th>Doses</th></tr></thead>
+        <tbody>
+          <% cat.rows.forEach(v => { %>
+            <tr>
+              <td><%= v.name %></td>
+              <td class="muted" style="font-size:12.5px"><%= v.schedule %></td>
+              <td>
+                <% v.doseSlots.forEach(s => { %>
+                  <% if (s.given) { %>
+                    <span class="badge ok" style="margin:0 4px 4px 0">Dose <%= s.doseNumber %> · <%= longDate(s.date) %></span>
+                  <% } else { %>
+                    <span class="badge" style="margin:0 4px 4px 0;background:var(--surface-2);color:var(--ink-3)">Dose <%= s.doseNumber %> · not yet</span>
+                  <% } %>
+                <% }) %>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% }) %>
+
+    <% if (immOther.length) { %>
+      <div class="sub" style="margin:14px 0 6px;font-weight:700">Other vaccines</div>
+      <table class="tbl">
+        <thead><tr><th>Vaccine</th><th>Dose</th><th>Date given</th></tr></thead>
+        <tbody>
+          <% immOther.forEach(r => { %>
+            <tr>
+              <td><%= r.vaccine_name %></td>
+              <td class="mono"><%= r.dose_number %></td>
+              <td><%= longDate(r.given_date) %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% } %>
+  <% } %>
+</div>
+
+<% if (prenatal) { %>
+<%
+  const ttDoses = [prenatal.tt1_date, prenatal.tt2_date, prenatal.tt3_date, prenatal.tt4_date, prenatal.tt5_date];
+  const ttGiven = ttDoses.filter(Boolean).length;
+%>
+<div class="card">
+  <div class="panel-title" style="margin-bottom:12px">🤰 My pre-natal record</div>
+
+  <% if (prenatal.edd && prenatal.status === "active") { %>
+    <div class="hero-appt-main" style="margin-bottom:14px">
+      <div class="hero-appt-date"><%= longDate(prenatal.edd) %></div>
+      <div class="hero-appt-sub">Expected delivery date</div>
+    </div>
+  <% } %>
+
+  <dl class="kv">
+    <div><dt>Status</dt><dd>
+      <% if (prenatal.status === "active") { %><span class="badge info">Ongoing</span>
+      <% } else if (prenatal.status === "delivered") { %><span class="badge ok">Delivered</span>
+      <% } else { %><span class="badge">Closed</span><% } %>
+    </dd></div>
+    <div><dt>Last menstrual period</dt><dd><%= prenatal.lmp ? longDate(prenatal.lmp) : "—" %></dd></div>
+    <div><dt>Pregnancies (G / P)</dt><dd class="mono"><%= prenatal.gravida ?? "—" %> / <%= prenatal.para ?? "—" %></dd></div>
+    <div><dt>Tetanus doses</dt><dd><%= ttGiven %> of 5 recorded</dd></div>
+  </dl>
+
+  <div class="panel-title" style="margin:18px 0 10px;font-size:14px">Check-ups</div>
+  <% if (!prenatalVisits.length) { %>
+    <p class="muted" style="margin:0">No check-ups recorded yet.</p>
+  <% } else { %>
+    <table class="tbl">
+      <thead><tr><th>Date</th><th>Weeks (AOG)</th><th>Blood pressure</th><th>Weight</th><th>Baby's heartbeat</th></tr></thead>
+      <tbody>
+        <% prenatalVisits.forEach(v => { %>
+          <tr>
+            <td><%= longDate(v.visit_date) %></td>
+            <td><%= v.aog || "—" %></td>
+            <td class="mono"><%= v.bp || "—" %></td>
+            <td class="mono"><%= v.weight_kg ? v.weight_kg + " kg" : "—" %></td>
+            <td class="mono"><%= v.fetal_heart_tone || "—" %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>
+<% } %>
+
+<% if (visits.length) { %>
+<div class="card">
+  <div class="panel-title" style="margin-bottom:12px">My visit records</div>
+  <table class="tbl">
+    <thead><tr><th>Date</th><th>Blood pressure</th><th>Weight</th><th>Temp</th><th>Diagnosis</th></tr></thead>
+    <tbody>
+      <% visits.forEach(v => { %>
+        <tr>
+          <td><%= longDate(v.visit_date) %></td>
+          <td class="mono"><%= v.bp_systolic && v.bp_diastolic ? `${v.bp_systolic}/${v.bp_diastolic}` : "—" %></td>
+          <td class="mono"><%= v.weight_kg ? v.weight_kg + " kg" : "—" %></td>
+          <td class="mono"><%= v.temperature_c ? v.temperature_c + " °C" : "—" %></td>
+          <td><%= v.diagnosis || "—" %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<% } %>
+
 <% } %>
 
 <div class="card">

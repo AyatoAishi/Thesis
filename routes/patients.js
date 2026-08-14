@@ -13,7 +13,41 @@ const { requireRole } = require("../middleware/auth");
 
 const router = express.Router();
 
+// Whitelisted sort orders for the patient list. The SQL fragment is only ever
+// read from this object (never from the query string), so it can be
+// interpolated into the ORDER BY safely.
+const SORTS = {
+  newest: { label: "Newest first", sql: "created_at DESC" },
+  oldest: { label: "Oldest first", sql: "created_at ASC" },
+  name_asc: { label: "Name A → Z", sql: "lower(full_name) ASC" },
+  name_desc: { label: "Name Z → A", sql: "lower(full_name) DESC" },
+};
+
+// Relations offered on the emergency-contact dropdown. "Other" reveals a free
+// text box, so anything already typed before this dropdown existed still
+// round-trips instead of being silently dropped on the next edit.
+const RELATIONS = [
+  "Mother", "Father", "Sibling", "Grandparent", "Aunt", "Uncle",
+  "Wife", "Husband", "Child", "Friend", "Neighbor", "Colleague",
+];
+
 // ---- helpers ---------------------------------------------------------------
+
+// Contact numbers are stored as digits only. Staff were typing the same number
+// four different ways ("0917 123 4567", "(02) 8123-4567", "+639171234567"), so
+// the same person's contact never matched twice in a search — and digits-only
+// is what services/sms.js normalizePH() wants anyway. The 7–15 bound is
+// deliberately wide: 7 covers a bare landline, 15 is the E.164 maximum, so
+// every legitimate way of writing a number passes and only junk is rejected.
+const digitsOnly = (s) => (s || "").replace(/\D/g, "");
+const isPhone = (s) => /^\d{7,15}$/.test(s || "");
+
+// "Other" on the relation dropdown means "read the free-text box beside it".
+function readRelation(body) {
+  const picked = (body.family_contact_relation || "").trim();
+  if (picked === "__other__") return (body.family_contact_relation_other || "").trim() || null;
+  return picked || null;
+}
 
 // Next human-facing patient number for the current year, e.g. SAMP-2026-0007.
 async function nextPatientNumber() {
@@ -97,12 +131,12 @@ function readForm(body) {
     birthdate,
     sex: body.sex || null,
     address: (body.address || "").trim() || null,
-    contact_number: (body.contact_number || "").trim() || null,
+    contact_number: digitsOnly(body.contact_number) || null,
     email: (body.email || "").trim().toLowerCase() || null,
     family_number: (body.family_number || "").trim() || null,
     family_contact_name: (body.family_contact_name || "").trim() || null,
-    family_contact_relation: (body.family_contact_relation || "").trim() || null,
-    family_contact_number: (body.family_contact_number || "").trim() || null,
+    family_contact_relation: readRelation(body),
+    family_contact_number: digitsOnly(body.family_contact_number) || null,
     family_email: (body.family_email || "").trim().toLowerCase() || null,
     is_minor: calcIsMinor(birthdate),
     guardian_name: (body.guardian_name || "").trim() || null,
@@ -125,12 +159,16 @@ function validate(p) {
     if (!p.guardian_name) errors.push("Guardian name is required for a minor.");
     if (!p.guardian_consent)
       errors.push("Guardian consent must be recorded for a minor.");
-  } else {
-    // Only the head of household needs a reachable contact number (panel note) —
-    // minors can be registered under a family/household number instead.
-    if (!p.contact_number && !p.family_contact_number)
-      errors.push("Provide a contact number (patient or family contact).");
   }
+  // Every record must carry ONE reachable number — the patient's own, or the
+  // emergency contact's for anyone without a phone (infants, most elderly).
+  // Requiring the patient's own outright would dead-end those registrations.
+  if (p.contact_number && !isPhone(p.contact_number))
+    errors.push("Patient contact # must be 7–15 digits, numbers only (e.g. 09171234567).");
+  if (p.family_contact_number && !isPhone(p.family_contact_number))
+    errors.push("Emergency contact # must be 7–15 digits, numbers only (e.g. 09171234567).");
+  if (!p.contact_number && !p.family_contact_number)
+    errors.push("A contact number is required — either the patient's own, or the emergency contact's.");
   if (!p.privacy_consent) errors.push("Data privacy consent must be recorded.");
   return errors;
 }
@@ -139,30 +177,23 @@ function validate(p) {
 router.get("/patients", async (req, res, next) => {
   try {
     const q = (req.query.q || "").trim();
-    let rows;
-    if (q) {
-      const like = `%${q}%`;
-      ({ rows } = await db.query(
-        `SELECT patient_id, patient_number, full_name, sex, birthdate,
-                contact_number, is_minor
-           FROM patients
-          WHERE full_name ILIKE $1 OR patient_number ILIKE $1
-                OR contact_number ILIKE $1
-          ORDER BY created_at DESC LIMIT 200`,
-        [like]
-      ));
-    } else {
-      ({ rows } = await db.query(
-        `SELECT patient_id, patient_number, full_name, sex, birthdate,
-                contact_number, is_minor
-           FROM patients ORDER BY created_at DESC LIMIT 200`
-      ));
-    }
+    const sort = SORTS[req.query.sort] ? req.query.sort : "newest";
+    const { rows } = await db.query(
+      `SELECT patient_id, patient_number, full_name, sex, birthdate,
+              contact_number, is_minor
+         FROM patients
+        ${q ? "WHERE full_name ILIKE $1 OR patient_number ILIKE $1 OR contact_number ILIKE $1" : ""}
+        ORDER BY ${SORTS[sort].sql}
+        LIMIT 200`,
+      q ? [`%${q}%`] : []
+    );
     res.render("patients/list", {
       title: "Patients · Sampaguita HC",
       active: "patients",
       patients: rows,
       q,
+      sort,
+      sorts: SORTS,
     });
   } catch (e) {
     next(e);
@@ -179,6 +210,8 @@ router.get("/patients/new", async (req, res, next) => {
       patient: {},
       familyLookup: await loadFamilyLookup(),
       familyMembers: [],
+      relations: RELATIONS,
+      next: req.query.next === "book" ? "book" : "",
       errors: [],
     });
   } catch (e) {
@@ -198,6 +231,8 @@ router.post("/patients", async (req, res, next) => {
       patient: p,
       familyLookup: await loadFamilyLookup(),
       familyMembers: await loadFamilyMembers(p.family_number),
+      relations: RELATIONS,
+      next: req.body.next === "book" ? "book" : "",
       errors,
     });
   }
@@ -218,7 +253,11 @@ router.post("/patients", async (req, res, next) => {
       ]
     );
     audit.log(req.session.user.user_id, "create", "patient", rows[0].patient_id, p.full_name);
-    res.redirect(`/patients/${rows[0].patient_id}`);
+    // Straight into the portal-account step (skippable) instead of dropping
+    // staff on the profile page and hoping they scroll to the account card —
+    // teammates' note: "para sure na magkaka-acc mga patients".
+    const chain = req.body.next === "book" ? "?next=book" : "";
+    res.redirect(`/patients/${rows[0].patient_id}/portal-account/new${chain}`);
   } catch (e) {
     next(e);
   }
@@ -282,6 +321,7 @@ router.get("/patients/:id", async (req, res, next) => {
       account: acctQ.rows[0] || null,
       familyMembers,
       secrets,
+      nextStep: req.query.next === "book" ? "book" : "",
       acctErr: req.query.acct_err || null,
       idTypes: ID_TYPES,
       pretty: F.prettyService,
@@ -308,6 +348,8 @@ router.get("/patients/:id/edit", async (req, res, next) => {
       patient: rows[0],
       familyLookup: await loadFamilyLookup(req.params.id),
       familyMembers: await loadFamilyMembers(rows[0].family_number, req.params.id),
+      relations: RELATIONS,
+      next: "",
       errors: [],
     });
   } catch (e) {
@@ -327,6 +369,8 @@ router.post("/patients/:id", async (req, res, next) => {
       patient: { ...p, patient_id: req.params.id },
       familyLookup: await loadFamilyLookup(req.params.id),
       familyMembers: await loadFamilyMembers(p.family_number, req.params.id),
+      relations: RELATIONS,
+      next: "",
       errors,
     });
   }

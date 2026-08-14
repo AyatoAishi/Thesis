@@ -3,11 +3,21 @@
   const p = patient || {};
   const action = isEdit ? `/patients/${p.patient_id}` : "/patients";
   const bd = p.birthdate ? new Date(p.birthdate).toISOString().slice(0, 10) : "";
+  // Anything already saved that isn't one of the preset relations (free text
+  // from before the dropdown existed) reopens as "Other" with the old wording
+  // kept, so editing a patient never silently wipes it.
+  const rel = p.family_contact_relation || "";
+  const relIsPreset = relations.includes(rel);
+  const chain = typeof next !== "undefined" ? next : "";
 %>
 <div class="page-head">
   <h1><%= isEdit ? "Edit patient" : "Add patient" %></h1>
   <div class="sub"><a href="/patients" class="back-link">← Back to patients</a></div>
 </div>
+
+<% if (chain === "book") { %>
+  <%- include("../partials/flow-steps", { step: 1 }) %>
+<% } %>
 
 <% if (errors && errors.length) { %>
   <div class="card" style="border-color:#f3c9cb;background:var(--bad-bg)">
@@ -19,6 +29,7 @@
 <% } %>
 
 <form method="POST" action="<%= action %>">
+  <% if (chain) { %><input type="hidden" name="next" value="<%= chain %>" /><% } %>
   <div class="card">
     <div class="panel-title" style="margin-bottom:14px">Patient details</div>
     <div class="form-grid">
@@ -35,8 +46,10 @@
           <option value="female" <%= p.sex === 'female' ? 'selected' : '' %>>Female</option>
         </select>
       </label>
-      <label class="field"><span>Patient contact #</span>
-        <input type="text" name="contact_number" value="<%= p.contact_number || '' %>" placeholder="09xxxxxxxxx" />
+      <label class="field"><span>Patient contact # *</span>
+        <input type="tel" name="contact_number" value="<%= p.contact_number || '' %>" placeholder="09xxxxxxxxx"
+               inputmode="numeric" maxlength="15" data-digits data-phone-primary required />
+        <span class="muted" style="font-size:11.5px;font-weight:500" data-phone-hint>Numbers only. No phone of their own? Fill in the emergency contact # below instead.</span>
       </label>
       <label class="field"><span>Patient email <span class="muted">(for reminders)</span></span>
         <input type="email" name="email" value="<%= p.email || '' %>" placeholder="name@gmail.com" />
@@ -60,10 +73,20 @@
         <input type="text" name="family_contact_name" value="<%= p.family_contact_name || '' %>" />
       </label>
       <label class="field"><span>Relation</span>
-        <input type="text" name="family_contact_relation" value="<%= p.family_contact_relation || '' %>" placeholder="e.g. mother" />
+        <select name="family_contact_relation" data-relation-select>
+          <option value="">—</option>
+          <% relations.forEach(r => { %>
+            <option value="<%= r %>" <%= rel === r ? 'selected' : '' %>><%= r %></option>
+          <% }) %>
+          <option value="__other__" <%= rel && !relIsPreset ? 'selected' : '' %>>Other…</option>
+        </select>
+        <input type="text" name="family_contact_relation_other" data-relation-other
+               value="<%= relIsPreset ? '' : rel %>" placeholder="Type the relation"
+               style="<%= rel && !relIsPreset ? 'margin-top:6px' : 'display:none' %>" />
       </label>
       <label class="field"><span>Contact #</span>
-        <input type="text" name="family_contact_number" value="<%= p.family_contact_number || '' %>" placeholder="09xxxxxxxxx" />
+        <input type="tel" name="family_contact_number" value="<%= p.family_contact_number || '' %>" placeholder="09xxxxxxxxx"
+               inputmode="numeric" maxlength="15" data-digits data-phone-fallback />
       </label>
       <label class="field"><span>Emergency contact email <span class="muted">(optional)</span></span>
         <input type="email" name="family_email" value="<%= p.family_email || '' %>" placeholder="name@gmail.com" />
@@ -119,5 +142,53 @@
     }
     if (bdInput) bdInput.addEventListener("change", sync);
     sync();
+  })();
+
+  // Contact numbers: strip anything that isn't a digit as it's typed, so a
+  // pasted "(0917) 123-4567" cleans itself up instead of bouncing back as a
+  // validation error the person has to re-read.
+  (function () {
+    document.querySelectorAll("[data-digits]").forEach(function (input) {
+      input.addEventListener("input", function () {
+        var cleaned = input.value.replace(/\D/g, "");
+        if (cleaned !== input.value) {
+          var drop = input.value.length - cleaned.length;
+          var pos = Math.max(0, (input.selectionStart || 0) - drop);
+          input.value = cleaned;
+          try { input.setSelectionRange(pos, pos); } catch (e) {}
+        }
+      });
+    });
+
+    // The patient's own number is required — UNLESS the emergency contact's
+    // number is filled in. Infants and most elderly patients have no phone of
+    // their own, and a hard requirement would dead-end their registration.
+    var primary = document.querySelector("[data-phone-primary]");
+    var fallback = document.querySelector("[data-phone-fallback]");
+    var hint = document.querySelector("[data-phone-hint]");
+    function syncRequired() {
+      if (!primary || !fallback) return;
+      var covered = fallback.value.replace(/\D/g, "").length >= 7;
+      primary.required = !covered;
+      if (hint) hint.textContent = covered
+        ? "Covered by the emergency contact # below."
+        : "Numbers only. No phone of their own? Fill in the emergency contact # below instead.";
+    }
+    if (fallback) fallback.addEventListener("input", syncRequired);
+    syncRequired();
+  })();
+
+  // Relation dropdown: "Other…" reveals a free-text box beside it.
+  (function () {
+    var select = document.querySelector("[data-relation-select]");
+    var other = document.querySelector("[data-relation-other]");
+    if (!select || !other) return;
+    select.addEventListener("change", function () {
+      var isOther = select.value === "__other__";
+      other.style.display = isOther ? "" : "none";
+      other.style.marginTop = isOther ? "6px" : "";
+      if (isOther) other.focus();
+      else other.value = "";
+    });
   })();
 </script>

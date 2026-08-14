@@ -1,0 +1,13 @@
+<%
+  // Progress strip for the guided "new patient → portal account → booking"
+  // chain (teammates' note #8). `step` is 1-based; anything before it is done.
+  const flowSteps = ["Patient details", "Portal account", "Book appointment"];
+%>
+<div class="flow-steps">
+  <% flowSteps.forEach((label, i) => { %>
+    <div class="flow-step <%= i + 1 < step ? 'done' : (i + 1 === step ? 'now' : '') %>">
+      <span class="flow-step-num"><%= i + 1 < step ? "✓" : i + 1 %></span>
+      <span class="flow-step-label"><%= label %></span>
+    </div>
+  <% }) %>
+</div>

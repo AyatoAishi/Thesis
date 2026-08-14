@@ -33,6 +33,33 @@ function safeBack(raw, fallback) {
   return raw && raw.startsWith("/") && !raw.startsWith("//") ? raw : fallback;
 }
 
+// "Juan Dela Cruz" -> "juan.dela.cruz". Staff shouldn't have to invent a
+// username on the spot for every walk-in; they can still overwrite it.
+function suggestUsername(fullName) {
+  const base = (fullName || "")
+    .toLowerCase()
+    .normalize("NFD")          // "é" -> "e" + a combining mark…
+    .replace(/[^a-z0-9\s]/g, "") // …which this then drops along with punctuation
+    .trim()
+    .replace(/\s+/g, ".")
+    .slice(0, 30);
+  return base.length >= 4 ? base : (base ? `${base}.patient`.slice(0, 30) : "");
+}
+
+// First free variant of the suggestion — juan.dela.cruz, then ...2, ...3.
+async function uniqueUsername(base) {
+  if (!base) return "";
+  for (let i = 0; i < 25; i++) {
+    const suffix = i === 0 ? "" : String(i + 1);
+    const candidate = base.slice(0, 30 - suffix.length) + suffix;
+    const { rowCount } = await db.query(
+      "SELECT 1 FROM patient_accounts WHERE lower(username) = $1", [candidate]
+    );
+    if (!rowCount) return candidate;
+  }
+  return "";
+}
+
 // ---- LIST  /portal-accounts (pending first) ---------------------------------
 router.get("/portal-accounts", async (req, res, next) => {
   try {
@@ -100,6 +127,44 @@ router.post("/portal-accounts/:id/reset", async (req, res, next) => {
   }
 });
 
+// ---- GUIDED STEP  GET /patients/:id/portal-account/new ------------------------
+// Where POST /patients lands a freshly-created record, so every new patient
+// gets walked through account setup instead of it being a card buried on the
+// profile page that's easy to scroll past. Skippable — no valid ID, no account.
+router.get("/patients/:id/portal-account/new", async (req, res, next) => {
+  try {
+    const { rows } = await db.query(
+      "SELECT patient_id, patient_number, full_name FROM patients WHERE patient_id = $1",
+      [req.params.id]
+    );
+    if (!rows[0]) return next();
+    const patient = rows[0];
+    const chain = req.query.next === "book" ? "book" : "";
+
+    // Already has one (e.g. someone hit Back) — don't offer to make a second.
+    const existing = await db.query(
+      "SELECT 1 FROM patient_accounts WHERE patient_id = $1", [patient.patient_id]
+    );
+    if (existing.rowCount) {
+      return res.redirect(
+        chain ? `/appointments/new?patient_id=${patient.patient_id}&next=book` : `/patients/${patient.patient_id}`
+      );
+    }
+
+    res.render("portal-accounts/new", {
+      title: `Portal account — ${patient.full_name} · Sampaguita HC`,
+      active: "patients",
+      patient,
+      suggestedUsername: await uniqueUsername(suggestUsername(patient.full_name)),
+      idTypes: ID_TYPES,
+      next: chain,
+      error: req.query.acct_err || null,
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
 // ---- CREATE at the desk  POST /patients/:id/portal-account --------------------
 // Staff checked the physical ID → the account is born verified.
 router.post("/patients/:id/portal-account", async (req, res, next) => {
@@ -108,14 +173,20 @@ router.post("/patients/:id/portal-account", async (req, res, next) => {
     const username = (req.body.username || "").trim().toLowerCase();
     const valid_id_type = (req.body.valid_id_type || "").trim();
     const valid_id_number = (req.body.valid_id_number || "").trim();
+    const chain = req.body.next === "book" ? "book" : "";
 
     const patientQ = await db.query(
       "SELECT patient_id FROM patients WHERE patient_id = $1", [patient_id]
     );
     if (!patientQ.rows[0]) return next();
 
-    const back = `/patients/${patient_id}`;
-    const oops = (msg) => res.redirect(`${back}?acct_err=${encodeURIComponent(msg)}`);
+    // Errors go back to whichever form was submitted: the guided step page, or
+    // the account card on the profile page.
+    const back = req.body.form === "guided"
+      ? `/patients/${patient_id}/portal-account/new${chain ? "?next=book" : ""}`
+      : `/patients/${patient_id}`;
+    const oops = (msg) =>
+      res.redirect(`${back}${back.includes("?") ? "&" : "?"}acct_err=${encodeURIComponent(msg)}`);
 
     if (!USERNAME_RE.test(username))
       return oops("Username must be 4–30 characters: lowercase letters, numbers, dots or underscores.");
@@ -150,7 +221,9 @@ router.post("/patients/:id/portal-account", async (req, res, next) => {
       recovery_code: recoveryCode,
       kind: "created",
     };
-    res.redirect(back);
+    // Always via the profile page — that's where the one-time credentials are
+    // shown, so the booking chain must not jump straight past them.
+    res.redirect(`/patients/${patient_id}${chain ? "?next=book" : ""}`);
   } catch (e) {
     next(e);
   }

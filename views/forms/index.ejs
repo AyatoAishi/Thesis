@@ -1,0 +1,76 @@
+<div class="page-head">
+  <h1>Forms</h1>
+  <div class="sub">The barangay's paper forms, straight from here — no need to open the patient first.</div>
+</div>
+
+<% if (error) { %>
+  <div class="card" style="border-color:#f3c9cb;background:var(--bad-bg)">
+    <b style="color:var(--bad-ink)"><%= error %></b>
+  </div>
+<% } %>
+
+<div class="card" style="overflow:visible">
+  <div class="svc-head" style="margin-bottom:6px">
+    <span class="panel-title">💉 Immunization card</span>
+    <span class="muted" style="font-size:12px">Todo Ligtas</span>
+  </div>
+  <p class="muted" style="font-size:12.5px;margin:0 0 12px">
+    Vaccine doses per patient — BCG, Hep B, Pentavalent, OPV, IPV, PCV, MMR, plus school-age and senior shots.
+  </p>
+  <form method="GET" action="/forms/open" class="form-inline">
+    <input type="hidden" name="kind" value="immunization" />
+    <div style="flex:1;min-width:240px">
+      <%- include("../partials/search-picker", {
+            items: patients.map(p => ({ id: p.patient_id, label: p.full_name, meta: p.patient_number })),
+            name: "patient_id",
+            selectedId: "",
+            placeholder: "Search the patient by name or number…",
+          }) %>
+    </div>
+    <button class="btn" type="submit">Open card</button>
+  </form>
+</div>
+
+<div class="card" style="overflow:visible">
+  <div class="svc-head" style="margin-bottom:6px">
+    <span class="panel-title">🤰 Pre-natal record</span>
+    <span class="muted" style="font-size:12px">female patients</span>
+  </div>
+  <p class="muted" style="font-size:12.5px;margin:0 0 12px">
+    LMP and EDD, lab results, tetanus doses, delivery history, and every follow-up visit.
+  </p>
+  <% if (!prenatalPatients.length) { %>
+    <p class="muted" style="margin:0">No female patients registered yet.</p>
+  <% } else { %>
+    <form method="GET" action="/forms/open" class="form-inline">
+      <input type="hidden" name="kind" value="prenatal" />
+      <div style="flex:1;min-width:240px">
+        <%- include("../partials/search-picker", {
+              items: prenatalPatients.map(p => ({ id: p.patient_id, label: p.full_name, meta: p.patient_number })),
+              name: "patient_id",
+              selectedId: "",
+              placeholder: "Search the patient by name or number…",
+            }) %>
+      </div>
+      <button class="btn" type="submit">Open record</button>
+    </form>
+  <% } %>
+</div>
+
+<div class="card">
+  <div class="svc-head" style="margin-bottom:6px">
+    <span class="panel-title">👨‍👩‍👧 Family planning acceptors</span>
+    <span class="muted" style="font-size:12px">whole clinic</span>
+  </div>
+  <p class="muted" style="font-size:12.5px;margin:0 0 12px">
+    Not a per-patient form — it's the list of everyone given a family planning commodity,
+    built from what's dispensed in Inventory.
+  </p>
+  <% if (canSeeReports) { %>
+    <a class="btn" href="/reports/family-planning">Open the report</a>
+  <% } else { %>
+    <p class="muted" style="margin:0;font-size:12.5px">
+      Your role can't open the reports section — ask a nurse, recorder, or the admin for this one.
+    </p>
+  <% } %>
+</div>

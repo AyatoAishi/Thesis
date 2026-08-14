@@ -9,9 +9,14 @@
     ["family-planning", "Family planning"],
     ["analytics", "Analytics"],
   ];
+  // Carry whichever filter is in effect across tabs, so switching report
+  // doesn't silently reset "This month" back to the default 30 days.
+  const qs = (typeof period !== "undefined" && period)
+    ? `?period=${period}`
+    : `?from=${from}&to=${to}`;
 %>
 <div class="tabbar">
   <% tabs.forEach(t => { %>
-    <a href="/reports/<%= t[0] %>?from=<%= from %>&to=<%= to %>" class="tab <%= active === t[0] ? 'active' : '' %>"><%= t[1] %></a>
+    <a href="/reports/<%= t[0] %><%= qs %>" class="tab <%= active === t[0] ? 'active' : '' %>"><%= t[1] %></a>
   <% }) %>
 </div>

@@ -7,12 +7,9 @@
 </div>
 
 <div class="card">
-  <%- include("../partials/reports-tabbar", { active: "attendance", from, to }) %>
+  <%- include("../partials/reports-tabbar", { active: "attendance", from, to, period }) %>
 
-  <form method="GET" action="/reports/attendance" class="form-grid" style="align-items:flex-end;margin-bottom:16px">
-    <%- include("../partials/reports-daterange", { from, to }) %>
-    <div class="field"><button class="btn" type="submit">Apply</button></div>
-  </form>
+  <%- include("../partials/reports-filter", { action: "/reports/attendance", from, to, period }) %>
 
   <% if (!rows.length) { %>
     <p class="muted" style="padding:8px 2px">No appointments in this range.</p>

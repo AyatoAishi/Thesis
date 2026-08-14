@@ -109,37 +109,45 @@
     });
   });
 
-  // Searchable patient picker (views/partials/patient-picker.ejs) — filters
-  // the page's own patient list client-side instead of a plain long <select>.
-  document.querySelectorAll("[data-patient-picker]").forEach(function (root) {
-    var idInput = root.querySelector("[data-patient-picker-id]");
-    var search = root.querySelector("[data-patient-picker-search]");
-    var results = root.querySelector("[data-patient-picker-results]");
-    var dataEl = root.querySelector("[data-patient-picker-data]");
-    var patients = JSON.parse(dataEl.textContent || "[]");
+  // Searchable picker (views/partials/search-picker.ejs) — filters the list
+  // already on the page client-side instead of a long <select>. Used for
+  // patients and for medicines on the dispense form; items are
+  // { id, label, meta }, so nothing here knows what it's picking.
+  document.querySelectorAll("[data-picker]").forEach(function (root) {
+    var idInput = root.querySelector("[data-picker-id]");
+    var search = root.querySelector("[data-picker-search]");
+    var results = root.querySelector("[data-picker-results]");
+    var dataEl = root.querySelector("[data-picker-data]");
+    var items = JSON.parse(dataEl.textContent || "[]");
+
+    function display(item) {
+      return item.meta ? item.label + " — " + item.meta : item.label;
+    }
 
     function render(matches) {
       results.innerHTML = "";
       if (!matches.length) {
         var empty = document.createElement("div");
         empty.className = "patient-picker-empty";
-        empty.textContent = "No matching patient.";
+        empty.textContent = "No match.";
         results.appendChild(empty);
       } else {
-        matches.slice(0, 8).forEach(function (p) {
+        matches.slice(0, 8).forEach(function (item) {
           var btn = document.createElement("button");
           btn.type = "button";
           btn.className = "patient-picker-result";
-          var nameSpan = document.createElement("span");
-          nameSpan.textContent = p.name;
-          var numSpan = document.createElement("span");
-          numSpan.className = "muted";
-          numSpan.textContent = p.num;
-          btn.appendChild(nameSpan);
-          btn.appendChild(numSpan);
+          var labelSpan = document.createElement("span");
+          labelSpan.textContent = item.label;
+          btn.appendChild(labelSpan);
+          if (item.meta) {
+            var metaSpan = document.createElement("span");
+            metaSpan.className = "muted";
+            metaSpan.textContent = item.meta;
+            btn.appendChild(metaSpan);
+          }
           btn.addEventListener("click", function () {
-            idInput.value = p.id;
-            search.value = p.name + " — " + p.num;
+            idInput.value = item.id;
+            search.value = display(item);
             results.hidden = true;
           });
           results.appendChild(btn);
@@ -155,9 +163,15 @@
         results.hidden = true;
         return;
       }
-      render(patients.filter(function (p) {
-        return p.name.toLowerCase().indexOf(q) !== -1 || p.num.toLowerCase().indexOf(q) !== -1;
+      render(items.filter(function (item) {
+        return display(item).toLowerCase().indexOf(q) !== -1;
       }));
+    });
+
+    // Clicking an empty box shows the first few options, so it still behaves
+    // like a dropdown for anyone who doesn't know what to type.
+    search.addEventListener("focus", function () {
+      if (!search.value.trim()) render(items);
     });
 
     search.addEventListener("keydown", function (e) {

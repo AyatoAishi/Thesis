@@ -13,7 +13,9 @@
 <% } %>
 
 <form method="POST" action="/inventory/dispense">
-  <div class="card">
+  <%# overflow:visible — the pickers' result lists drop below the card's own
+      height, and .card sets overflow-x which silently clips them. %>
+  <div class="card" style="overflow:visible">
     <div class="form-grid">
       <label class="field" style="grid-column:1/-1"><span>Patient *</span>
         <% if (patient) { %>
@@ -36,14 +38,16 @@
         <% } else if (!medicines.length) { %>
           <p class="muted" style="margin:6px 0 0">No medicines in inventory yet. <a href="/inventory/new">Add one first →</a></p>
         <% } else { %>
-          <select name="medicine_id" required>
-            <option value="">— choose medicine —</option>
-            <% medicines.forEach(med => { %>
-              <option value="<%= med.medicine_id %>" <%= String(dispense.medicine_id) === String(med.medicine_id) ? 'selected' : '' %>>
-                <%= med.name %><%= med.dosage ? ' ' + med.dosage : '' %> (<%= med.unit || "unit" %>) — <%= med.stock_quantity %> in stock
-              </option>
-            <% }) %>
-          </select>
+          <%- include("../partials/search-picker", {
+                items: medicines.map(med => ({
+                  id: med.medicine_id,
+                  label: `${med.name}${med.dosage ? " " + med.dosage : ""} (${med.unit || "unit"})`,
+                  meta: `${med.stock_quantity} in stock${med.requires_doctor_approval ? " · needs doctor approval" : ""}`,
+                })),
+                name: "medicine_id",
+                selectedId: dispense.medicine_id,
+                placeholder: "Search the medicine by name…",
+              }) %>
         <% } %>
       </label>
 

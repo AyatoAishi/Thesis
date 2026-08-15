@@ -372,6 +372,26 @@ body {
 .flow-step.done { color: var(--ok-ink); background: var(--ok-bg); border-color: transparent; }
 .flow-step.done .flow-step-num { background: var(--ok-ink); color: #fff; }
 
+/* Public landing page (views/landing.ejs) — the front door for both audiences */
+.landing-card {
+  width: 100%; max-width: 620px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-xl); box-shadow: var(--shadow-lg); padding: 30px;
+}
+.landing-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+.landing-brand b { display: block; font-size: 17px; }
+.landing-brand .muted { font-size: 12.5px; }
+.landing-foot { text-align: center; font-size: 13px; margin: 20px 0 0; color: var(--ink-2); }
+.landing-foot a { color: var(--accent-strong); text-decoration: none; font-weight: 600; }
+
+/* "Wrong door" pointer between the two sign-in pages */
+.auth-switch {
+  margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 3px; text-align: center; font-size: 13px;
+}
+.auth-switch b { font-weight: 600; color: var(--ink-2); }
+.auth-switch a { color: var(--accent-strong); text-decoration: none; font-weight: 600; }
+
 /* Big either/or choice cards (e.g. "new or existing patient?") */
 .choice-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
 .choice-card {

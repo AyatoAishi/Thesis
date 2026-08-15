@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= title %></title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body class="auth-body">
+  <main class="auth-wrap">
+    <div class="landing-card">
+      <div class="landing-brand">
+        <span class="brand-badge">S</span>
+        <div>
+          <b>Sampaguita Health Clinic</b>
+          <span class="muted">Barangay EMR &amp; Appointments</span>
+        </div>
+      </div>
+
+      <div class="choice-grid">
+        <a class="choice-card" href="/portal/login">
+          <span class="choice-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </span>
+          <b>Ako ay Pasyente</b>
+          <span class="muted">Tingnan ang records ko, magpa-book ng schedule.</span>
+        </a>
+
+        <a class="choice-card" href="/login">
+          <span class="choice-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6 6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .2.3"/><path d="M8 15v1a6 6 0 0 0 6 6 6 6 0 0 0 6-6v-4"/><circle cx="20" cy="10" r="2"/></svg>
+          </span>
+          <b>Clinic Staff</b>
+          <span class="muted">Records, appointments, inventory, reports.</span>
+        </a>
+      </div>
+
+      <p class="landing-foot">
+        Bago lang dito? <a href="/portal/signup">Gumawa ng patient account →</a>
+      </p>
+      <p class="auth-foot muted">Barangay Sampaguita Health Clinic · Your records are private (RA 10173)</p>
+    </div>
+  </main>
+</body>
+</html>

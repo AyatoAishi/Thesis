@@ -107,6 +107,18 @@ app.use("/", authRoutes);
 // Patient portal (M5) — public pages + its own patient-session gate.
 app.use("/", portalRoutes);
 
+// ---- Public front door -------------------------------------------------------
+// Registered BEFORE requireLogin on purpose. "/" used to bounce straight to the
+// staff sign-in page, so a patient (or anyone being shown the system) landed on
+// "Authorized clinic staff only" and reasonably concluded there was no patient
+// side at all — the portal existed but nothing anywhere linked to it. Signed-in
+// users skip this and go where they were already going.
+app.get("/", (req, res, next) => {
+  if (req.session.user) return next();               // staff → dashboard below
+  if (req.session.patient) return res.redirect("/portal");
+  res.render("landing", { title: "Sampaguita Health Clinic", layout: false });
+});
+
 // Everything below here requires a signed-in staff user.
 app.use(requireLogin);
 

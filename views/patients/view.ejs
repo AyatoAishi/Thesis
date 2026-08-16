@@ -25,7 +25,10 @@
     <a class="btn" href="/patients/<%= p.patient_id %>/edit">Edit</a>
     <% if (typeof user !== "undefined" && user && user.role === "admin") { %>
       <form method="POST" action="/patients/<%= p.patient_id %>/delete"
-            onsubmit="return confirm('Permanently delete this patient and all linked records? This cannot be undone.');">
+            data-confirm-title="Warning"
+            data-confirm="Deleting <%= p.full_name %> cannot be undone. Everything linked to this patient is destroyed with them: | All appointments, past and upcoming | Their patient portal account and login | Immunization card and every recorded dose | Pre-natal record and all check-ups | Visit records and reminder history"
+            data-confirm-yes="Yes, delete permanently"
+            data-confirm-no="No, keep this patient">
         <button type="submit" class="logout-btn">Delete</button>
       </form>
     <% } %>

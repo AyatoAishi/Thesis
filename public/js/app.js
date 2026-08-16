@@ -189,3 +189,93 @@
     });
   });
 })();
+
+/* ---------------------------------------------------------------------------
+ * Confirm dialog for destructive actions.
+ *
+ * Replaces window.confirm() on forms carrying [data-confirm]. The native one
+ * is a single grey line of text with OK/Cancel — it reads as a formality, and
+ * "OK" is the easy button. Here the destructive choice is the red one, the
+ * safe choice is focused by default, and there's room to spell out exactly
+ * what is about to be destroyed.
+ *
+ *   data-confirm       body text; use " | " to split it into bullet points
+ *   data-confirm-title heading (default "Warning")
+ *   data-confirm-yes   destructive button label (default "Yes, delete")
+ *   data-confirm-no    safe button label (default "No, keep it")
+ * ------------------------------------------------------------------------- */
+(function () {
+  var forms = document.querySelectorAll("form[data-confirm]");
+  if (!forms.length) return;
+
+  var dlg = document.createElement("dialog");
+  dlg.className = "confirm-dialog";
+  dlg.innerHTML =
+    '<h2 class="confirm-title"></h2>' +
+    '<div class="confirm-body"></div>' +
+    '<div class="confirm-actions">' +
+      '<button type="button" class="btn confirm-no" data-no></button>' +
+      '<button type="button" class="btn confirm-yes" data-yes></button>' +
+    "</div>";
+  document.body.appendChild(dlg);
+
+  var titleEl = dlg.querySelector(".confirm-title");
+  var bodyEl = dlg.querySelector(".confirm-body");
+  var yesBtn = dlg.querySelector("[data-yes]");
+  var noBtn = dlg.querySelector("[data-no]");
+  var pending = null;
+
+  function fill(el, text) {
+    // " | " turns the message into a list, so a long "this also deletes…"
+    // sentence doesn't arrive as one unreadable paragraph.
+    el.textContent = "";
+    var parts = text.split(" | ");
+    if (parts.length < 2) {
+      var p = document.createElement("p");
+      p.textContent = text;
+      el.appendChild(p);
+      return;
+    }
+    var lead = document.createElement("p");
+    lead.textContent = parts[0];
+    el.appendChild(lead);
+    var ul = document.createElement("ul");
+    parts.slice(1).forEach(function (item) {
+      var li = document.createElement("li");
+      li.textContent = item;
+      ul.appendChild(li);
+    });
+    el.appendChild(ul);
+  }
+
+  forms.forEach(function (form) {
+    form.addEventListener("submit", function (e) {
+      if (form.dataset.confirmed === "1") return; // second pass — let it through
+      e.preventDefault();
+      pending = form;
+      titleEl.textContent = form.dataset.confirmTitle || "Warning";
+      fill(bodyEl, form.dataset.confirm || "Are you sure?");
+      yesBtn.textContent = form.dataset.confirmYes || "Yes, delete";
+      noBtn.textContent = form.dataset.confirmNo || "No, keep it";
+      dlg.showModal();
+      noBtn.focus(); // the safe choice is the one under the finger
+    });
+  });
+
+  yesBtn.addEventListener("click", function () {
+    if (!pending) return;
+    var form = pending;
+    pending = null;
+    dlg.close();
+    form.dataset.confirmed = "1";
+    form.submit();
+  });
+
+  noBtn.addEventListener("click", function () {
+    pending = null;
+    dlg.close();
+  });
+
+  // Esc closes it (native <dialog> behaviour) — make sure that cancels too.
+  dlg.addEventListener("close", function () { pending = null; });
+})();

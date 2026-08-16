@@ -384,6 +384,34 @@ body {
 .landing-foot { text-align: center; font-size: 13px; margin: 20px 0 0; color: var(--ink-2); }
 .landing-foot a { color: var(--accent-strong); text-decoration: none; font-weight: 600; }
 
+/* Confirm dialog for destructive actions (see [data-confirm] in app.js) */
+.confirm-dialog {
+  width: min(440px, calc(100vw - 32px));
+  padding: 24px; border: 1px solid var(--border); border-radius: 16px;
+  background: var(--surface); color: var(--ink);
+  box-shadow: 0 24px 60px rgba(16, 24, 40, .22);
+}
+.confirm-dialog::backdrop { background: rgba(16, 24, 40, .45); }
+.confirm-title {
+  margin: 0 0 10px; font-size: 18px; font-weight: 800; color: var(--bad-ink);
+  display: flex; align-items: center; gap: 8px;
+}
+.confirm-title::before {
+  content: "!"; flex: none;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--bad-bg); color: var(--bad-ink);
+  font-size: 15px; font-weight: 800;
+  display: grid; place-items: center;
+}
+.confirm-body { font-size: 13.5px; line-height: 1.55; color: var(--ink-2); }
+.confirm-body p { margin: 0 0 10px; }
+.confirm-body ul { margin: 0 0 10px; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.confirm-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; flex-wrap: wrap; }
+.confirm-no { background: var(--surface); color: var(--ink-2); border: 1px solid var(--border-strong); }
+.confirm-no:hover { background: var(--surface-2); }
+.confirm-yes { background: var(--bad); border: 1px solid var(--bad); color: #fff; }
+.confirm-yes:hover { filter: brightness(.94); }
+
 /* "Forgot password?" — instructions, not a form */
 .recover-steps ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
 .recover-steps li { font-size: 13.5px; line-height: 1.5; color: var(--ink-2); }

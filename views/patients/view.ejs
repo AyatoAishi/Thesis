@@ -11,6 +11,10 @@
   }
   const a = age(p.birthdate);
 %>
+
+<% if (typeof pageErr !== "undefined" && pageErr) { %>
+  <div class="page-alert bad"><%= pageErr %></div>
+<% } %>
 <div class="page-head" style="display:flex;align-items:center;justify-content:space-between">
   <div>
     <h1><%= p.full_name %>

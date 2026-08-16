@@ -323,6 +323,10 @@ router.get("/patients/:id", async (req, res, next) => {
       secrets,
       nextStep: req.query.next === "book" ? "book" : "",
       acctErr: req.query.acct_err || null,
+      // Page-level problems (e.g. a refused delete). Kept separate from
+      // acctErr, which renders inside the portal-account card far down the
+      // page — a refused delete shown there looked like nothing happened.
+      pageErr: req.query.err || null,
       idTypes: ID_TYPES,
       pretty: F.prettyService,
       shortTime: F.shortTime,
@@ -441,11 +445,13 @@ router.post("/patients/:id/delete", requireRole("admin"), async (req, res, next)
     res.redirect("/patients");
   } catch (e) {
     // medicine_dispenses has no ON DELETE CASCADE (medicine history is kept on
-    // purpose) — a patient with dispense records can't be hard-deleted.
+    // purpose) — a patient with dispense records can't be hard-deleted. Goes to
+    // `err`, not `acct_err`: the latter renders inside the portal-account card
+    // near the bottom of the page, so a refused delete read as a silent no-op.
     if (e.code === "23503") {
       return res.redirect(
-        `/patients/${req.params.id}?acct_err=${encodeURIComponent(
-          "This patient has medicine dispense history and can't be deleted."
+        `/patients/${req.params.id}?err=${encodeURIComponent(
+          "This patient was NOT deleted. Medicine has been dispensed to them, and that stock record has to stay for the inventory to balance. Only patients with no dispense history can be removed."
         )}`
       );
     }

@@ -384,6 +384,18 @@ body {
 .landing-foot { text-align: center; font-size: 13px; margin: 20px 0 0; color: var(--ink-2); }
 .landing-foot a { color: var(--accent-strong); text-decoration: none; font-weight: 600; }
 
+/* Page-level alert — sits above the page head so it can't be missed */
+.page-alert {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 13px 15px; margin-bottom: 18px;
+  border-radius: 12px; font-size: 13.5px; line-height: 1.5; font-weight: 500;
+}
+.page-alert::before { content: "!"; flex: none; font-weight: 800; }
+.page-alert.bad {
+  background: var(--bad-bg); color: var(--bad-ink);
+  border: 1px solid rgba(178, 43, 48, .18);
+}
+
 /* Confirm dialog for destructive actions (see [data-confirm] in app.js) */
 .confirm-dialog {
   width: min(440px, calc(100vw - 32px));

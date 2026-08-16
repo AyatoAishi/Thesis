@@ -111,6 +111,27 @@
 
 <% if (me.is_verified) { %>
 
+<% if (dependents.length) { %>
+<div class="card">
+  <div class="panel-title" style="margin-bottom:4px">👨‍👩‍👧 My household</div>
+  <p class="muted" style="font-size:12.5px;margin:0 0 12px">
+    Ang mga batang kasama mo sa household number na binigay ng clinic. Tingnan ang immunization
+    card nila — ito ang hinihingi ng eskwelahan pag nag-eenroll.
+  </p>
+  <div class="dependent-list">
+    <% dependents.forEach(d => { %>
+      <a class="dependent-row" href="/portal/household/<%= d.patient_id %>">
+        <span>
+          <b><%= d.full_name %></b>
+          <span class="muted mono" style="font-size:12px"><%= d.patient_number %></span>
+        </span>
+        <span class="muted">Tingnan ang records →</span>
+      </a>
+    <% }) %>
+  </div>
+</div>
+<% } %>
+
 <div class="card">
   <div class="panel-title" style="margin-bottom:12px">💊 Medicines I received</div>
   <% if (!medicines.length) { %>
@@ -131,56 +152,7 @@
   <% } %>
 </div>
 
-<div class="card">
-  <div class="panel-title" style="margin-bottom:4px">💉 My immunization card</div>
-  <p class="muted" style="font-size:12.5px;margin:0 0 12px">
-    The same "Todo Ligtas" card the clinic keeps on paper. Empty boxes are doses not yet recorded here —
-    ask the staff on your next visit if one is already due.
-  </p>
-  <% if (!immCategories.length && !immOther.length) { %>
-    <p class="muted" style="margin:0">No vaccines recorded yet.</p>
-  <% } else { %>
-    <% immCategories.forEach(cat => { %>
-      <div class="sub" style="margin:14px 0 6px;font-weight:700"><%= cat.label %></div>
-      <table class="tbl">
-        <thead><tr><th>Vaccine</th><th>When it's due</th><th>Doses</th></tr></thead>
-        <tbody>
-          <% cat.rows.forEach(v => { %>
-            <tr>
-              <td><%= v.name %></td>
-              <td class="muted" style="font-size:12.5px"><%= v.schedule %></td>
-              <td>
-                <% v.doseSlots.forEach(s => { %>
-                  <% if (s.given) { %>
-                    <span class="badge ok" style="margin:0 4px 4px 0">Dose <%= s.doseNumber %> · <%= longDate(s.date) %></span>
-                  <% } else { %>
-                    <span class="badge" style="margin:0 4px 4px 0;background:var(--surface-2);color:var(--ink-3)">Dose <%= s.doseNumber %> · not yet</span>
-                  <% } %>
-                <% }) %>
-              </td>
-            </tr>
-          <% }) %>
-        </tbody>
-      </table>
-    <% }) %>
-
-    <% if (immOther.length) { %>
-      <div class="sub" style="margin:14px 0 6px;font-weight:700">Other vaccines</div>
-      <table class="tbl">
-        <thead><tr><th>Vaccine</th><th>Dose</th><th>Date given</th></tr></thead>
-        <tbody>
-          <% immOther.forEach(r => { %>
-            <tr>
-              <td><%= r.vaccine_name %></td>
-              <td class="mono"><%= r.dose_number %></td>
-              <td><%= longDate(r.given_date) %></td>
-            </tr>
-          <% }) %>
-        </tbody>
-      </table>
-    <% } %>
-  <% } %>
-</div>
+<%- include("_immunization", { who: "My" }) %>
 
 <% if (prenatal) { %>
 <%
@@ -265,6 +237,39 @@
   </dl>
   <p class="muted" style="font-size:12px;margin:12px 2px 0">
     Something wrong? Tell the staff on your next visit — only the clinic can edit records.
-    Need a new password? <a href="/portal/recover">Use your recovery code</a>.
   </p>
+</div>
+
+<div class="card">
+  <div class="panel-title" style="margin-bottom:4px">🔑 Change my password</div>
+  <p class="muted" style="font-size:12.5px;margin:0 0 14px">
+    Palitan ang password na binigay sa iyo ng clinic. Kung nakalimutan mo ang password mo,
+    <a href="/portal/recover">gamitin ang recovery code</a> mo sa sign-in page.
+  </p>
+
+  <% if (flash.pwOk) { %>
+    <div class="auth-notice" style="margin-bottom:14px">✅ Napalitan na ang password mo.</div>
+  <% } %>
+  <% if (flash.pwErr) { %>
+    <div class="auth-error" style="margin-bottom:14px"><%= flash.pwErr %></div>
+  <% } %>
+
+  <form method="POST" action="/portal/password" class="auth-form" style="gap:12px" autocomplete="off">
+    <div class="form-grid">
+      <label class="field" style="grid-column:1/-1">
+        <span>Current password</span>
+        <input type="password" name="current_password" required />
+      </label>
+      <label class="field">
+        <span>New password</span>
+        <input type="password" name="password" minlength="8" required />
+      </label>
+      <label class="field">
+        <span>Type it again</span>
+        <input type="password" name="password2" minlength="8" required />
+      </label>
+    </div>
+    <p class="muted" style="margin:0;font-size:12px">Kahit anong 8 characters pataas.</p>
+    <button type="submit" class="btn" style="align-self:flex-start">Change password</button>
+  </form>
 </div>

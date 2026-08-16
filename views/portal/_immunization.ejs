@@ -1,0 +1,56 @@
+<%
+  // The immunization card, rendered identically for the signed-in patient and
+  // for a minor dependent. Expects: immCategories, immOther, longDate, and an
+  // optional `who` ("My" / the child's first name) for the heading.
+  const _who = typeof who !== "undefined" && who ? who : "My";
+%>
+<div class="card">
+  <div class="panel-title" style="margin-bottom:4px">💉 <%= _who %> immunization card</div>
+  <p class="muted" style="font-size:12.5px;margin:0 0 12px">
+    The same "Todo Ligtas" card the clinic keeps on paper. Empty boxes are doses not yet recorded here —
+    ask the staff on your next visit if one is already due.
+  </p>
+  <% if (!immCategories.length && !immOther.length) { %>
+    <p class="muted" style="margin:0">No vaccines recorded yet.</p>
+  <% } else { %>
+    <% immCategories.forEach(cat => { %>
+      <div class="sub" style="margin:14px 0 6px;font-weight:700"><%= cat.label %></div>
+      <table class="tbl">
+        <thead><tr><th>Vaccine</th><th>When it's due</th><th>Doses</th></tr></thead>
+        <tbody>
+          <% cat.rows.forEach(v => { %>
+            <tr>
+              <td><%= v.name %></td>
+              <td class="muted" style="font-size:12.5px"><%= v.schedule %></td>
+              <td>
+                <% v.doseSlots.forEach(s => { %>
+                  <% if (s.given) { %>
+                    <span class="badge ok" style="margin:0 4px 4px 0">Dose <%= s.doseNumber %> · <%= longDate(s.date) %></span>
+                  <% } else { %>
+                    <span class="badge" style="margin:0 4px 4px 0;background:var(--surface-2);color:var(--ink-3)">Dose <%= s.doseNumber %> · not yet</span>
+                  <% } %>
+                <% }) %>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% }) %>
+
+    <% if (immOther.length) { %>
+      <div class="sub" style="margin:14px 0 6px;font-weight:700">Other vaccines</div>
+      <table class="tbl">
+        <thead><tr><th>Vaccine</th><th>Dose</th><th>Date given</th></tr></thead>
+        <tbody>
+          <% immOther.forEach(r => { %>
+            <tr>
+              <td><%= r.vaccine_name %></td>
+              <td class="mono"><%= r.dose_number %></td>
+              <td><%= longDate(r.given_date) %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% } %>
+  <% } %>
+</div>

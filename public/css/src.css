@@ -392,6 +392,17 @@ body {
 .auth-switch b { font-weight: 600; color: var(--ink-2); }
 .auth-switch a { color: var(--accent-strong); text-decoration: none; font-weight: 600; }
 
+/* Household list in the patient portal — one tappable row per minor */
+.dependent-list { display: flex; flex-direction: column; gap: 8px; }
+.dependent-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--surface); text-decoration: none; color: inherit; font-size: 14px;
+}
+.dependent-row:hover { border-color: var(--accent); background: var(--surface-2); }
+.dependent-row > span:first-child { display: flex; flex-direction: column; gap: 2px; }
+.dependent-row .muted { font-size: 12.5px; }
+
 /* Big either/or choice cards (e.g. "new or existing patient?") */
 .choice-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
 .choice-card {

@@ -223,6 +223,132 @@ router.post("/portal/recover", async (req, res, next) => {
   }
 });
 
+// ---- HOUSEHOLD (a guardian seeing a minor's records) --------------------------
+// Deliberately narrow. The viewer sees another patient ONLY when all of these
+// hold: the viewer is a verified adult, the other patient is flagged is_minor,
+// and both carry the same non-empty family_number. Adult-to-adult is never
+// allowed — a spouse must not stumble into family-planning or prenatal records
+// through here, which is exactly the kind of disclosure RA 10173 is about.
+//
+// Note there is no separate "approval" table: family_number is assigned by
+// clinic staff on the patient form, so grouping a household IS the approval.
+const HOUSEHOLD_SQL = `
+  SELECT c.patient_id, c.patient_number, c.full_name
+    FROM patients c
+    JOIN patients g ON g.patient_id = $1
+    JOIN patient_accounts a ON a.patient_id = g.patient_id
+   WHERE c.is_minor = true
+     AND g.is_minor = false
+     AND a.is_verified = true
+     AND g.family_number IS NOT NULL
+     AND c.family_number = g.family_number
+     AND c.patient_id <> g.patient_id`;
+
+async function loadDependents(guardianId) {
+  const { rows } = await db.query(`${HOUSEHOLD_SQL} ORDER BY c.full_name`, [guardianId]);
+  return rows;
+}
+
+router.get("/portal/household/:id", requirePatient, async (req, res, next) => {
+  try {
+    const guardianId = req.session.patient.patient_id;
+    const childId = parseInt(req.params.id, 10) || 0;
+
+    // Re-runs the full rule against the DB rather than trusting the URL.
+    const { rows } = await db.query(
+      `${HOUSEHOLD_SQL} AND c.patient_id = $2`, [guardianId, childId]
+    );
+    const child = rows[0];
+    if (!child) {
+      return res.redirect(
+        `/portal?err=${encodeURIComponent("Wala kang access sa records na 'yan.")}`
+      );
+    }
+
+    const [apptsQ, medsQ, immCard] = await Promise.all([
+      db.query(
+        `SELECT a.appointment_date, a.appointment_time, a.status, s.name AS service_name
+           FROM appointments a JOIN services s ON s.service_id = a.service_id
+          WHERE a.patient_id = $1
+          ORDER BY a.appointment_date DESC, a.appointment_time NULLS LAST
+          LIMIT 100`,
+        [childId]
+      ),
+      db.query(
+        `SELECT d.dispensed_at, d.quantity, m.name AS medicine_name, m.dosage, m.unit
+           FROM medicine_dispenses d JOIN medicines m ON m.medicine_id = d.medicine_id
+          WHERE d.patient_id = $1
+            AND (d.requires_doctor_approval = false OR d.approved_at IS NOT NULL)
+          ORDER BY d.dispensed_at DESC
+          LIMIT 50`,
+        [childId]
+      ),
+      buildCard(childId),
+    ]);
+
+    // Same "hide the empty blocks" rule as the patient's own card.
+    const immCategories = ["infant", "school", "senior"]
+      .map((key) => ({
+        key,
+        label: { infant: "Infant", school: "School-aged", senior: "Senior citizen" }[key],
+        rows: immCard.schedule.filter((v) => v.category === key),
+      }))
+      .filter((c) => c.rows.some((v) => v.doseSlots.some((s) => s.given)));
+
+    res.render("portal/dependent", {
+      title: `${child.full_name} · Sampaguita HC`,
+      layout: "portal-layout",
+      me: req.session.patient,
+      child,
+      appointments: apptsQ.rows,
+      medicines: medsQ.rows.map((m) => ({
+        ...m,
+        date: new Date(m.dispensed_at).toLocaleDateString("en-CA", { timeZone: F.TZ }),
+      })),
+      immCategories,
+      immOther: immCard.other,
+      pretty: F.prettyService,
+      longDate: F.longDate,
+      shortTime: F.shortTime,
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ---- CHANGE OWN PASSWORD ------------------------------------------------------
+router.post("/portal/password", requirePatient, async (req, res, next) => {
+  try {
+    const pid = req.session.patient.patient_id;
+    const current = req.body.current_password || "";
+    const password = req.body.password || "";
+    const password2 = req.body.password2 || "";
+    const oops = (msg) => res.redirect(`/portal?pw_err=${encodeURIComponent(msg)}`);
+
+    if (password.length < 8) return oops("Dapat 8 characters pataas ang bagong password.");
+    if (password !== password2) return oops("Hindi magkatugma ang dalawang bagong password.");
+
+    const { rows } = await db.query(
+      "SELECT account_id, password_hash FROM patient_accounts WHERE patient_id = $1", [pid]
+    );
+    const acct = rows[0];
+    if (!acct || !(await bcrypt.compare(current, acct.password_hash))) {
+      return oops("Mali ang current password mo.");
+    }
+    if (await bcrypt.compare(password, acct.password_hash)) {
+      return oops("Pareho lang ng luma ang bagong password — pumili ng iba.");
+    }
+
+    await db.query(
+      "UPDATE patient_accounts SET password_hash = $1 WHERE account_id = $2",
+      [await bcrypt.hash(password, 10), acct.account_id]
+    );
+    res.redirect("/portal?pw=1");
+  } catch (e) {
+    next(e);
+  }
+});
+
 // ---- HOME (the whole portal on one friendly page) -----------------------------
 router.get("/portal", requirePatient, async (req, res, next) => {
   try {
@@ -248,7 +374,7 @@ router.get("/portal", requirePatient, async (req, res, next) => {
     // Everything below the appointment list is a health record, so it's gated
     // on is_verified the same way the visit list already was.
     const none = Promise.resolve({ rows: [] });
-    const [apptsQ, visitsQ, services, medsQ, immCard, prenatalQ] = await Promise.all([
+    const [apptsQ, visitsQ, services, medsQ, immCard, prenatalQ, dependents] = await Promise.all([
       db.query(
         `SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.status,
                 s.name AS service_name
@@ -291,6 +417,7 @@ router.get("/portal", requirePatient, async (req, res, next) => {
             [pid]
           )
         : none,
+      me.is_verified ? loadDependents(pid) : Promise.resolve([]),
     ]);
 
     // Only show vaccine categories the patient actually has doses in — an
@@ -342,6 +469,7 @@ router.get("/portal", requirePatient, async (req, res, next) => {
       immOther: immCard.other,
       prenatal,
       prenatalVisits,
+      dependents,
       bookOptions: services.rows,
       minBookDate: F.addDays(today, 1),
       maxBookDate: F.addDays(today, BOOKING_HORIZON),
@@ -351,6 +479,8 @@ router.get("/portal", requirePatient, async (req, res, next) => {
         booked: req.query.booked === "1",
         cancelled: req.query.cancelled === "1",
         err: req.query.err || null,
+        pwOk: req.query.pw === "1",
+        pwErr: req.query.pw_err || null,
       },
       pretty: F.prettyService,
       longDate: F.longDate,

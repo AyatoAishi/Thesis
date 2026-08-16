@@ -1,0 +1,64 @@
+<%
+  function statusBadge(s) {
+    const m = { scheduled:["info","Scheduled"], completed:["ok","Completed"], missed:["bad","Missed"], cancelled:["warn","Cancelled"] };
+    const [c, l] = m[s] || ["info", s];
+    return `<span class="badge ${c}">${l}</span>`;
+  }
+  const firstName = child.full_name.split(" ")[0];
+%>
+
+<div class="page-head">
+  <h1><%= child.full_name %></h1>
+  <div class="sub mono"><%= child.patient_number %></div>
+</div>
+
+<p style="margin:-6px 0 18px"><a href="/portal">← Balik sa akin</a></p>
+
+<div class="card portal-flash">
+  Nakikita mo ito dahil kasama kayo sa iisang <b>household number</b> na binigay ng clinic,
+  at menor de edad pa siya. <b>View only</b> — ang clinic lang ang makakapagbago ng records,
+  at ang clinic lang din ang makakapag-book o makakapag-cancel para sa kanya.
+</div>
+
+<div class="card">
+  <div class="panel-title" style="margin-bottom:12px">Appointments ni <%= firstName %></div>
+  <% if (!appointments.length) { %>
+    <p class="muted" style="margin:0">Wala pang appointment.</p>
+  <% } else { %>
+    <table class="tbl">
+      <thead><tr><th>Date</th><th>Service</th><th>Time</th><th>Status</th></tr></thead>
+      <tbody>
+        <% appointments.forEach(a => { %>
+          <tr>
+            <td><%= longDate(a.appointment_date) %></td>
+            <td><%= pretty(a.service_name) %></td>
+            <td class="mono"><%= shortTime(a.appointment_time) || "—" %></td>
+            <td><%- statusBadge(a.status) %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>
+
+<%- include("_immunization", { who: `${firstName}'s` }) %>
+
+<div class="card">
+  <div class="panel-title" style="margin-bottom:12px">💊 Mga gamot na natanggap ni <%= firstName %></div>
+  <% if (!medicines.length) { %>
+    <p class="muted" style="margin:0">Wala pa — lalabas dito ang mga gamot na ibinigay sa clinic.</p>
+  <% } else { %>
+    <table class="tbl">
+      <thead><tr><th>Date</th><th>Medicine</th><th>Quantity</th></tr></thead>
+      <tbody>
+        <% medicines.forEach(m => { %>
+          <tr>
+            <td><%= longDate(m.date) %></td>
+            <td><%= m.medicine_name %><%= m.dosage ? " " + m.dosage : "" %></td>
+            <td class="mono"><%= m.quantity %> <%= m.unit || "" %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>

@@ -23,36 +23,27 @@
         </div>
       </div>
 
-      <h1 class="auth-title">Reset your password</h1>
-      <p class="muted" style="margin:-8px 0 16px;font-size:13px">
-        Use the <b>recovery code</b> you were given when your account was created.
-        Lost it too? Visit the clinic and the staff will reset it for you.
-      </p>
+      <h1 class="auth-title">Nakalimutan ang password?</h1>
 
-      <% if (error) { %>
-        <div class="auth-error"><%= error %></div>
-      <% } %>
+      <div class="recover-steps">
+        <p style="margin:0 0 14px;font-size:14px">
+          Ang clinic staff ang magbibigay sa iyo ng bagong password. Ganito:
+        </p>
+        <ol>
+          <li>Pumunta sa <b>Barangay Sampaguita Health Clinic</b>.</li>
+          <li>Dalhin ang <b>valid ID</b> na ginamit mo noong ginawa ang account mo.</li>
+          <li>Sabihin sa staff na nakalimutan mo ang password mo sa portal.</li>
+          <li>Bibigyan ka nila ng <b>bagong pansamantalang password</b> — pwede mo itong palitan
+              pagkatapos mong makapasok.</li>
+        </ol>
+        <p class="muted" style="margin:14px 0 0;font-size:12.5px">
+          Sa clinic lang ito ginagawa dahil kailangang makita ng staff ang ID mo bago ibigay ang
+          bagong password. Ito ang pumipigil na may ibang tao ang makapasok sa records mo.
+        </p>
+      </div>
 
-      <form method="POST" action="/portal/recover" class="auth-form" autocomplete="off">
-        <label class="field">
-          <span>Username</span>
-          <input type="text" name="username" value="<%= username %>"
-                 required autofocus autocapitalize="none" spellcheck="false" />
-        </label>
-        <label class="field">
-          <span>Recovery code</span>
-          <input type="text" name="recovery_code" placeholder="XXXX-XXXX"
-                 required autocapitalize="characters" spellcheck="false" class="mono" />
-        </label>
-        <label class="field">
-          <span>New password <span class="muted">(8+ characters)</span></span>
-          <input type="password" name="password" minlength="8" required />
-        </label>
-        <button type="submit" class="btn auth-submit">Set new password</button>
-      </form>
-
-      <div class="auth-links">
-        <a href="/portal/login">← Back to sign in</a>
+      <div class="auth-links" style="margin-top:18px">
+        <a href="/portal/login">← Balik sa sign in</a>
       </div>
 
       <p class="auth-foot muted">Your health records are private · RA 10173 protected</p>

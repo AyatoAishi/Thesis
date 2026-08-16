@@ -167,11 +167,10 @@
       <dl class="kv" style="margin-top:10px">
         <div><dt>Username</dt><dd class="mono"><%= secrets.username %></dd></div>
         <div><dt>Temporary password</dt><dd class="mono" style="font-weight:700"><%= secrets.temp_password %></dd></div>
-        <div><dt>Recovery code</dt><dd class="mono" style="font-weight:700"><%= secrets.recovery_code %></dd></div>
         <div><dt>Portal address</dt><dd class="mono">/portal</dd></div>
       </dl>
       <p class="muted" style="font-size:12px;margin:10px 0 0">
-        Tell the patient: sign in, then use the recovery code at “Forgot password” to set their own password.
+        Tell the patient: sign in with these, then change the password from their portal page. If they ever forget it, they come back here and you press Reset.
       </p>
     </div>
   <% } %>
@@ -190,14 +189,13 @@
         </form>
       <% } %>
       <form method="POST" action="/portal-accounts/<%= account.account_id %>/reset" style="margin:0"
-            onsubmit="return confirm('Issue a new temporary password + recovery code?')">
+            onsubmit="return confirm('Issue a new temporary password for this patient?')">
         <button type="submit" class="mini-btn">Reset password</button>
       </form>
     </div>
   <% } else { %>
     <p class="muted" style="font-size:13px;margin:0 0 12px">
-      No portal account. Create one here after checking the patient's valid ID —
-      or the patient can self-register at <code class="mono">/portal/signup</code>.
+      No portal account. Create one here after checking the patient's valid ID.
     </p>
     <form method="POST" action="/patients/<%= p.patient_id %>/portal-account">
       <div class="form-grid">

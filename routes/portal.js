@@ -1,23 +1,23 @@
 // ============================================================================
 // routes/portal.js — the PATIENT portal (M5). Public + its own session gate.
 //
-// Flow: a patient self-signs-up by matching their clinic record (patient number
-// + full name + birthdate) and choosing a username/password. The account starts
-// UNVERIFIED — staff verify a physical valid ID at the clinic. Verified
-// patients can view their visit records and book/cancel appointments online.
+// Flow: accounts are created BY STAFF at the desk, after they have physically
+// checked the patient's valid ID — see routes/portalAccounts.js. There is no
+// self-signup: this is a small barangay clinic, patients only learn the portal
+// exists when staff tell them at the counter and hand over their credentials,
+// so a public registration form bought nothing and added a way for unverified
+// accounts to pile up. Patients here only sign in, read, and book.
 //
 // Security rules:
 //   - Every data query keys off req.session.patient.patient_id (never the URL).
-//   - Generic error messages on login/signup/recover (no record enumeration).
+//   - Generic error messages on login/recover (no record enumeration).
 //   - Booking re-checks is_verified from the DB, not the session.
-//   - Passwords AND recovery codes are bcrypt-hashed (RA 10173).
+//   - Passwords are bcrypt-hashed, never stored or emailed in the clear.
 // ============================================================================
 const express = require("express");
 const bcrypt = require("bcryptjs");
-const crypto = require("crypto");
 const db = require("../db");
 const F = require("../lib/format");
-const ID_TYPES = require("../lib/idTypes");
 const { buildCard } = require("../lib/immunizationCard");
 const { requirePatient } = require("../middleware/portalAuth");
 const { sendBookingConfirmation } = require("../services/reminders");
@@ -28,20 +28,6 @@ const MAX_OPEN_BOOKINGS = 3;   // open 'scheduled' appointments a patient may ho
 const BOOKING_HORIZON = 90;    // how far ahead (days) online booking is allowed
 
 const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || "");
-const USERNAME_RE = /^[a-z0-9._]{4,30}$/;
-const normName = (s) => (s || "").trim().replace(/\s+/g, " ").toLowerCase();
-
-// Human-friendly random code (no 0/O/1/I/L), e.g. "K7MP-2XWQ".
-function genCode() {
-  const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-  const bytes = crypto.randomBytes(8);
-  let s = "";
-  for (let i = 0; i < 8; i++) {
-    s += alphabet[bytes[i] % alphabet.length];
-    if (i === 3) s += "-";
-  }
-  return s;
-}
 
 // ---- LOGIN ------------------------------------------------------------------
 router.get("/portal/login", (req, res) => {
@@ -93,147 +79,26 @@ router.post("/portal/logout", (req, res) => {
   res.redirect("/portal/login");
 });
 
-// ---- SIGNUP -----------------------------------------------------------------
-function renderSignup(res, { status = 200, errors = [], form = {}, success = null } = {}) {
-  return res.status(status).render("portal/signup", {
-    title: "Create portal account · Sampaguita HC",
-    layout: false,
-    idTypes: ID_TYPES,
-    errors,
-    form,
-    success,
-  });
-}
+// Self-signup is gone (see the header). Old links/bookmarks would otherwise
+// fall through to the STAFF sign-in page, which is the wrong door entirely.
+router.all("/portal/signup", (req, res) => res.redirect("/portal/login"));
 
-router.get("/portal/signup", (req, res) => renderSignup(res));
-
-router.post("/portal/signup", async (req, res, next) => {
-  try {
-    const form = {
-      patient_number: (req.body.patient_number || "").trim().toUpperCase(),
-      full_name: (req.body.full_name || "").trim().replace(/\s+/g, " "),
-      birthdate: (req.body.birthdate || "").trim(),
-      valid_id_type: (req.body.valid_id_type || "").trim(),
-      valid_id_number: (req.body.valid_id_number || "").trim(),
-      username: (req.body.username || "").trim().toLowerCase(),
-    };
-    const password = req.body.password || "";
-
-    const errors = [];
-    if (!form.patient_number) errors.push("Patient number is required (it's on your clinic card, e.g. SAMP-2026-0001).");
-    if (!form.full_name) errors.push("Full name is required.");
-    if (!isDate(form.birthdate)) errors.push("Birthdate is required.");
-    if (!ID_TYPES.includes(form.valid_id_type)) errors.push("Choose which valid ID you will present.");
-    if (!form.valid_id_number) errors.push("Enter your valid ID number.");
-    if (!USERNAME_RE.test(form.username))
-      errors.push("Username must be 4–30 characters: lowercase letters, numbers, dots or underscores.");
-    if (password.length < 8) errors.push("Password must be at least 8 characters.");
-    if (errors.length) return renderSignup(res, { status: 400, errors, form });
-
-    // Match a clinic record. All three must match — generic error otherwise so
-    // the form can't be used to fish for who is/isn't a patient here.
-    const match = await db.query(
-      `SELECT patient_id FROM patients
-        WHERE upper(patient_number) = $1
-          AND lower(regexp_replace(full_name, '\\s+', ' ', 'g')) = $2
-          AND birthdate = $3::date`,
-      [form.patient_number, normName(form.full_name), form.birthdate]
-    );
-    if (!match.rows[0]) {
-      return renderSignup(res, {
-        status: 400, form,
-        errors: ["We couldn't match those details to a clinic record. Please check your patient number, full name, and birthdate — or visit the clinic and the staff will set up your account."],
-      });
-    }
-    const patient_id = match.rows[0].patient_id;
-
-    const existing = await db.query(
-      "SELECT 1 FROM patient_accounts WHERE patient_id = $1", [patient_id]
-    );
-    if (existing.rowCount) {
-      return renderSignup(res, {
-        status: 400, form,
-        errors: ["This patient already has a portal account. Use “Forgot password” or ask the clinic staff for help."],
-      });
-    }
-
-    const taken = await db.query(
-      "SELECT 1 FROM patient_accounts WHERE lower(username) = $1", [form.username]
-    );
-    if (taken.rowCount) {
-      return renderSignup(res, { status: 400, form, errors: ["That username is already taken — try another."] });
-    }
-
-    const recoveryCode = genCode();
-    try {
-      await db.query(
-        `INSERT INTO patient_accounts
-           (patient_id, username, password_hash, valid_id_type, valid_id_number,
-            is_verified, recovery_id)
-         VALUES ($1,$2,$3,$4,$5,false,$6)`,
-        [patient_id, form.username, await bcrypt.hash(password, 10),
-         form.valid_id_type, form.valid_id_number, await bcrypt.hash(recoveryCode, 10)]
-      );
-    } catch (e) {
-      // The SELECT above can't stop two people submitting the same username at
-      // the same moment — only the UNIQUE constraint can, and it reports the
-      // loser here. Turn that into the same friendly message instead of a 500.
-      if (e.code === "23505") {
-        return renderSignup(res, {
-          status: 400, form,
-          errors: ["That username is already taken — try another."],
-        });
-      }
-      throw e;
-    }
-
-    // Show the recovery code ONCE — it is stored hashed and cannot be re-shown.
-    renderSignup(res, { success: { username: form.username, recoveryCode } });
-  } catch (e) {
-    next(e);
-  }
-});
-
-// ---- FORGOT PASSWORD (recovery code) -----------------------------------------
+// ---- FORGOT PASSWORD ---------------------------------------------------------
+// Instructions only — there is no self-service reset. A recovery code the
+// patient carries is nearly self-defeating: someone who has lost their password
+// has almost certainly lost the slip of paper too. Email can't replace it
+// either, since only about half the patients here have an address on file, and
+// the ones who don't are mostly the elderly who need help the most.
+//
+// So recovery is what it already was in practice: the patient walks in, staff
+// check the ID they can see, and hit Reset (routes/portalAccounts.js) to issue
+// a fresh temporary password. Nothing to steal, nothing to expire, works for
+// every patient.
 router.get("/portal/recover", (req, res) => {
   res.render("portal/recover", {
-    title: "Reset password · Sampaguita HC",
+    title: "Nakalimutang password · Sampaguita HC",
     layout: false,
-    error: null,
-    username: "",
   });
-});
-
-router.post("/portal/recover", async (req, res, next) => {
-  try {
-    const username = (req.body.username || "").trim().toLowerCase();
-    const code = (req.body.recovery_code || "").trim().toUpperCase();
-    const password = req.body.password || "";
-    const fail = (msg) =>
-      res.status(401).render("portal/recover", {
-        title: "Reset password · Sampaguita HC",
-        layout: false,
-        error: msg,
-        username,
-      });
-
-    if (password.length < 8) return fail("New password must be at least 8 characters.");
-    const { rows } = await db.query(
-      "SELECT account_id, recovery_id FROM patient_accounts WHERE lower(username) = $1",
-      [username]
-    );
-    const acct = rows[0];
-    if (!acct || !acct.recovery_id || !(await bcrypt.compare(code, acct.recovery_id))) {
-      return fail("Invalid username or recovery code.");
-    }
-    await db.query(
-      "UPDATE patient_accounts SET password_hash = $1 WHERE account_id = $2",
-      [await bcrypt.hash(password, 10), acct.account_id]
-    );
-    res.redirect("/portal/login?reset=1");
-  } catch (e) {
-    next(e);
-  }
 });
 
 // ---- HOUSEHOLD (a guardian seeing a minor's records) --------------------------

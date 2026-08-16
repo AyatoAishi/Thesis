@@ -4,8 +4,11 @@
 // verifications first), verify an account after checking the physical valid
 // ID, create an account for a patient at the desk, and reset credentials.
 //
-// One-time secrets (temp password / recovery code) are passed via a session
-// flash and shown exactly once on the patient page — they are stored hashed.
+// The one-time temp password is passed via a session flash and shown exactly
+// once on the patient page — only its bcrypt hash is stored. There is no
+// patient-held recovery code: forgetting a password is handled by the patient
+// walking in and staff pressing Reset here, which is the only recovery path
+// that works for every patient (about half have no email on file).
 // ============================================================================
 const express = require("express");
 const bcrypt = require("bcryptjs");
@@ -97,7 +100,8 @@ router.post("/portal-accounts/:id/verify", async (req, res, next) => {
 });
 
 // ---- RESET  POST /portal-accounts/:id/reset -----------------------------------
-// Issues a NEW temp password + NEW recovery code (both hashed; shown once).
+// Issues a NEW temp password (hashed; shown once). This IS the portal's
+// forgot-password flow — the patient presents a valid ID at the desk.
 router.post("/portal-accounts/:id/reset", async (req, res, next) => {
   try {
     const { rows } = await db.query(
@@ -108,17 +112,15 @@ router.post("/portal-accounts/:id/reset", async (req, res, next) => {
     const acct = rows[0];
 
     const tempPassword = genCode();
-    const recoveryCode = genCode();
     await db.query(
-      "UPDATE patient_accounts SET password_hash=$1, recovery_id=$2 WHERE account_id=$3",
-      [await bcrypt.hash(tempPassword, 10), await bcrypt.hash(recoveryCode, 10), acct.account_id]
+      "UPDATE patient_accounts SET password_hash=$1 WHERE account_id=$2",
+      [await bcrypt.hash(tempPassword, 10), acct.account_id]
     );
 
     req.session.oneTimeSecret = {
       patient_id: acct.patient_id,
       username: acct.username,
       temp_password: tempPassword,
-      recovery_code: recoveryCode,
       kind: "reset",
     };
     res.redirect(`/patients/${acct.patient_id}`);
@@ -204,15 +206,13 @@ router.post("/patients/:id/portal-account", async (req, res, next) => {
     if (taken.rowCount) return oops("That username is already taken.");
 
     const tempPassword = genCode();
-    const recoveryCode = genCode();
     try {
       await db.query(
         `INSERT INTO patient_accounts
-           (patient_id, username, password_hash, valid_id_type, valid_id_number,
-            is_verified, recovery_id)
-         VALUES ($1,$2,$3,$4,$5,true,$6)`,
+           (patient_id, username, password_hash, valid_id_type, valid_id_number, is_verified)
+         VALUES ($1,$2,$3,$4,$5,true)`,
         [patient_id, username, await bcrypt.hash(tempPassword, 10),
-         valid_id_type, valid_id_number, await bcrypt.hash(recoveryCode, 10)]
+         valid_id_type, valid_id_number]
       );
     } catch (e) {
       // Two staff at two desks can pass the SELECT above at the same moment;
@@ -225,7 +225,6 @@ router.post("/patients/:id/portal-account", async (req, res, next) => {
       patient_id,
       username,
       temp_password: tempPassword,
-      recovery_code: recoveryCode,
       kind: "created",
     };
     // Always via the profile page — that's where the one-time credentials are

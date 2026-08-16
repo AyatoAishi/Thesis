@@ -1,0 +1,33 @@
+<%
+  // Segmented switch between the two sign-in pages. Patient sits first and is
+  // the default any visitor lands on — staff know to reach for the other half,
+  // patients shouldn't have to know anything.
+  //
+  // These are plain links, not a JS toggle: the two sides POST to different
+  // endpoints against different tables (patient_accounts vs users), so keeping
+  // them as two real pages preserves that separation and works with JS off.
+  const side = typeof authSide !== "undefined" ? authSide : "patient";
+%>
+<div class="auth-toggle" role="tablist" aria-label="Sign in as">
+  <a class="auth-toggle-btn <%= side === 'patient' ? 'active' : '' %>"
+     href="/portal/login" role="tab" aria-selected="<%= side === 'patient' %>">
+    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21v-1a7 7 0 0 1 16 0v1" />
+    </svg>
+    <span>Pasyente</span>
+  </a>
+  <a class="auth-toggle-btn <%= side === 'staff' ? 'active' : '' %>"
+     href="/login" role="tab" aria-selected="<%= side === 'staff' %>">
+    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M4.5 12.5V5a2 2 0 0 1 2-2h1" />
+      <path d="M11.5 3h1a2 2 0 0 1 2 2v7.5" />
+      <path d="M4.5 12.5a5 5 0 0 0 10 0" />
+      <path d="M9.5 17.5v.5a3.5 3.5 0 0 0 7 0v-2" />
+      <circle cx="18" cy="14" r="2" />
+    </svg>
+    <span>Clinic staff</span>
+  </a>
+</div>

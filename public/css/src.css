@@ -384,13 +384,25 @@ body {
 .landing-foot { text-align: center; font-size: 13px; margin: 20px 0 0; color: var(--ink-2); }
 .landing-foot a { color: var(--accent-strong); text-decoration: none; font-weight: 600; }
 
-/* "Wrong door" pointer between the two sign-in pages */
-.auth-switch {
-  margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border);
-  display: flex; flex-direction: column; gap: 3px; text-align: center; font-size: 13px;
+/* Segmented switch between the two sign-in pages (patient is the default) */
+.auth-toggle {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+  padding: 4px; margin: 0 0 20px;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px;
 }
-.auth-switch b { font-weight: 600; color: var(--ink-2); }
-.auth-switch a { color: var(--accent-strong); text-decoration: none; font-weight: 600; }
+.auth-toggle-btn {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 10px 8px; border-radius: 9px;
+  font-size: 13.5px; font-weight: 600; text-decoration: none;
+  color: var(--ink-3); background: transparent; border: 1px solid transparent;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.auth-toggle-btn:hover { color: var(--ink-2); }
+.auth-toggle-btn.active {
+  background: var(--surface); color: var(--accent-strong);
+  border-color: var(--border); box-shadow: 0 1px 2px rgba(16, 24, 40, .06);
+}
+.auth-toggle-btn svg { flex: none; }
 
 /* Household list in the patient portal — one tappable row per minor */
 .dependent-list { display: flex; flex-direction: column; gap: 8px; }

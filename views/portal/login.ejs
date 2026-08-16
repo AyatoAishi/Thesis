@@ -23,6 +23,8 @@
         </div>
       </div>
 
+      <%- include("../partials/auth-toggle", { authSide: "patient" }) %>
+
       <h1 class="auth-title">Patient sign in</h1>
 
       <% if (notice) { %>
@@ -51,11 +53,6 @@
         <a href="/portal/signup">Create an account</a>
         <span>·</span>
         <a href="/portal/recover">Forgot password?</a>
-      </div>
-
-      <div class="auth-switch">
-        <b>Clinic staff ka ba?</b>
-        <a href="/login">Pumunta sa staff sign in →</a>
       </div>
 
       <p class="auth-foot muted">Your health records are private · RA 10173 protected</p>

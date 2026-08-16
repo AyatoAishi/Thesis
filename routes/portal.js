@@ -165,14 +165,27 @@ router.post("/portal/signup", async (req, res, next) => {
     }
 
     const recoveryCode = genCode();
-    await db.query(
-      `INSERT INTO patient_accounts
-         (patient_id, username, password_hash, valid_id_type, valid_id_number,
-          is_verified, recovery_id)
-       VALUES ($1,$2,$3,$4,$5,false,$6)`,
-      [patient_id, form.username, await bcrypt.hash(password, 10),
-       form.valid_id_type, form.valid_id_number, await bcrypt.hash(recoveryCode, 10)]
-    );
+    try {
+      await db.query(
+        `INSERT INTO patient_accounts
+           (patient_id, username, password_hash, valid_id_type, valid_id_number,
+            is_verified, recovery_id)
+         VALUES ($1,$2,$3,$4,$5,false,$6)`,
+        [patient_id, form.username, await bcrypt.hash(password, 10),
+         form.valid_id_type, form.valid_id_number, await bcrypt.hash(recoveryCode, 10)]
+      );
+    } catch (e) {
+      // The SELECT above can't stop two people submitting the same username at
+      // the same moment — only the UNIQUE constraint can, and it reports the
+      // loser here. Turn that into the same friendly message instead of a 500.
+      if (e.code === "23505") {
+        return renderSignup(res, {
+          status: 400, form,
+          errors: ["That username is already taken — try another."],
+        });
+      }
+      throw e;
+    }
 
     // Show the recovery code ONCE — it is stored hashed and cannot be re-shown.
     renderSignup(res, { success: { username: form.username, recoveryCode } });

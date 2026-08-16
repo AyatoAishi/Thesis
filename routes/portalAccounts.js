@@ -205,14 +205,21 @@ router.post("/patients/:id/portal-account", async (req, res, next) => {
 
     const tempPassword = genCode();
     const recoveryCode = genCode();
-    await db.query(
-      `INSERT INTO patient_accounts
-         (patient_id, username, password_hash, valid_id_type, valid_id_number,
-          is_verified, recovery_id)
-       VALUES ($1,$2,$3,$4,$5,true,$6)`,
-      [patient_id, username, await bcrypt.hash(tempPassword, 10),
-       valid_id_type, valid_id_number, await bcrypt.hash(recoveryCode, 10)]
-    );
+    try {
+      await db.query(
+        `INSERT INTO patient_accounts
+           (patient_id, username, password_hash, valid_id_type, valid_id_number,
+            is_verified, recovery_id)
+         VALUES ($1,$2,$3,$4,$5,true,$6)`,
+        [patient_id, username, await bcrypt.hash(tempPassword, 10),
+         valid_id_type, valid_id_number, await bcrypt.hash(recoveryCode, 10)]
+      );
+    } catch (e) {
+      // Two staff at two desks can pass the SELECT above at the same moment;
+      // the UNIQUE constraint catches the loser here. Same message, not a 500.
+      if (e.code === "23505") return oops("That username is already taken.");
+      throw e;
+    }
 
     req.session.oneTimeSecret = {
       patient_id,

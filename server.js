@@ -148,13 +148,20 @@ app.get("/", (req, res) => {
 // Everything below here requires a signed-in staff user.
 app.use(requireLogin);
 
-// Numbers the topbar needs on every page: the "today" pill, and the things
-// behind the notification bell. One round trip rather than four — this runs on
-// every single request, and the database is a free-tier instance an ocean away.
+// Two jobs, one round trip: re-check that the signed-in user is still who the
+// database says they are, and fetch the numbers the topbar shows.
 //
-// The bell was a drawn icon that did nothing until now. That is the same defect
-// the search bar had (it looked like it worked and didn't), and it is the kind
-// of thing a panel member will press during a demo.
+// The re-check matters more than it looks. requireLogin above only proves a
+// session exists; the role and status inside it were copied in at sign-in and
+// then never looked at again. So deactivating a staff account — the thing the
+// panel specifically asked for in v1.1 — did nothing to anyone already signed
+// in, and demoting a nurse left them with nurse powers, both until their
+// session happened to expire up to eight hours later. The account page said one
+// thing and the running system did another.
+//
+// It rides along with the topbar counts because this runs on every single
+// authenticated request and the database is a free-tier instance an ocean away.
+// One query before, one query now.
 app.use(async (req, res, next) => {
   try {
     const { rows } = await db.query(
@@ -163,10 +170,26 @@ app.use(async (req, res, next) => {
          (SELECT count(*)::int FROM appointments WHERE appointment_date=$1 AND status='scheduled') AS today_waiting,
          (SELECT count(*)::int FROM medicines WHERE stock_quantity < low_stock_threshold) AS low_stock,
          (SELECT count(*)::int FROM medicine_dispenses
-           WHERE requires_doctor_approval = true AND approved_at IS NULL) AS pending_approval`,
-      [F.manilaToday()]
+           WHERE requires_doctor_approval = true AND approved_at IS NULL) AS pending_approval,
+         (SELECT role   FROM users WHERE user_id=$2) AS live_role,
+         (SELECT status FROM users WHERE user_id=$2) AS live_status,
+         (SELECT full_name FROM users WHERE user_id=$2) AS live_name`,
+      [F.manilaToday(), req.session.user.user_id]
     );
     const c = rows[0];
+
+    // Deleted or switched off since they signed in — end it here.
+    if (!c.live_status || c.live_status !== "active") {
+      return req.session.destroy(() => {
+        res.clearCookie("connect.sid");
+        res.redirect("/login?ended=1");
+      });
+    }
+    // Role or name changed under them — carry the new one, don't sign them out.
+    req.session.user.role = c.live_role;
+    req.session.user.full_name = c.live_name;
+    res.locals.user = req.session.user;
+
     res.locals.todayApptCount = c.today_appts;
 
     // Only what this role can actually act on — a bell that shows a facilitator
@@ -185,6 +208,9 @@ app.use(async (req, res, next) => {
     ];
     res.locals.alerts = all.filter((a) => a.n > 0 && a.roles.includes(role));
   } catch (_) {
+    // A database hiccup must not sign the whole clinic out mid-consultation.
+    // The counts degrade to nothing; the session stays. Anything that actually
+    // touches a record will fail loudly on its own query a moment later.
     res.locals.todayApptCount = null;
     res.locals.alerts = [];
   }

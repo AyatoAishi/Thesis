@@ -18,6 +18,7 @@
 // ============================================================================
 const express = require("express");
 const db = require("../db");
+const audit = require("../lib/audit");
 const { requireRole } = require("../middleware/auth");
 
 const router = express.Router();
@@ -216,6 +217,10 @@ router.post("/inventory", async (req, res, next) => {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
        RETURNING medicine_id`,
       [m.name, m.description, m.unit, m.dosage, m.stock_quantity, m.low_stock_threshold, m.source, m.requires_doctor_approval, m.is_family_planning]
+    );
+    audit.log(
+      req.session.user.user_id, "create", "medicine", rows[0].medicine_id,
+      `${m.name} added with stock ${m.stock_quantity}`
     );
     res.redirect(`/inventory/${rows[0].medicine_id}`);
   } catch (e) {
@@ -520,14 +525,48 @@ router.post("/inventory/:id", async (req, res, next) => {
         ],
       });
     }
+    // This form carries stock_quantity as a plain number and writes it back
+    // whole, which quietly undid real dispenses: open the edit page while stock
+    // is 59, someone dispenses 10 in the next room, then fix a typo in the
+    // dosage and save — stock jumps back to 59 and the 10 units that physically
+    // left the shelf are restored on paper. Nobody saw an error.
+    //
+    // So the save is refused if the row changed after this form was loaded.
+    // `seen_at` is the updated_at the form was rendered with; it is compared
+    // inside the UPDATE, so the check and the write are the same statement and
+    // nothing can slip between them.
+    const seenAt = Date.parse(req.body.seen_at || "");
+    const guarded = Number.isFinite(seenAt);
     const { rowCount } = await db.query(
       `UPDATE medicines SET
          name=$1, description=$2, unit=$3, dosage=$4, stock_quantity=$5, low_stock_threshold=$6,
          source=$7, requires_doctor_approval=$8, is_family_planning=$9, updated_at=now()
-       WHERE medicine_id=$10`,
-      [m.name, m.description, m.unit, m.dosage, m.stock_quantity, m.low_stock_threshold, m.source, m.requires_doctor_approval, m.is_family_planning, req.params.id]
+       WHERE medicine_id=$10 ${guarded ? "AND updated_at = $11" : ""}`,
+      [m.name, m.description, m.unit, m.dosage, m.stock_quantity, m.low_stock_threshold,
+       m.source, m.requires_doctor_approval, m.is_family_planning, req.params.id,
+       ...(guarded ? [new Date(seenAt)] : [])]
     );
-    if (!rowCount) return next();
+
+    if (!rowCount) {
+      // Either the medicine is gone, or someone else changed it first.
+      const still = await db.query("SELECT * FROM medicines WHERE medicine_id=$1", [req.params.id]);
+      if (!still.rows[0]) return next();
+      return res.status(409).render("inventory/form", {
+        title: "Edit medicine · Sampaguita HC",
+        active: "inventory",
+        mode: "edit",
+        medicine: still.rows[0],   // redraw with the CURRENT numbers, not theirs
+        errors: [
+          `Someone else changed "${still.rows[0].name}" while this page was open — most likely a dispense. ` +
+            `Nothing was saved. The current values are shown below; make your change again on top of them.`,
+        ],
+      });
+    }
+
+    audit.log(
+      req.session.user.user_id, "update", "medicine", req.params.id,
+      `${m.name} — stock set to ${m.stock_quantity}`
+    );
     res.redirect(`/inventory/${req.params.id}`);
   } catch (e) {
     next(e);

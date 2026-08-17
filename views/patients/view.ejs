@@ -1,6 +1,13 @@
 <%
   const p = patient;
-  function fmt(d) { return d ? new Date(d).toLocaleDateString("en-PH", { year:"numeric", month:"long", day:"numeric" }) : "—"; }
+  // Manila, always. Without the timeZone this runs in the server's zone, which
+  // is UTC on Render — so a record created before 8am Manila (UTC+8) falls on
+  // the previous UTC day and prints a date one day early.
+  function fmt(d) {
+    return d ? new Date(d).toLocaleDateString("en-PH", {
+      timeZone: "Asia/Manila", year: "numeric", month: "long", day: "numeric",
+    }) : "—";
+  }
   function age(bd) {
     if (!bd) return null;
     const d = new Date(bd), n = new Date();
@@ -11,9 +18,7 @@
   }
   const a = age(p.birthdate);
 
-  // Timestamps come back as real Date objects (only DATE columns are kept as
-  // strings), so they must be printed in Manila time explicitly — the server
-  // itself runs in UTC on Render, which would slide an evening entry back a day.
+  // Same rule, with the time of day attached.
   function stamp(d) {
     if (!d) return "—";
     return new Date(d).toLocaleString("en-PH", {

@@ -15,7 +15,9 @@
     <p class="muted" style="padding:8px 2px">No appointments in this range.</p>
   <% } else { %>
     <canvas id="trendChart" height="90" aria-label="Appointments per service per month" role="img"></canvas>
-    <script id="trendData" type="application/json"><%- JSON.stringify(chartData) %></script>
+    <%# "<" escaped by hand — JSON.stringify leaves it, and a service name
+        containing "</script>" would otherwise end this tag early. %>
+    <script id="trendData" type="application/json"><%- JSON.stringify(chartData).replace(/</g, "\\u003c") %></script>
 
     <table class="tbl" style="margin-top:22px">
       <thead>

@@ -17,6 +17,12 @@
     ? (selectedFamilyNumber || "")
     : (patient && patient.family_number) || "";
   const _joinIds = (patient && patient.family_join_ids) || "";
+
+  // JSON.stringify does not escape "<", so a patient whose name contained
+  // "</script>" would close this tag early and the rest of their name would be
+  // parsed as HTML. Only staff can type a patient name, but "only staff can
+  // reach it" is not the same as safe.
+  const _json = (x) => JSON.stringify(x).replace(/</g, "\\u003c");
 %>
 <div class="family-link" data-family-link>
   <input type="hidden" name="family_number" data-family-link-value value="<%= _famNum %>" />
@@ -44,5 +50,5 @@
     <div class="patient-picker-results" data-family-link-results hidden></div>
   </div>
 
-  <script type="application/json" data-family-link-data><%- JSON.stringify(_list) %></script>
+  <script type="application/json" data-family-link-data><%- _json(_list) %></script>
 </div>

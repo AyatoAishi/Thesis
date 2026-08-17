@@ -114,8 +114,30 @@ router.post("/patients/:id/immunization", async (req, res, next) => {
     const errors = [];
     if (!values.vaccine_name) errors.push("Choose or name a vaccine.");
     const doseNumber = parseInt(values.dose_number, 10);
-    if (!Number.isInteger(doseNumber) || doseNumber < 1) errors.push("Dose number must be 1 or higher.");
+    if (!Number.isInteger(doseNumber) || doseNumber < 1 || doseNumber > 10)
+      errors.push("Dose number must be between 1 and 10.");
     if (!isDate(values.given_date)) errors.push("Enter a valid date given.");
+    else {
+      // A dose is something that already happened to a person who already
+      // existed. isDate() alone would happily accept the year 9999.
+      if (values.given_date > F.manilaToday())
+        errors.push("A dose can't be dated in the future.");
+      else if (patient.birthdate && values.given_date < String(patient.birthdate).slice(0, 10))
+        errors.push("That date is before the patient was born.");
+    }
+
+    // Two staff at two desks, or one double-click, would otherwise put the same
+    // dose on the card twice — and an immunization card that lists BCG dose 1
+    // twice is worse than useless to the school asking for it.
+    if (!errors.length) {
+      const dup = await db.query(
+        `SELECT 1 FROM immunization_records
+          WHERE patient_id=$1 AND lower(vaccine_name)=lower($2) AND dose_number=$3`,
+        [patient.patient_id, values.vaccine_name, doseNumber]
+      );
+      if (dup.rowCount)
+        errors.push(`${values.vaccine_name} dose ${doseNumber} is already recorded for this patient. Remove the old entry first if you're correcting it.`);
+    }
 
     if (errors.length) {
       return res.status(400).render("patients/immunization-form", {

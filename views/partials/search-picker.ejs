@@ -10,11 +10,16 @@
   const _preId = (typeof selectedId !== "undefined" && selectedId) ? String(selectedId) : "";
   const _pre = _items.find(i => String(i.id) === _preId);
   const _ph = typeof placeholder !== "undefined" && placeholder ? placeholder : "Type to search…";
+
+  // "<" has to be escaped by hand: JSON.stringify leaves it alone, so a label
+  // containing "</script>" would break out of the tag below and be parsed as
+  // HTML instead of data.
+  const _json = (x) => JSON.stringify(x).replace(/</g, "\\u003c");
 %>
 <div class="patient-picker" data-picker>
   <input type="hidden" name="<%= name %>" data-picker-id value="<%= _preId %>" />
   <input type="text" data-picker-search autocomplete="off" placeholder="<%= _ph %>"
          value="<%= _pre ? (_pre.meta ? `${_pre.label} — ${_pre.meta}` : _pre.label) : '' %>" />
   <div class="patient-picker-results" data-picker-results hidden></div>
-  <script type="application/json" data-picker-data><%- JSON.stringify(_items) %></script>
+  <script type="application/json" data-picker-data><%- _json(_items) %></script>
 </div>

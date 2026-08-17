@@ -18,6 +18,11 @@
 <% } %>
 
 <form method="POST" action="<%= action %>">
+  <%# When this form was loaded, so the server can refuse to save on top of a
+      change someone else made while it sat open — see routes/inventory.js. %>
+  <% if (isEdit && m.updated_at) { %>
+    <input type="hidden" name="seen_at" value="<%= new Date(m.updated_at).toISOString() %>" />
+  <% } %>
   <div class="card">
     <div class="panel-title" style="margin-bottom:14px">Medicine details</div>
     <div class="form-grid">
@@ -36,6 +41,9 @@
       </label>
       <label class="field"><span>Stock quantity *</span>
         <input type="number" name="stock_quantity" min="0" step="1" value="<%= m.stock_quantity ?? 0 %>" required />
+        <% if (isEdit) { %>
+          <span class="muted" style="font-size:11.5px">This overwrites the running count. Dispensing already subtracts stock on its own — only correct this after a physical count or a delivery.</span>
+        <% } %>
       </label>
       <label class="field"><span>Low-stock threshold *</span>
         <input type="number" name="low_stock_threshold" min="0" step="1" value="<%= m.low_stock_threshold ?? 10 %>" required />

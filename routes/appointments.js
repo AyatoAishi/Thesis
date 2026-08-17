@@ -298,10 +298,23 @@ router.get("/appointments/:id/edit", async (req, res, next) => {
 router.post("/appointments/:id/status", async (req, res, next) => {
   try {
     if (!STATUSES.includes(req.body.status)) return res.status(400).send("Invalid status.");
-    await db.query(
-      "UPDATE appointments SET status=$1, updated_at=now() WHERE appointment_id=$2",
+    const { rows } = await db.query(
+      `UPDATE appointments SET status=$1, updated_at=now()
+        WHERE appointment_id=$2
+        RETURNING patient_id, appointment_date`,
       [req.body.status, req.params.id]
     );
+    // Marking someone completed or missed decides whether they appear in the
+    // no-show report and the attendance figures the clinic reports upward. That
+    // is exactly the kind of act the accountability log exists for, and it was
+    // the one record-changing action in the system that left no trace of who
+    // did it.
+    if (rows[0]) {
+      audit.log(
+        req.session.user.user_id, "update", "appointment", req.params.id,
+        `marked ${req.body.status} (${rows[0].appointment_date})`
+      );
+    }
     // Only allow local redirects (no open-redirect via the `back` field).
     const back = req.body.back || "";
     const safe = back.startsWith("/") && !back.startsWith("//") ? back : "/appointments";

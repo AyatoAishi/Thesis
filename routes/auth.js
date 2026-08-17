@@ -21,7 +21,12 @@ router.get("/login", (req, res) => {
   res.render("login", {
     title: "Sign in · Sampaguita HC",
     layout: false, // login is a standalone page, no rail/topbar
-    error: null,
+    // ?ended=1 means the session was cut short because the account was switched
+    // off or removed while they were still using it. Saying so beats letting
+    // someone wonder why they were thrown out mid-task.
+    error: req.query.ended
+      ? "Your session ended because this account is no longer active. Ask an admin."
+      : null,
     username: "",
     signedInAs: req.session.user ? req.session.user.full_name : null,
   });

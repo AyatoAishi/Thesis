@@ -83,6 +83,19 @@ function readIntakeForm(body) {
   };
 }
 
+// isDate() only proves a date is real, not that it is possible. That is how a
+// record reached this database with an expected delivery date in the year 7775
+// and 31 pregnancies against 241 births. Every date here belongs to a human
+// life or a pregnancy, so both ends are bounded: nothing before 1900, and
+// nothing more than two years out — enough room for an EDD, which is the only
+// field here that legitimately points at the future.
+const EARLIEST = "1900-01-01";
+function latestAllowed() {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() + 2);
+  return d.toISOString().slice(0, 10);
+}
+
 function validateIntake(p) {
   const errors = [];
   const dateFields = [
@@ -93,9 +106,23 @@ function validateIntake(p) {
     ["tt1_date", "TT1 date"], ["tt2_date", "TT2 date"], ["tt3_date", "TT3 date"],
     ["tt4_date", "TT4 date"], ["tt5_date", "TT5 date"],
   ];
+  const latest = latestAllowed();
   dateFields.forEach(([key, label]) => {
-    if (p[key] && !isDate(p[key])) errors.push(`${label} isn't a valid date.`);
+    if (!p[key]) return;
+    if (!isDate(p[key])) return errors.push(`${label} isn't a valid date.`);
+    if (p[key] < EARLIEST || p[key] > latest)
+      errors.push(`${label} is out of range — check the year you typed.`);
   });
+
+  // Gravida is total pregnancies, para is deliveries carried to term, so para
+  // can never exceed gravida. The pair is also bounded: a count above 20 is a
+  // typo, not a medical history.
+  const g = p.gravida, pa = p.para;
+  if (g !== null && (g < 0 || g > 20)) errors.push("Gravida (pregnancies) looks wrong — expected 0 to 20.");
+  if (pa !== null && (pa < 0 || pa > 20)) errors.push("Para (deliveries) looks wrong — expected 0 to 20.");
+  if (g !== null && pa !== null && pa > g)
+    errors.push("Para can't be higher than gravida — there can't be more deliveries than pregnancies.");
+
   return errors;
 }
 
@@ -349,6 +376,8 @@ router.post("/patients/:id/prenatal/:prenatalId/children", async (req, res, next
     const errors = [];
     if (!values.child_number || values.child_number < 1) errors.push("Child number must be 1 or higher.");
     if (values.dob && !isDate(values.dob)) errors.push("Date of birth isn't valid.");
+    else if (values.dob && (values.dob < EARLIEST || values.dob > F.manilaToday()))
+      errors.push("Date of birth is out of range — it can't be in the future or before 1900.");
 
     if (errors.length) {
       return res.status(400).render("patients/prenatal-child-form", {
@@ -376,11 +405,20 @@ router.post("/patients/:id/prenatal/:prenatalId/children", async (req, res, next
 // ---- REMOVE child entry  POST .../children/:childId/delete ------------------
 router.post("/patients/:id/prenatal/:prenatalId/children/:childId/delete", async (req, res, next) => {
   try {
+    // Every other route here proves the record belongs to the patient in the
+    // URL before touching it; these two deletes skipped that, so a stale or
+    // hand-edited link could delete an entry out of a different patient's
+    // record while the page redirected as if nothing unusual had happened.
+    const patient = await loadPatient(req.params.id);
+    if (!patient) return next();
+    const record = await loadRecord(patient.patient_id, req.params.prenatalId);
+    if (!record) return next();
+
     const { rowCount } = await db.query(
       "DELETE FROM prenatal_children WHERE child_id=$1 AND prenatal_id=$2",
-      [req.params.childId, req.params.prenatalId]
+      [req.params.childId, record.prenatal_id]
     );
-    if (rowCount) audit.log(req.session.user.user_id, "delete", "prenatal_child", req.params.prenatalId, "child record removed");
+    if (rowCount) audit.log(req.session.user.user_id, "delete", "prenatal_child", req.params.childId, `child record removed from ${patient.full_name}'s prenatal record`);
     res.redirect(`/patients/${req.params.id}/prenatal/${req.params.prenatalId}?flash=${encodeURIComponent(rowCount ? "Removed." : "Nothing to remove.")}`);
   } catch (e) {
     next(e);
@@ -434,6 +472,12 @@ router.post("/patients/:id/prenatal/:prenatalId/visits", async (req, res, next) 
     };
     const errors = [];
     if (!isDate(values.visit_date) || !values.visit_date) errors.push("Enter a valid visit date.");
+    else if (values.visit_date > F.manilaToday()) errors.push("A check-up can't be dated in the future.");
+    else if (values.visit_date < EARLIEST) errors.push("Visit date is out of range — check the year you typed.");
+    if (values.weight_kg !== null && (values.weight_kg < 20 || values.weight_kg > 300))
+      errors.push("Weight looks wrong — expected between 20 and 300 kg.");
+    if (values.fundal_height_cm !== null && (values.fundal_height_cm < 1 || values.fundal_height_cm > 60))
+      errors.push("Fundal height looks wrong — expected between 1 and 60 cm.");
 
     if (errors.length) {
       return res.status(400).render("patients/prenatal-visit-form", {
@@ -469,11 +513,16 @@ router.post("/patients/:id/prenatal/:prenatalId/visits", async (req, res, next) 
 // ---- REMOVE visit  POST .../visits/:visitId/delete ---------------------------
 router.post("/patients/:id/prenatal/:prenatalId/visits/:visitId/delete", async (req, res, next) => {
   try {
+    const patient = await loadPatient(req.params.id);
+    if (!patient) return next();
+    const record = await loadRecord(patient.patient_id, req.params.prenatalId);
+    if (!record) return next();
+
     const { rowCount } = await db.query(
       "DELETE FROM prenatal_visits WHERE visit_id=$1 AND prenatal_id=$2",
-      [req.params.visitId, req.params.prenatalId]
+      [req.params.visitId, record.prenatal_id]
     );
-    if (rowCount) audit.log(req.session.user.user_id, "delete", "prenatal_visit", req.params.prenatalId, "visit removed");
+    if (rowCount) audit.log(req.session.user.user_id, "delete", "prenatal_visit", req.params.visitId, `check-up removed from ${patient.full_name}'s prenatal record`);
     res.redirect(`/patients/${req.params.id}/prenatal/${req.params.prenatalId}?flash=${encodeURIComponent(rowCount ? "Visit removed." : "Nothing to remove.")}`);
   } catch (e) {
     next(e);

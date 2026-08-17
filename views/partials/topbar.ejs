@@ -9,11 +9,15 @@
     <span>Sampaguita&nbsp;HC</span>
   </div>
 
+  <%# Typing shows matching patients right here and goes straight to the record.
+      Submitting still falls back to the full /patients?q= list, so the search
+      works the same with JavaScript off. %>
   <form class="search-form" action="/patients" method="GET" style="flex:1;min-width:0">
-    <div class="search-wrap">
+    <div class="search-wrap" data-topsearch>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-3.6-3.6"/></svg>
-      <input class="search search-lg" type="search" name="q" data-search
+      <input class="search search-lg" type="search" name="q" data-search autocomplete="off"
              placeholder="Search patient by name or number…   (press / )" aria-label="Search patients" />
+      <div class="topsearch-results" data-topsearch-results hidden></div>
     </div>
   </form>
 

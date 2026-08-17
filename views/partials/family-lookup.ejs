@@ -1,24 +1,46 @@
 <%
-  // Plain-language family linking: staff search a relative by name (never a
-  // code) and either see a confirmation chip (already linked) or a search
-  // box (not linked yet) — never both, never a raw "26-00"-style number.
+  // Grouping a household, in plain language: staff search relatives by name and
+  // never see or type the underlying code.
+  //
+  // A household is not a pair. Everyone in it shares one number, so it holds as
+  // many people as the family has — but the old version showed a single chip and
+  // then hid the search box, which made it look like you could only ever link
+  // two people. Now the whole household is listed and the search stays open so
+  // another member can always be added.
+  //
+  // Nothing is written to the database until the form is submitted: picking a
+  // name here only queues it, so backing out of the form leaves the other
+  // patient untouched.
   const _list = (familyLookup || []).map(p => ({ id: p.patient_id, name: p.full_name, num: p.patient_number }));
-  const _members = ((typeof familyMembers !== "undefined" ? familyMembers : []) || []).map(m => m.full_name);
-  const _famNum = typeof selectedFamilyNumber !== "undefined" ? (selectedFamilyNumber || "") : (patient && patient.family_number) || "";
-  const _linked = !!_famNum;
-  const _chipText = _members.length ? `Linked with ${_members.join(", ")}` : "Linked with a family";
+  const _members = (typeof familyMembers !== "undefined" ? familyMembers : []) || [];
+  const _famNum = typeof selectedFamilyNumber !== "undefined"
+    ? (selectedFamilyNumber || "")
+    : (patient && patient.family_number) || "";
+  const _joinIds = (patient && patient.family_join_ids) || "";
 %>
 <div class="family-link" data-family-link>
   <input type="hidden" name="family_number" data-family-link-value value="<%= _famNum %>" />
+  <input type="hidden" name="family_join_ids" data-family-join-ids value="<%= _joinIds %>" />
 
-  <div class="family-chip" data-family-link-chip <%= _linked ? "" : "hidden" %>>
-    <span data-family-link-chip-text><%= _chipText %></span>
-    <button type="button" class="mini-btn" data-family-link-clear>Remove</button>
+  <div class="family-members" data-family-members <%= _members.length ? "" : "hidden" %>>
+    <div class="family-members-label muted">In this household:</div>
+    <div class="family-chip-row">
+      <% _members.forEach(m => { %>
+        <span class="family-chip-static">
+          <b><%= m.full_name %></b>
+          <span class="muted mono"><%= m.patient_number %></span>
+        </span>
+      <% }) %>
+    </div>
+    <button type="button" class="mini-btn" data-family-link-clear>Remove from this household</button>
   </div>
 
-  <div data-family-link-search-wrap <%= _linked ? "hidden" : "" %>>
+  <%# Picked on this form but not saved yet. %>
+  <div class="family-chip-row" data-family-pending hidden></div>
+
+  <div data-family-link-search-wrap>
     <input type="text" data-family-link-search autocomplete="off"
-           placeholder="Search a family member's name — only if they're already registered" />
+           placeholder="Type a relative's name to add them — they must already be registered" />
     <div class="patient-picker-results" data-family-link-results hidden></div>
   </div>
 

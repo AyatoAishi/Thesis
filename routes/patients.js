@@ -110,6 +110,47 @@ async function loadFamilyMembers(family_number, excludeId) {
   return rows;
 }
 
+// Works out which household this patient ends up in and pulls the relatives
+// picked on the form into it. Runs on save, not when staff click a name, so
+// abandoning the form leaves everyone else untouched.
+//
+// A household is one shared number, so this scales to a family of any size: the
+// third and fourth members simply join the number the first two already have.
+// Someone who already belongs to a DIFFERENT household is skipped rather than
+// silently moved — pulling a person out of one family and into another is not
+// something to do behind staff's back, so their name is reported back instead.
+async function resolveFamily(p, excludeId) {
+  const ids = (p.family_join_ids || "")
+    .split(",")
+    .map((s) => parseInt(s, 10))
+    .filter((n) => Number.isInteger(n) && n > 0 && n !== Number(excludeId));
+
+  if (!ids.length) return { family_number: p.family_number, joined: [], skipped: [] };
+
+  const { rows } = await db.query(
+    "SELECT patient_id, full_name, family_number FROM patients WHERE patient_id = ANY($1)",
+    [ids]
+  );
+
+  // Prefer a household that already exists over minting a new number.
+  const existing = rows.find((r) => r.family_number);
+  const target =
+    p.family_number || (existing && existing.family_number) || (await nextFamilyNumber());
+
+  const joined = [];
+  const skipped = [];
+  for (const r of rows) {
+    if (r.family_number === target) continue;
+    if (r.family_number) { skipped.push(r.full_name); continue; }
+    await db.query(
+      "UPDATE patients SET family_number=$1, updated_at=now() WHERE patient_id=$2",
+      [target, r.patient_id]
+    );
+    joined.push(r);
+  }
+  return { family_number: target, joined, skipped };
+}
+
 // Minor status is never taken from the client — always derived from birthdate
 // (professor's revision note: "auto-calculate from birthdate").
 function calcIsMinor(birthdate) {
@@ -134,6 +175,10 @@ function readForm(body) {
     contact_number: digitsOnly(body.contact_number) || null,
     email: (body.email || "").trim().toLowerCase() || null,
     family_number: (body.family_number || "").trim() || null,
+    // Relatives queued on the form but not yet in any household — resolved by
+    // resolveFamily() at save time. Kept as the raw string so a failed
+    // validation round-trip can hand it straight back to the form.
+    family_join_ids: (body.family_join_ids || "").trim(),
     family_contact_name: (body.family_contact_name || "").trim() || null,
     family_contact_relation: readRelation(body),
     family_contact_number: digitsOnly(body.family_contact_number) || null,
@@ -178,12 +223,20 @@ router.get("/patients", async (req, res, next) => {
   try {
     const q = (req.query.q || "").trim();
     const sort = SORTS[req.query.sort] ? req.query.sort : "newest";
+    // "By household" gathers the family groups that were, until now, only
+    // visible one patient at a time on each profile page.
+    const view = req.query.view === "household" ? "household" : "list";
+    const order =
+      view === "household"
+        ? "family_number NULLS LAST, birthdate ASC NULLS LAST, lower(full_name)"
+        : SORTS[sort].sql;
+
     const { rows } = await db.query(
       `SELECT patient_id, patient_number, full_name, sex, birthdate,
-              contact_number, is_minor
+              contact_number, is_minor, family_number
          FROM patients
         ${q ? "WHERE full_name ILIKE $1 OR patient_number ILIKE $1 OR contact_number ILIKE $1" : ""}
-        ORDER BY ${SORTS[sort].sql}
+        ORDER BY ${order}
         LIMIT 200`,
       q ? [`%${q}%`] : []
     );
@@ -194,7 +247,31 @@ router.get("/patients", async (req, res, next) => {
       q,
       sort,
       sorts: SORTS,
+      view,
     });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ---- QUICK SEARCH  GET /patients/search.json --------------------------------
+// Feeds the dropdown under the top search bar. Registered before /patients/:id
+// so "search.json" isn't read as a patient id. Deliberately a small endpoint
+// rather than shipping every patient to every page: the list grows for the life
+// of the clinic, and the topbar is on every single screen.
+router.get("/patients/search.json", async (req, res, next) => {
+  try {
+    const q = (req.query.q || "").trim();
+    if (q.length < 2) return res.json([]);
+    const { rows } = await db.query(
+      `SELECT patient_id, patient_number, full_name, is_minor
+         FROM patients
+        WHERE full_name ILIKE $1 OR patient_number ILIKE $1 OR contact_number ILIKE $1
+        ORDER BY lower(full_name)
+        LIMIT 8`,
+      [`%${q}%`]
+    );
+    res.json(rows);
   } catch (e) {
     next(e);
   }
@@ -237,6 +314,9 @@ router.post("/patients", async (req, res, next) => {
     });
   }
   try {
+    const fam = await resolveFamily(p, null);
+    p.family_number = fam.family_number;
+
     const patient_number = await nextPatientNumber();
     const { rows } = await db.query(
       `INSERT INTO patients
@@ -253,6 +333,10 @@ router.post("/patients", async (req, res, next) => {
       ]
     );
     audit.log(req.session.user.user_id, "create", "patient", rows[0].patient_id, p.full_name);
+    fam.joined.forEach((m) =>
+      audit.log(req.session.user.user_id, "update", "patient", m.patient_id,
+        `added to the household of ${p.full_name}`)
+    );
     // Straight into the portal-account step (skippable) instead of dropping
     // staff on the profile page and hoping they scroll to the account card —
     // teammates' note: "para sure na magkaka-acc mga patients".
@@ -331,6 +415,9 @@ router.get("/patients/:id", async (req, res, next) => {
       // acctErr, which renders inside the portal-account card far down the
       // page — a refused delete shown there looked like nothing happened.
       pageErr: req.query.err || null,
+      // Not an error — something staff asked for that only partly happened
+      // (e.g. a relative who already belongs to another household).
+      pageNote: req.query.fam_note || null,
       idTypes: ID_TYPES,
       pretty: F.prettyService,
       shortTime: F.shortTime,
@@ -383,6 +470,9 @@ router.post("/patients/:id", async (req, res, next) => {
     });
   }
   try {
+    const fam = await resolveFamily(p, req.params.id);
+    p.family_number = fam.family_number;
+
     const { rowCount } = await db.query(
       `UPDATE patients SET
          full_name=$1, birthdate=$2, sex=$3, address=$4, contact_number=$5, email=$6,
@@ -397,39 +487,19 @@ router.post("/patients/:id", async (req, res, next) => {
     );
     if (!rowCount) return next();
     audit.log(req.session.user.user_id, "update", "patient", req.params.id, p.full_name);
-    res.redirect(`/patients/${req.params.id}`);
-  } catch (e) {
-    next(e);
-  }
-});
-
-// ---- LINK TO FAMILY  POST /patients/:id/ensure-family-number ---------------
-// Fired when staff search-select an existing patient as "this patient's
-// family" on the registration form. If that patient doesn't have a family
-// number yet, assigns one now instead of telling staff to remember to add
-// it on a second, separate edit — most people won't reliably do that.
-router.post("/patients/:id/ensure-family-number", async (req, res, next) => {
-  try {
-    const { rows } = await db.query(
-      "SELECT patient_id, family_number FROM patients WHERE patient_id=$1",
-      [req.params.id]
+    fam.joined.forEach((m) =>
+      audit.log(req.session.user.user_id, "update", "patient", m.patient_id,
+        `added to the household of ${p.full_name}`)
     );
-    if (!rows[0]) return res.status(404).json({ error: "Patient not found." });
-    if (rows[0].family_number) return res.json({ family_number: rows[0].family_number });
 
-    const family_number = await nextFamilyNumber();
-    await db.query("UPDATE patients SET family_number=$1, updated_at=now() WHERE patient_id=$2", [
-      family_number,
-      req.params.id,
-    ]);
-    audit.log(
-      req.session.user.user_id,
-      "update",
-      "patient",
-      req.params.id,
-      `assigned family number (linked while registering another family member)`
-    );
-    res.json({ family_number });
+    // Anyone who couldn't be pulled in has to be said out loud, or staff would
+    // walk away believing a link was made that wasn't.
+    const note = fam.skipped.length
+      ? `?fam_note=${encodeURIComponent(
+          `${fam.skipped.join(", ")} ${fam.skipped.length === 1 ? "is" : "are"} already in another household, so ${fam.skipped.length === 1 ? "that patient was" : "those patients were"} not added. Remove them from that household first if this is the correct family.`
+        )}`
+      : "";
+    res.redirect(`/patients/${req.params.id}${note}`);
   } catch (e) {
     next(e);
   }

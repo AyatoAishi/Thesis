@@ -7,6 +7,36 @@
     if (m < 0 || (m === 0 && n.getDate() < d.getDate())) a--;
     return a;
   }
+
+  // Households, built from the rows the server already ordered (shared number
+  // first, oldest member first inside it). The number itself never reaches the
+  // screen — staff know families by name, so each group is titled after its
+  // oldest adult, with everyone else listed under them.
+  function household(list) {
+    const groups = new Map();
+    const loose = [];
+    list.forEach((p) => {
+      if (!p.family_number) return loose.push(p);
+      if (!groups.has(p.family_number)) groups.set(p.family_number, []);
+      groups.get(p.family_number).push(p);
+    });
+    const out = [];
+    groups.forEach((members) => {
+      const head = members.find((m) => !m.is_minor) || members[0];
+      out.push({ head, members });
+    });
+    out.sort((a, b) => (a.head.full_name.toLowerCase() < b.head.full_name.toLowerCase() ? -1 : 1));
+    return { groups: out, loose };
+  }
+
+  // Keeps the search box and sort choice when flipping between the two views.
+  function viewLink(v) {
+    const parts = [];
+    if (q) parts.push("q=" + encodeURIComponent(q));
+    if (sort && sort !== "newest") parts.push("sort=" + encodeURIComponent(sort));
+    if (v === "household") parts.push("view=household");
+    return "/patients" + (parts.length ? "?" + parts.join("&") : "");
+  }
 %>
 <div class="page-head" style="display:flex;align-items:center;justify-content:space-between">
   <div>
@@ -23,18 +53,84 @@
       <input class="search search-lg" type="search" name="q" value="<%= q %>"
              placeholder="Search name, patient number, or contact…" autofocus />
     </div>
-    <label class="field list-sort"><span>Sort by</span>
-      <select name="sort" onchange="this.form.submit()">
-        <% Object.keys(sorts).forEach(k => { %>
-          <option value="<%= k %>" <%= sort === k ? 'selected' : '' %>><%= sorts[k].label %></option>
-        <% }) %>
-      </select>
-    </label>
+    <% if (view !== "household") { %>
+      <label class="field list-sort"><span>Sort by</span>
+        <select name="sort" onchange="this.form.submit()">
+          <% Object.keys(sorts).forEach(k => { %>
+            <option value="<%= k %>" <%= sort === k ? 'selected' : '' %>><%= sorts[k].label %></option>
+          <% }) %>
+        </select>
+      </label>
+    <% } else { %>
+      <input type="hidden" name="view" value="household" />
+    <% } %>
     <button class="btn" type="submit">Search</button>
   </form>
 
+  <div class="view-tabs">
+    <a class="view-tab <%= view === 'list' ? 'active' : '' %>" href="<%= viewLink('list') %>">All patients</a>
+    <a class="view-tab <%= view === 'household' ? 'active' : '' %>" href="<%= viewLink('household') %>">By household</a>
+  </div>
+
   <% if (!patients.length) { %>
     <p class="muted" style="padding:8px 2px">No patients yet. Click <b>Add patient</b> to create the first record.</p>
+  <% } else if (view === "household") { %>
+    <%
+      const { groups, loose } = household(patients);
+    %>
+    <% if (!groups.length) { %>
+      <p class="muted" style="padding:8px 2px">
+        No households grouped yet. Open a patient, press <b>Edit</b>, and search for a
+        relative under <b>Family</b> — that puts them in the same household.
+      </p>
+    <% } %>
+    <% groups.forEach(g => { %>
+      <div class="household-group">
+        <div class="household-head">
+          <b><%= g.head.full_name %></b>
+          <span class="muted">household · <%= g.members.length %> member<%= g.members.length === 1 ? "" : "s" %></span>
+        </div>
+        <table class="tbl">
+          <tbody>
+            <% g.members.forEach(p => { %>
+              <tr>
+                <td class="mono" style="width:150px"><%= p.patient_number %></td>
+                <td>
+                  <a href="/patients/<%= p.patient_id %>"><%= p.full_name %></a>
+                  <% if (p.is_minor) { %><span class="badge info" style="margin-left:6px">Minor</span><% } %>
+                </td>
+                <td style="width:70px"><%= age(p.birthdate) %></td>
+                <td><%= p.contact_number || "—" %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% }) %>
+
+    <% if (loose.length) { %>
+      <div class="household-group">
+        <div class="household-head">
+          <b>Not in a household</b>
+          <span class="muted"><%= loose.length %> patient<%= loose.length === 1 ? "" : "s" %></span>
+        </div>
+        <table class="tbl">
+          <tbody>
+            <% loose.forEach(p => { %>
+              <tr>
+                <td class="mono" style="width:150px"><%= p.patient_number %></td>
+                <td>
+                  <a href="/patients/<%= p.patient_id %>"><%= p.full_name %></a>
+                  <% if (p.is_minor) { %><span class="badge info" style="margin-left:6px">Minor</span><% } %>
+                </td>
+                <td style="width:70px"><%= age(p.birthdate) %></td>
+                <td><%= p.contact_number || "—" %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
   <% } else { %>
     <table class="tbl">
       <thead>

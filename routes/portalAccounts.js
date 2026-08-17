@@ -15,6 +15,7 @@ const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const db = require("../db");
 const ID_TYPES = require("../lib/idTypes");
+const { endOtherPatientSessions } = require("../lib/sessions");
 
 const router = express.Router();
 
@@ -130,6 +131,11 @@ router.post("/portal-accounts/:id/reset", async (req, res, next) => {
         WHERE account_id=$3`,
       [await bcrypt.hash(tempPassword, 10), req.session.user.user_id, acct.account_id]
     );
+
+    // A patient asking for a reset at the desk is often asking precisely
+    // because someone else has been using their account. Any browser still
+    // signed in as them is signed out here.
+    await endOtherPatientSessions(acct.patient_id, req.sessionID);
 
     req.session.oneTimeSecret = {
       patient_id: acct.patient_id,

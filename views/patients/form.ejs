@@ -30,6 +30,11 @@
 
 <form method="POST" action="<%= action %>">
   <% if (chain) { %><input type="hidden" name="next" value="<%= chain %>" /><% } %>
+  <%# When this form was loaded, so the server can refuse to save on top of a
+      change someone else made while it sat open — see routes/patients.js. %>
+  <% if (isEdit && p.updated_at) { %>
+    <input type="hidden" name="seen_at" value="<%= new Date(p.updated_at).toISOString() %>" />
+  <% } %>
   <div class="card">
     <div class="panel-title" style="margin-bottom:14px">Patient details</div>
     <div class="form-grid">

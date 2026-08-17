@@ -484,6 +484,49 @@ router.post("/patients/:id", async (req, res, next) => {
     });
   }
   try {
+    // Refuse to save on top of someone else's change. Two staff with the same
+    // patient open — which is ordinary in a clinic with one shared desk, and
+    // more so when they're signed in to the same account — each submit the
+    // WHOLE form, so the second save silently restores every field the first
+    // one had changed. Both saw "saved". Neither was told.
+    //
+    // `seen_at` is the updated_at the form was rendered with; it is compared
+    // inside the UPDATE, so nothing can slip between the check and the write.
+    // Compared at millisecond precision because Postgres keeps microseconds and
+    // a JavaScript Date does not.
+    const seenAt = Date.parse(req.body.seen_at || "");
+    const guarded = Number.isFinite(seenAt);
+
+    // The family fields are written first so that a lost race changes nothing
+    // for anybody: this UPDATE touches only this patient, and the relatives are
+    // pulled in further down, after the save is known to have won.
+    const stale = guarded
+      ? await db.query(
+          `SELECT 1 FROM patients
+            WHERE patient_id=$1 AND date_trunc('milliseconds', updated_at) <> $2`,
+          [req.params.id, new Date(seenAt)]
+        )
+      : { rowCount: 0 };
+
+    if (stale.rowCount) {
+      const current = await db.query("SELECT * FROM patients WHERE patient_id=$1", [req.params.id]);
+      if (!current.rows[0]) return next();
+      return res.status(409).render("patients/form", {
+        title: "Edit patient · Sampaguita HC",
+        active: "patients",
+        mode: "edit",
+        patient: current.rows[0],   // redraw with what's actually saved now
+        familyLookup: await loadFamilyLookup(req.params.id),
+        familyMembers: await loadFamilyMembers(current.rows[0].family_number, req.params.id),
+        relations: RELATIONS,
+        next: "",
+        errors: [
+          "Someone else saved changes to this patient while this page was open. " +
+            "Nothing was saved, so their work isn't lost. What's on screen now is the current record — make your change again on top of it.",
+        ],
+      });
+    }
+
     const fam = await resolveFamily(p, req.params.id);
     p.family_number = fam.family_number;
 
@@ -492,11 +535,13 @@ router.post("/patients/:id", async (req, res, next) => {
          full_name=$1, birthdate=$2, sex=$3, address=$4, contact_number=$5, email=$6,
          family_number=$7, family_contact_name=$8, family_contact_relation=$9, family_contact_number=$10,
          family_email=$11, is_minor=$12, guardian_name=$13, guardian_consent=$14, privacy_consent=$15, updated_at=now()
-       WHERE patient_id=$16`,
+       WHERE patient_id=$16
+         ${guarded ? "AND date_trunc('milliseconds', updated_at) = $17" : ""}`,
       [
         p.full_name, p.birthdate, p.sex, p.address, p.contact_number, p.email,
         p.family_number, p.family_contact_name, p.family_contact_relation, p.family_contact_number,
         p.family_email, p.is_minor, p.guardian_name, p.guardian_consent, p.privacy_consent, req.params.id,
+        ...(guarded ? [new Date(seenAt)] : []),
       ]
     );
     if (!rowCount) return next();

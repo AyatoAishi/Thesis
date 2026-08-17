@@ -27,6 +27,7 @@ const db = require("../db");
 const F = require("../lib/format");
 const { buildCard } = require("../lib/immunizationCard");
 const { requirePatient } = require("../middleware/portalAuth");
+const { endOtherPatientSessions } = require("../lib/sessions");
 
 const router = express.Router();
 
@@ -236,6 +237,12 @@ router.post("/portal/password", requirePatient, async (req, res, next) => {
         WHERE account_id = $2`,
       [await bcrypt.hash(password, 10), acct.account_id]
     );
+
+    // Signs out any other browser holding this patient's account — the phone
+    // they borrowed at the clinic, or the household computer. A patient
+    // changing their password should not have to wonder who else is still in.
+    await endOtherPatientSessions(pid, req.sessionID);
+
     res.redirect("/portal?pw=1");
   } catch (e) {
     next(e);

@@ -535,13 +535,19 @@ router.post("/inventory/:id", async (req, res, next) => {
     // `seen_at` is the updated_at the form was rendered with; it is compared
     // inside the UPDATE, so the check and the write are the same statement and
     // nothing can slip between them.
+    // Compared at millisecond precision, not exactly. Postgres keeps
+    // microseconds (…914905) and a JavaScript Date only holds milliseconds
+    // (…914), so a plain `updated_at = $11` never matches its own value and
+    // would reject every save, not just the stale ones. Two saves inside the
+    // same millisecond would slip through — that is a human clicking a form,
+    // so it isn't reachable in practice.
     const seenAt = Date.parse(req.body.seen_at || "");
     const guarded = Number.isFinite(seenAt);
     const { rowCount } = await db.query(
       `UPDATE medicines SET
          name=$1, description=$2, unit=$3, dosage=$4, stock_quantity=$5, low_stock_threshold=$6,
          source=$7, requires_doctor_approval=$8, is_family_planning=$9, updated_at=now()
-       WHERE medicine_id=$10 ${guarded ? "AND updated_at = $11" : ""}`,
+       WHERE medicine_id=$10 ${guarded ? "AND date_trunc('milliseconds', updated_at) = $11" : ""}`,
       [m.name, m.description, m.unit, m.dosage, m.stock_quantity, m.low_stock_threshold,
        m.source, m.requires_doctor_approval, m.is_family_planning, req.params.id,
        ...(guarded ? [new Date(seenAt)] : [])]

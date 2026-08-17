@@ -6,15 +6,21 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const db = require("../db");
 const audit = require("../lib/audit");
+const { endOtherStaffSessions } = require("../lib/sessions");
 
 const router = express.Router();
 
 router.get("/account", (req, res) => {
+  const ended = parseInt(req.query.ended, 10) || 0;
   res.render("account", {
     title: "My account · Sampaguita HC",
     active: "",
     errors: [],
-    notice: req.query.saved ? "Saved." : null,
+    notice: req.query.saved
+      ? ended
+        ? `Saved. ${ended} other sign-in on this account ${ended === 1 ? "was" : "were"} signed out.`
+        : "Saved."
+      : null,
   });
 });
 
@@ -68,8 +74,18 @@ router.post("/account/password", async (req, res, next) => {
       hash,
       req.session.user.user_id,
     ]);
-    audit.log(req.session.user.user_id, "password_change", "user", req.session.user.user_id, "changed own password");
-    res.redirect("/account?saved=1");
+    // Anyone else signed in on this account is signed out — including on
+    // another computer. Someone changing their password is usually doing it
+    // BECAUSE another person has been using the account, and leaving that
+    // browser inside with the old session would make the change meaningless.
+    const ended = await endOtherStaffSessions(req.session.user.user_id, req.sessionID);
+
+    audit.log(
+      req.session.user.user_id, "password_change", "user", req.session.user.user_id,
+      ended ? `changed own password (${ended} other session${ended === 1 ? "" : "s"} signed out)`
+            : "changed own password"
+    );
+    res.redirect(`/account?saved=1${ended ? `&ended=${ended}` : ""}`);
   } catch (e) {
     next(e);
   }

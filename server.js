@@ -163,6 +163,19 @@ app.use(requireLogin);
 // authenticated request and the database is a free-tier instance an ocean away.
 // One query before, one query now.
 app.use(async (req, res, next) => {
+  // Another sign-in on this account, or a password change, marked this session
+  // to end (lib/sessions.js). Checked before anything else so it costs nothing
+  // in the normal case, and ended here rather than at the moment it was marked
+  // so the person is told what happened instead of silently landing on the
+  // sign-in page wondering whether something broke.
+  if (req.session.endedBecause) {
+    const why = req.session.endedBecause;
+    return req.session.destroy(() => {
+      res.clearCookie("connect.sid");
+      res.redirect(`/login?ended=${encodeURIComponent(why)}`);
+    });
+  }
+
   try {
     const { rows } = await db.query(
       `SELECT
@@ -182,7 +195,7 @@ app.use(async (req, res, next) => {
     if (!c.live_status || c.live_status !== "active") {
       return req.session.destroy(() => {
         res.clearCookie("connect.sid");
-        res.redirect("/login?ended=1");
+        res.redirect("/login?ended=inactive");
       });
     }
     // Role or name changed under them — carry the new one, don't sign them out.

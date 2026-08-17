@@ -7,8 +7,19 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const db = require("../db");
 const audit = require("../lib/audit");
+const { endOtherStaffSessions, REASONS } = require("../lib/sessions");
 
 const router = express.Router();
+
+// Why a session was cut short, in the wording the person sees on the way back
+// in. Keys match what server.js puts on ?ended= (see lib/sessions.js REASONS).
+const ENDED = {
+  "signed-in-elsewhere":
+    "Someone else signed in to this account, so you were signed out here. A staff account is meant for one person — ask an admin for your own.",
+  "password-changed":
+    "The password for this account was changed, so you were signed out. Sign in again with the new password.",
+  inactive: "Your session ended because this account is no longer active. Ask an admin.",
+};
 
 // ---- GET /login : show the form (skip the app shell) -----------------------
 // This used to redirect straight to the dashboard whenever a session already
@@ -21,12 +32,9 @@ router.get("/login", (req, res) => {
   res.render("login", {
     title: "Sign in · Sampaguita HC",
     layout: false, // login is a standalone page, no rail/topbar
-    // ?ended=1 means the session was cut short because the account was switched
-    // off or removed while they were still using it. Saying so beats letting
-    // someone wonder why they were thrown out mid-task.
-    error: req.query.ended
-      ? "Your session ended because this account is no longer active. Ask an admin."
-      : null,
+    // A session that was cut short says why. Being thrown out mid-task with no
+    // explanation reads like a bug, and staff would report it as one.
+    error: ENDED[req.query.ended] || null,
     username: "",
     signedInAs: req.session.user ? req.session.user.full_name : null,
   });
@@ -102,12 +110,26 @@ router.post("/login", async (req, res) => {
       // Wait for the session to actually reach Postgres before redirecting.
       // Without this the browser can arrive at the dashboard a beat before the
       // session row exists and get bounced back to the login page.
-      req.session.save((saveErr) => {
+      req.session.save(async (saveErr) => {
         if (saveErr) {
           console.error("[login] save", saveErr.message);
           return fail("Something went wrong. Try again.");
         }
-        audit.log(u.user_id, "login", "user", u.user_id, `${u.username} signed in`);
+
+        // One account, one person. Any other browser signed in as this user is
+        // ended — it finds out on its next click and is told why. The admin
+        // account in particular belongs to a single person, and an account
+        // quietly shared by three is an activity log that can't name anyone.
+        //
+        // Runs after the save so the new session is already stored and cannot
+        // be caught by its own sweep.
+        const ended = await endOtherStaffSessions(u.user_id, req.sessionID, REASONS.taken);
+
+        audit.log(
+          u.user_id, "login", "user", u.user_id,
+          ended ? `${u.username} signed in (signed out ${ended} other session${ended === 1 ? "" : "s"})`
+                : `${u.username} signed in`
+        );
         res.redirect(dest);
       });
     });

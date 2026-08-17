@@ -39,7 +39,11 @@ router.get("/portal/login", (req, res) => {
     layout: false,
     error: null,
     username: "",
-    notice: req.query.reset ? "Password updated — you can sign in now." : null,
+    notice: req.query.ended
+      ? "Nabago ang password ng account mo, kaya na-sign out ka rito. Mag-sign in ulit gamit ang bagong password."
+      : req.query.reset
+      ? "Password updated — you can sign in now."
+      : null,
   });
 });
 

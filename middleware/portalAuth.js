@@ -6,8 +6,21 @@
 // the session's patient_id — never a URL param.
 // ============================================================================
 function requirePatient(req, res, next) {
-  if (req.session && req.session.patient) return next();
-  return res.redirect("/portal/login");
+  if (!req.session || !req.session.patient) return res.redirect("/portal/login");
+
+  // A password change (their own, or a staff reset at the desk) marks every
+  // other browser holding this account — see lib/sessions.js. This is where a
+  // marked portal session finds out. Checked here rather than only on the staff
+  // side, because otherwise the mark would sit in the row doing nothing and a
+  // reset would not actually put anyone out.
+  if (req.session.endedBecause) {
+    return req.session.destroy(() => {
+      res.clearCookie("connect.sid");
+      res.redirect("/portal/login?ended=1");
+    });
+  }
+
+  return next();
 }
 
 module.exports = { requirePatient };

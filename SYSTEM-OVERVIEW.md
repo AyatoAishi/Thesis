@@ -44,6 +44,9 @@ Everything lives in one PostgreSQL database with about 10 tables. The core ones:
 - **appointments** — links a patient + a service + a date + a status
 - **medicines** / **medicine_dispenses** — stock levels and who received what, including the pending
   doctor-approval state
+- **visits** — the consultation record: vital signs (BP, weight, height, temperature), the
+  diagnosis, the clinician's notes, who attended, and the doctor present if any. This is what
+  Chapter 1 calls "recorded vital signs" and "diagnoses and consultation notes"
 - **notifications** — a log of every reminder/confirmation attempt, sent or failed
 
 Every table that matters is connected by ID references, not duplicated data — e.g. an appointment
@@ -72,9 +75,13 @@ doesn't repeat the patient's name, it just points at their one row in `patients`
 - **SMS is not live** — built and ready, but inactive until an affordable provider is arranged.
 - **Free-tier hosting** — Render's free plan sleeps after 15 minutes of no traffic; a "keep-alive"
   ping every 10 minutes works around this, but it's still a free-tier constraint worth naming if asked.
-- **No visit/diagnosis records yet** — the system tracks appointments and dispenses, but a doctor's
-  full consultation notes (vitals, diagnosis text) aren't captured in a structured way yet; the
-  database has room for this (a `visits` table already exists) but no screen was built for it.
+- **No rate limit on sign-in attempts** — passwords can be tried repeatedly without the system
+  slowing anyone down. Temporary passwords are 8 mixed-case characters (~46 bits), so guessing one
+  over a network is not realistic, but this is the honest gap to name if asked about brute force.
+- **No CSRF protection** — forms don't carry a one-time token. Session cookies are `SameSite=Lax`,
+  which blocks the ordinary cross-site POST, but a token is what a security review would expect.
+- **Patient portal sign-ins aren't in the audit log** — staff logins, patient record changes and
+  role changes are all recorded; portal logins are not yet.
 - **Single environment** — one database, no separate "testing" vs "live" copy. Fine for a project
   this size, but worth knowing if asked about scalability.
 

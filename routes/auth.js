@@ -44,13 +44,12 @@ router.post("/login", async (req, res) => {
   if (!username || !password) return fail("Enter your username and password.");
 
   try {
-    // Case-insensitive on the username. It is typed by hand several times a
-    // day at a busy desk, and "Admin" failing while "admin" works is a trap
-    // with no upside — the password is what proves who you are, not the
-    // capitalisation of your name.
+    // Exact match, capitalisation included: "Admin" is not "admin". A staff
+    // username is issued by an admin and typed as issued — the client's call,
+    // and it keeps the login a strict comparison with nothing inferred.
     const { rows } = await db.query(
       `SELECT user_id, full_name, username, role, status, password_hash
-         FROM users WHERE lower(username) = lower($1)`,
+         FROM users WHERE username = $1`,
       [username]
     );
     const u = rows[0];

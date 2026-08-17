@@ -138,6 +138,57 @@
   <% } %>
 </div>
 
+<%# Consultations — vital signs, diagnosis and notes from each visit. This is
+    what Chapter 1 calls "recorded vital signs" and "diagnoses and consultation
+    notes"; before this card the system only knew a visit had happened. %>
+<div class="card">
+  <div class="svc-head">
+    <span class="panel-title">Consultations</span>
+    <% if (typeof canRecordVisit !== "undefined" && canRecordVisit) { %>
+      <a class="mini-btn" href="/patients/<%= p.patient_id %>/visits/new">+ Record consultation</a>
+    <% } %>
+  </div>
+  <% if (!visits.length) { %>
+    <p class="muted" style="margin:6px 2px 0">
+      No consultation recorded yet.<%= (typeof canRecordVisit !== "undefined" && canRecordVisit) ? " Use the button above after seeing the patient." : "" %>
+    </p>
+  <% } else { %>
+    <% visits.forEach(v => { %>
+      <div class="visit-entry">
+        <div class="visit-head">
+          <b><%= longDate(v.visit_date) %></b>
+          <span class="muted">
+            <%= v.attended_by_name ? `seen by ${v.attended_by_name}` : "" %><%= v.doctor_name ? ` · doctor: ${v.doctor_name}` : "" %>
+          </span>
+          <% if (typeof canRecordVisit !== "undefined" && canRecordVisit) { %>
+            <a class="visit-edit muted" href="/visits/<%= v.visit_id %>/edit">Edit</a>
+          <% } %>
+        </div>
+
+        <%
+          // NUMERIC columns arrive as strings padded to their scale ("58.50"),
+          // which reads like false precision on a clinic record.
+          const n = (x) => Number(x).toString();
+          const vitals = [];
+          if (v.bp_systolic && v.bp_diastolic) vitals.push(`BP ${v.bp_systolic}/${v.bp_diastolic}`);
+          if (v.temperature_c) vitals.push(`${n(v.temperature_c)} °C`);
+          if (v.weight_kg) vitals.push(`${n(v.weight_kg)} kg`);
+          if (v.height_cm) vitals.push(`${n(v.height_cm)} cm`);
+        %>
+        <% if (vitals.length) { %>
+          <div class="visit-vitals mono"><%= vitals.join("  ·  ") %></div>
+        <% } %>
+        <% if (v.diagnosis) { %>
+          <div class="visit-dx"><%= v.diagnosis %></div>
+        <% } %>
+        <% if (v.consultation_notes) { %>
+          <div class="visit-notes"><%= v.consultation_notes %></div>
+        <% } %>
+      </div>
+    <% }) %>
+  <% } %>
+</div>
+
 <%
   function dispenseBadge(d) {
     if (!d.requires_doctor_approval) return '<span class="badge ok">Completed</span>';

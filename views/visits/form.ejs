@@ -1,0 +1,104 @@
+<%
+  const isEdit = mode === "edit";
+  const v = visit || {};
+  const action = isEdit ? `/visits/${v.visit_id}` : `/patients/${patient.patient_id}/visits`;
+  // A number that came back from a failed validation round-trip may be NaN
+  // (someone typed "12o"); show the box empty rather than the word "NaN".
+  const val = (x) => (x === null || x === undefined || Number.isNaN(x) ? "" : x);
+  const vd = v.visit_date
+    ? String(v.visit_date).slice(0, 10)
+    : "";
+%>
+<div class="page-head">
+  <h1><%= isEdit ? "Edit consultation" : "Record consultation" %></h1>
+  <div class="sub">
+    <%= patient.full_name %> · <span class="mono"><%= patient.patient_number %></span> ·
+    <a href="/patients/<%= patient.patient_id %>" class="back-link">← Back to the record</a>
+  </div>
+</div>
+
+<% if (errors && errors.length) { %>
+  <div class="card" style="border-color:#f3c9cb;background:var(--bad-bg)">
+    <b style="color:var(--bad-ink)">Please fix:</b>
+    <ul style="margin:8px 0 0;color:var(--bad-ink);font-size:13px">
+      <% errors.forEach(e => { %><li><%= e %></li><% }) %>
+    </ul>
+  </div>
+<% } %>
+
+<form method="POST" action="<%= action %>">
+  <div class="card">
+    <div class="panel-title" style="margin-bottom:14px">Visit</div>
+    <div class="form-grid">
+      <label class="field"><span>Date of visit *</span>
+        <input type="date" name="visit_date" value="<%= vd %>" max="<%= new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' }) %>" required />
+      </label>
+      <label class="field"><span>Booked appointment <span class="muted">(optional)</span></span>
+        <select name="appointment_id">
+          <option value="">— walk-in / not linked —</option>
+          <% appointments.forEach(a => { %>
+            <option value="<%= a.appointment_id %>" <%= String(v.appointment_id) === String(a.appointment_id) ? "selected" : "" %>>
+              <%= longDate(a.appointment_date) %> — <%= pretty(a.service_name) %>
+            </option>
+          <% }) %>
+        </select>
+      </label>
+    </div>
+    <p class="muted" style="font-size:12px;margin:12px 2px 0">
+      Most consultations here are walk-ins. Linking one to a booking is optional.
+    </p>
+  </div>
+
+  <div class="card">
+    <div class="panel-title" style="margin-bottom:4px">Vital signs</div>
+    <p class="muted" style="font-size:12.5px;margin:0 0 14px">Leave anything you didn't measure blank.</p>
+    <div class="form-grid">
+      <label class="field"><span>Blood pressure — systolic <span class="muted">(mmHg)</span></span>
+        <input type="number" name="bp_systolic" value="<%= val(v.bp_systolic) %>" min="50" max="300" placeholder="e.g. 120" />
+      </label>
+      <label class="field"><span>Blood pressure — diastolic <span class="muted">(mmHg)</span></span>
+        <input type="number" name="bp_diastolic" value="<%= val(v.bp_diastolic) %>" min="30" max="200" placeholder="e.g. 80" />
+      </label>
+      <label class="field"><span>Weight <span class="muted">(kg)</span></span>
+        <input type="number" step="0.01" name="weight_kg" value="<%= val(v.weight_kg) %>" min="0.5" max="400" placeholder="e.g. 58.5" />
+      </label>
+      <label class="field"><span>Height <span class="muted">(cm)</span></span>
+        <input type="number" step="0.1" name="height_cm" value="<%= val(v.height_cm) %>" min="20" max="250" placeholder="e.g. 155" />
+      </label>
+      <label class="field"><span>Temperature <span class="muted">(°C)</span></span>
+        <input type="number" step="0.1" name="temperature_c" value="<%= val(v.temperature_c) %>" min="30" max="45" placeholder="e.g. 36.8" />
+      </label>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="panel-title" style="margin-bottom:14px">Findings</div>
+    <div class="form-grid">
+      <label class="field" style="grid-column:1/-1"><span>Diagnosis / assessment</span>
+        <input type="text" name="diagnosis" value="<%= v.diagnosis || '' %>" maxlength="255"
+               placeholder="e.g. Acute upper respiratory tract infection" />
+      </label>
+      <label class="field" style="grid-column:1/-1"><span>Consultation notes</span>
+        <textarea name="consultation_notes" rows="5"
+                  placeholder="Symptoms, history, advice given, follow-up…"><%= v.consultation_notes || '' %></textarea>
+      </label>
+      <label class="field"><span>Seen by doctor <span class="muted">(optional)</span></span>
+        <select name="doctor_id">
+          <option value="">— no doctor present —</option>
+          <% doctors.forEach(d => { %>
+            <option value="<%= d.user_id %>" <%= String(v.doctor_id) === String(d.user_id) ? "selected" : "" %>><%= d.full_name %></option>
+          <% }) %>
+        </select>
+      </label>
+    </div>
+    <p class="muted" style="font-size:12px;margin:14px 2px 0">
+      The patient sees the date, vital signs and diagnosis on their portal.
+      <b>Consultation notes stay here</b> — they're for the next clinician, not the patient.
+    </p>
+  </div>
+
+  <div style="display:flex;gap:10px;margin-bottom:24px">
+    <button type="submit" class="btn"><%= isEdit ? "Save changes" : "Save consultation" %></button>
+    <a class="mini-btn" href="/patients/<%= patient.patient_id %>">Cancel</a>
+  </div>
+</form>

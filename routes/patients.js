@@ -359,7 +359,7 @@ router.get("/patients/:id", async (req, res, next) => {
     );
     if (!rows[0]) return next();
 
-    const [appts, acctQ, dispensesQ, familyMembers] = await Promise.all([
+    const [appts, acctQ, dispensesQ, familyMembers, visitsQ] = await Promise.all([
       db.query(
         `SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.status,
                 s.name AS service_name
@@ -390,6 +390,18 @@ router.get("/patients/:id", async (req, res, next) => {
         [req.params.id]
       ),
       loadFamilyMembers(rows[0].family_number, req.params.id),
+      db.query(
+        `SELECT v.visit_id, v.visit_date, v.bp_systolic, v.bp_diastolic, v.weight_kg,
+                v.height_cm, v.temperature_c, v.diagnosis, v.consultation_notes,
+                a.full_name AS attended_by_name, d.full_name AS doctor_name
+           FROM visits v
+           LEFT JOIN users a ON a.user_id = v.attended_by
+           LEFT JOIN users d ON d.user_id = v.doctor_id
+          WHERE v.patient_id = $1
+          ORDER BY v.visit_date DESC, v.visit_id DESC
+          LIMIT 50`,
+        [req.params.id]
+      ),
     ]);
 
     // One-time credentials flash (set by portal-account create/reset) — read once, then gone.
@@ -406,6 +418,8 @@ router.get("/patients/:id", async (req, res, next) => {
       patient: rows[0],
       appointments: appts.rows,
       dispenses: dispensesQ.rows,
+      visits: visitsQ.rows,
+      canRecordVisit: ["nurse", "doctor", "admin"].includes(req.session.user.role),
       account: acctQ.rows[0] || null,
       familyMembers,
       secrets,

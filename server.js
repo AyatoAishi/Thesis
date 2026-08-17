@@ -24,6 +24,7 @@ const accountRoutes = require("./routes/account");
 const userRoutes = require("./routes/users");
 const immunizationRoutes = require("./routes/immunization");
 const prenatalRoutes = require("./routes/prenatal");
+const visitRoutes = require("./routes/visits");
 const formRoutes = require("./routes/forms");
 const reminders = require("./services/reminders");
 const { requireLogin } = require("./middleware/auth");
@@ -147,17 +148,45 @@ app.get("/", (req, res) => {
 // Everything below here requires a signed-in staff user.
 app.use(requireLogin);
 
-// Real "today" stat for the topbar pill (services no longer map to a fixed
-// weekday, so the old day-name lookup was showing a made-up service).
+// Numbers the topbar needs on every page: the "today" pill, and the things
+// behind the notification bell. One round trip rather than four — this runs on
+// every single request, and the database is a free-tier instance an ocean away.
+//
+// The bell was a drawn icon that did nothing until now. That is the same defect
+// the search bar had (it looked like it worked and didn't), and it is the kind
+// of thing a panel member will press during a demo.
 app.use(async (req, res, next) => {
   try {
     const { rows } = await db.query(
-      "SELECT count(*)::int n FROM appointments WHERE appointment_date=$1",
+      `SELECT
+         (SELECT count(*)::int FROM appointments WHERE appointment_date=$1) AS today_appts,
+         (SELECT count(*)::int FROM appointments WHERE appointment_date=$1 AND status='scheduled') AS today_waiting,
+         (SELECT count(*)::int FROM medicines WHERE stock_quantity < low_stock_threshold) AS low_stock,
+         (SELECT count(*)::int FROM medicine_dispenses
+           WHERE requires_doctor_approval = true AND approved_at IS NULL) AS pending_approval`,
       [F.manilaToday()]
     );
-    res.locals.todayApptCount = rows[0].n;
+    const c = rows[0];
+    res.locals.todayApptCount = c.today_appts;
+
+    // Only what this role can actually act on — a bell that shows a facilitator
+    // a stock problem they can't fix is just noise they learn to ignore.
+    const role = (req.session.user && req.session.user.role) || "";
+    const all = [
+      { key: "today_waiting", n: c.today_waiting, href: "/appointments",
+        label: `${c.today_waiting} patient${c.today_waiting === 1 ? "" : "s"} still expected today`,
+        roles: ["nurse", "facilitator", "recorder", "doctor", "admin"] },
+      { key: "pending_approval", n: c.pending_approval, href: "/inventory/dispenses?status=pending",
+        label: `${c.pending_approval} medicine request${c.pending_approval === 1 ? "" : "s"} waiting for the doctor`,
+        roles: ["nurse", "doctor", "admin"] },
+      { key: "low_stock", n: c.low_stock, href: "/inventory?low=1",
+        label: `${c.low_stock} medicine${c.low_stock === 1 ? "" : "s"} low on stock`,
+        roles: ["nurse", "admin"] },
+    ];
+    res.locals.alerts = all.filter((a) => a.n > 0 && a.roles.includes(role));
   } catch (_) {
     res.locals.todayApptCount = null;
+    res.locals.alerts = [];
   }
   next();
 });
@@ -173,6 +202,7 @@ app.use("/", accountRoutes);
 app.use("/", userRoutes);
 app.use("/", immunizationRoutes);
 app.use("/", prenatalRoutes);
+app.use("/", visitRoutes);
 app.use("/", formRoutes);
 
 // Dashboard — live setup checklist + real stats (best-effort if DB is up)

@@ -260,6 +260,13 @@ body {
   font-family: inherit;
 }
 .field input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+/* Multi-line fields (consultation notes) share the input's look but grow. */
+.field textarea {
+  border: 1px solid var(--border-strong); border-radius: var(--r-sm);
+  background: var(--surface-2); padding: 10px 12px; font-size: 14px; color: var(--ink);
+  font-family: inherit; line-height: 1.55; resize: vertical; min-height: 96px;
+}
+.field textarea:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
 .auth-submit { width: 100%; height: 44px; border: 0; cursor: pointer; margin-top: 4px; }
 .pw-wrap { position: relative; }
 .pw-wrap input { width: 100%; padding-right: 40px; }
@@ -398,6 +405,54 @@ body {
 .page-alert.warn {
   background: var(--warn-bg); color: var(--warn-ink);
   border: 1px solid rgba(217, 148, 17, .22);
+}
+
+/* Notification bell */
+.bell { position: relative; }
+.bell .icon-btn { position: relative; }
+.bell-dot {
+  position: absolute; top: 2px; right: 2px; min-width: 16px; height: 16px;
+  padding: 0 4px; border-radius: 999px; background: var(--bad); color: #fff;
+  font-size: 10px; font-weight: 800; line-height: 16px; text-align: center;
+}
+.bell-dropdown {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 70; width: 300px;
+  background: var(--surface); border: 1px solid var(--border-strong);
+  border-radius: 12px; box-shadow: 0 12px 32px rgba(18, 32, 63, .16);
+  overflow: hidden; padding: 6px;
+}
+.bell-title {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--ink-3); padding: 8px 10px 6px;
+}
+.bell-empty { padding: 6px 10px 12px; font-size: 13px; color: var(--ink-2); }
+.bell-item {
+  display: flex; gap: 10px; align-items: center;
+  padding: 9px 10px; border-radius: 8px; font-size: 13px;
+  color: var(--ink); text-decoration: none;
+}
+.bell-item:hover { background: var(--accent-softer); }
+.bell-count {
+  flex: none; min-width: 22px; height: 22px; border-radius: 6px;
+  background: var(--warn-bg); color: var(--warn-ink);
+  font-weight: 700; font-size: 12px; line-height: 22px; text-align: center;
+}
+
+/* One consultation on the patient record */
+.visit-entry { padding: 14px 0; border-top: 1px solid var(--border); }
+.visit-entry:first-of-type { border-top: 0; padding-top: 6px; }
+.visit-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 14px; }
+.visit-head .muted { font-size: 12.5px; }
+.visit-edit { margin-left: auto; font-size: 12.5px; text-decoration: none; }
+.visit-edit:hover { text-decoration: underline; }
+.visit-vitals {
+  margin-top: 8px; font-size: 13px; color: var(--ink-2);
+  background: var(--surface-2); border-radius: 8px; padding: 7px 11px; display: inline-block;
+}
+.visit-dx { margin-top: 8px; font-size: 14px; font-weight: 600; }
+.visit-notes {
+  margin-top: 6px; font-size: 13.5px; color: var(--ink-2);
+  line-height: 1.55; white-space: pre-wrap;
 }
 
 /* Live dropdown under the top search bar */

@@ -170,8 +170,9 @@
         <tr>
           <td><%= longDate(v.visit_date) %></td>
           <td class="mono"><%= v.bp_systolic && v.bp_diastolic ? `${v.bp_systolic}/${v.bp_diastolic}` : "—" %></td>
-          <td class="mono"><%= v.weight_kg ? v.weight_kg + " kg" : "—" %></td>
-          <td class="mono"><%= v.temperature_c ? v.temperature_c + " °C" : "—" %></td>
+          <%# NUMERIC arrives padded to its scale ("58.50") — trim it. %>
+          <td class="mono"><%= v.weight_kg ? Number(v.weight_kg) + " kg" : "—" %></td>
+          <td class="mono"><%= v.temperature_c ? Number(v.temperature_c) + " °C" : "—" %></td>
           <td><%= v.diagnosis || "—" %></td>
         </tr>
       <% }) %>

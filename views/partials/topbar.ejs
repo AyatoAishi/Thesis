@@ -24,9 +24,34 @@
   <div class="topbar-right">
     <span class="pill">● <%= todayPill %></span>
 
-    <button class="icon-btn" title="Notifications" aria-label="Notifications">
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-    </button>
+    <%
+      // Things this role can act on right now. Empty is the normal state and
+      // says so plainly — a bell that never resolves to "nothing to do" trains
+      // people to stop looking at it.
+      const bell = typeof alerts !== "undefined" && alerts ? alerts : [];
+      const bellTotal = bell.reduce((n, a) => n + a.n, 0);
+    %>
+    <div class="bell" data-bell>
+      <button type="button" class="icon-btn" data-bell-toggle
+              title="Notifications" aria-label="Notifications"
+              aria-expanded="false">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <% if (bellTotal) { %><span class="bell-dot"><%= bellTotal > 9 ? "9+" : bellTotal %></span><% } %>
+      </button>
+      <div class="bell-dropdown" data-bell-dropdown hidden>
+        <div class="bell-title">Needs attention</div>
+        <% if (!bell.length) { %>
+          <div class="bell-empty">Nothing right now.</div>
+        <% } else { %>
+          <% bell.forEach(a => { %>
+            <a class="bell-item" href="<%= a.href %>">
+              <span class="bell-count"><%= a.n %></span>
+              <span><%= a.label %></span>
+            </a>
+          <% }) %>
+        <% } %>
+      </div>
+    </div>
 
     <% if (u) { %>
       <div class="user-menu" data-user-menu>
@@ -66,6 +91,22 @@
       });
       document.addEventListener("click", function (e) {
         if (!menu.contains(e.target)) dropdown.hidden = true;
+      });
+    }
+    var bell = document.querySelector("[data-bell]");
+    if (bell) {
+      var bellBtn = bell.querySelector("[data-bell-toggle]");
+      var bellBox = bell.querySelector("[data-bell-dropdown]");
+      bellBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        bellBox.hidden = !bellBox.hidden;
+        bellBtn.setAttribute("aria-expanded", String(!bellBox.hidden));
+      });
+      document.addEventListener("click", function (e) {
+        if (!bell.contains(e.target)) {
+          bellBox.hidden = true;
+          bellBtn.setAttribute("aria-expanded", "false");
+        }
       });
     }
     var search = document.querySelector("[data-search]");

@@ -34,16 +34,16 @@
         <div class="auth-error"><%= error %></div>
       <% } %>
 
-      <form method="POST" action="/portal/login" class="auth-form" autocomplete="off">
+      <form method="POST" action="/portal/login" class="auth-form">
         <label class="field">
           <span>Username</span>
-          <input type="text" name="username" value="<%= username %>"
+          <input type="text" name="username" value="<%= username %>" autocomplete="username"
                  required autofocus autocapitalize="none" spellcheck="false" />
         </label>
 
         <label class="field">
           <span>Password</span>
-          <input type="password" name="password" required />
+          <%- include("../partials/password-field", { name: "password", id: "portal-pw" }) %>
         </label>
 
         <button type="submit" class="btn auth-submit">Sign in</button>

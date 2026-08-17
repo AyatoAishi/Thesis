@@ -10,6 +10,17 @@
     return a;
   }
   const a = age(p.birthdate);
+
+  // Timestamps come back as real Date objects (only DATE columns are kept as
+  // strings), so they must be printed in Manila time explicitly — the server
+  // itself runs in UTC on Render, which would slide an evening entry back a day.
+  function stamp(d) {
+    if (!d) return "—";
+    return new Date(d).toLocaleString("en-PH", {
+      timeZone: "Asia/Manila", year: "numeric", month: "short", day: "numeric",
+      hour: "numeric", minute: "2-digit",
+    });
+  }
 %>
 
 <% if (typeof pageErr !== "undefined" && pageErr) { %>
@@ -177,7 +188,10 @@
         <div><dt>Portal address</dt><dd class="mono">/portal</dd></div>
       </dl>
       <p class="muted" style="font-size:12px;margin:10px 0 0">
-        Tell the patient: sign in with these, then change the password from their portal page. If they ever forget it, they come back here and you press Reset.
+        Write this down or hand it over now — <b>this box will not appear again.</b>
+        Only a scrambled version of the password is kept, so nobody, including an
+        admin, can look it up later. If the patient forgets it, they come back
+        here and you press Reset to issue a new one.
       </p>
     </div>
   <% } %>
@@ -187,6 +201,22 @@
       <div><dt>Username</dt><dd class="mono"><%= account.username %></dd></div>
       <div><dt>Valid ID</dt><dd><%= account.valid_id_type || "—" %><%= account.valid_id_number ? ` · ${account.valid_id_number}` : "" %></dd></div>
     </dl>
+
+    <%# The lasting record of what happened to this account's password. The
+        one-time box above vanishes on the next page load, which made a reset
+        look like it had never been saved. %>
+    <% if (account.password_changed_at) { %>
+      <div class="pw-state ok">
+        The patient chose their own password on <b><%= stamp(account.password_changed_at) %></b>.
+        Not even an admin can see it. If they forget it, press Reset below.
+      </div>
+    <% } else { %>
+      <div class="pw-state warn">
+        Still on the temporary password issued <b><%= stamp(account.temp_issued_at) %></b><%
+          %><%= account.temp_issued_by_name ? ` by ${account.temp_issued_by_name}` : "" %>.
+        The patient has not changed it yet — remind them to set their own from their portal page.
+      </div>
+    <% } %>
     <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
       <% if (!account.is_verified) { %>
         <form method="POST" action="/portal-accounts/<%= account.account_id %>/verify" style="margin:0"

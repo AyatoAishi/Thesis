@@ -287,8 +287,12 @@ router.get("/patients/:id", async (req, res, next) => {
         [req.params.id]
       ),
       db.query(
-        `SELECT account_id, username, valid_id_type, valid_id_number, is_verified, created_at
-           FROM patient_accounts WHERE patient_id = $1`,
+        `SELECT a.account_id, a.username, a.valid_id_type, a.valid_id_number, a.is_verified,
+                a.created_at, a.temp_issued_at, a.password_changed_at,
+                u.full_name AS temp_issued_by_name
+           FROM patient_accounts a
+           LEFT JOIN users u ON u.user_id = a.temp_issued_by
+          WHERE a.patient_id = $1`,
         [req.params.id]
       ),
       db.query(

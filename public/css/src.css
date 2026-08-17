@@ -517,6 +517,19 @@ body {
   background: var(--ok-bg); color: var(--ok-ink); border: 1px solid transparent;
   border-radius: 10px; padding: 10px 12px; font-size: 13px; margin-bottom: 14px;
 }
+/* Standing note on a portal account: whose password is on it right now. */
+.pw-state {
+  margin-top: 12px; border-radius: 10px; padding: 10px 12px;
+  font-size: 13px; line-height: 1.5;
+}
+.pw-state.ok   { background: var(--ok-bg);   color: var(--ok-ink); }
+.pw-state.warn { background: var(--warn-bg); color: var(--warn-ink); }
+
+/* "Someone else is still signed in on this computer" — a caution, not good
+   news, so it must not wear the same green as the success notice above it. */
+.auth-notice.warn { background: var(--warn-bg); color: var(--warn-ink); }
+.auth-notice-actions { display: flex; gap: 8px; align-items: center; margin: 8px 0 6px; flex-wrap: wrap; }
+.auth-notice .muted { font-size: 12px; display: block; }
 .auth-links { display: flex; gap: 8px; justify-content: center; margin-top: 16px; font-size: 13px; }
 .auth-links a { color: var(--accent-strong); text-decoration: none; font-weight: 600; }
 .auth-links a:hover { text-decoration: underline; }

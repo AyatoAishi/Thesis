@@ -28,13 +28,13 @@
   <div class="panel-title" style="margin-bottom:14px">Change password</div>
   <form method="POST" action="/account/password" class="form-grid">
     <label class="field"><span>Current password</span>
-      <input type="password" name="current_password" required />
+      <%- include("partials/password-field", { name: "current_password", autocomplete: "current-password" }) %>
     </label>
     <label class="field"><span>New password</span>
-      <input type="password" name="new_password" minlength="8" required />
+      <%- include("partials/password-field", { name: "new_password", minlength: 8, autocomplete: "new-password" }) %>
     </label>
     <label class="field"><span>Confirm new password</span>
-      <input type="password" name="confirm_password" minlength="8" required />
+      <%- include("partials/password-field", { name: "confirm_password", minlength: 8, autocomplete: "new-password" }) %>
     </label>
     <button type="submit" class="btn" style="align-self:flex-end">Change password</button>
   </form>

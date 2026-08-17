@@ -20,14 +20,22 @@ const router = express.Router();
 
 const USERNAME_RE = /^[a-z0-9._]{4,30}$/;
 
+// An 8-character temporary password, e.g. "kR7mQ2xB".
+//
+// Mixed case on purpose: with upper case only, an 8-character code drawn from
+// 31 symbols is worth about 40 bits; mixing in lower case takes the alphabet to
+// 54 and the code to ~46 bits, which is thousands of times more work to guess.
+// The dash is gone — it added nothing to that and invited trailing spaces when
+// staff copied the code.
+//
+// I, l, 1, O, 0 stay out of the alphabet. Staff read these out loud across a
+// desk, and a password nobody can dictate is a password that gets reset again
+// five minutes later.
 function genCode() {
-  const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
   const bytes = crypto.randomBytes(8);
   let s = "";
-  for (let i = 0; i < 8; i++) {
-    s += alphabet[bytes[i] % alphabet.length];
-    if (i === 3) s += "-";
-  }
+  for (let i = 0; i < 8; i++) s += alphabet[bytes[i] % alphabet.length];
   return s;
 }
 
@@ -112,9 +120,15 @@ router.post("/portal-accounts/:id/reset", async (req, res, next) => {
     const acct = rows[0];
 
     const tempPassword = genCode();
+    // password_changed_at is cleared: whatever the patient had chosen is gone,
+    // and this account is back on a staff-issued temporary password until they
+    // pick a new one. The patient page reads exactly this to say so.
     await db.query(
-      "UPDATE patient_accounts SET password_hash=$1 WHERE account_id=$2",
-      [await bcrypt.hash(tempPassword, 10), acct.account_id]
+      `UPDATE patient_accounts
+          SET password_hash=$1, temp_issued_at=now(), temp_issued_by=$2,
+              password_changed_at=NULL
+        WHERE account_id=$3`,
+      [await bcrypt.hash(tempPassword, 10), req.session.user.user_id, acct.account_id]
     );
 
     req.session.oneTimeSecret = {
@@ -209,10 +223,11 @@ router.post("/patients/:id/portal-account", async (req, res, next) => {
     try {
       await db.query(
         `INSERT INTO patient_accounts
-           (patient_id, username, password_hash, valid_id_type, valid_id_number, is_verified)
-         VALUES ($1,$2,$3,$4,$5,true)`,
+           (patient_id, username, password_hash, valid_id_type, valid_id_number, is_verified,
+            temp_issued_at, temp_issued_by)
+         VALUES ($1,$2,$3,$4,$5,true,now(),$6)`,
         [patient_id, username, await bcrypt.hash(tempPassword, 10),
-         valid_id_type, valid_id_number]
+         valid_id_type, valid_id_number, req.session.user.user_id]
       );
     } catch (e) {
       // Two staff at two desks can pass the SELECT above at the same moment;

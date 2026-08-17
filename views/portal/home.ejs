@@ -12,12 +12,6 @@
   <div class="sub mono"><%= me.patient_number %></div>
 </div>
 
-<% if (flash.booked) { %>
-  <div class="card portal-flash ok-flash">✅ Appointment booked! A confirmation email is on its way.</div>
-<% } %>
-<% if (flash.cancelled) { %>
-  <div class="card portal-flash">Your appointment was cancelled.</div>
-<% } %>
 <% if (flash.err) { %>
   <div class="card portal-flash bad-flash">⚠️ <%= flash.err %></div>
 <% } %>
@@ -25,7 +19,7 @@
 <% if (!me.is_verified) { %>
   <div class="card portal-flash warn-flash">
     <b>Account pending verification.</b> Present your valid ID at the clinic and the staff
-    will activate full access (medical records &amp; online booking). You can already see
+    will activate full access to your medical records. You can already see
     your appointments below.
   </div>
 <% } %>
@@ -41,44 +35,12 @@
     </div>
     <p class="muted" style="margin:8px 0 0;font-size:13px">We'll email you a reminder the day before. See you po!</p>
   <% } else { %>
-    <p class="muted" style="margin:4px 0 0">No upcoming appointment<%= me.is_verified ? " — book one below" : "" %>.</p>
+    <p class="muted" style="margin:4px 0 0">
+      Wala kang naka-schedule. Ang clinic staff ang naglalagay ng appointment —
+      sabihin mo lang sa kanila sa susunod mong pagpunta o tumawag.
+    </p>
   <% } %>
 </div>
-
-<% if (me.is_verified) { %>
-<div class="card">
-  <div class="panel-title" style="margin-bottom:4px">Book an appointment</div>
-  <p class="muted" style="margin:0 0 14px;font-size:13px">
-    Pick a service and any available date.
-  </p>
-  <% if (!canBookMore) { %>
-    <p class="muted" style="margin:0">You already have <%= maxOpen %> upcoming appointments — cancel one below to book another.</p>
-  <% } else { %>
-  <form method="POST" action="/portal/book" class="auth-form" style="gap:12px">
-    <div class="form-grid">
-      <label class="field">
-        <span>Service</span>
-        <select name="service_id" id="bk-service" required>
-          <% bookOptions.forEach((s) => { %>
-            <option value="<%= s.service_id %>"><%= pretty(s.name) %></option>
-          <% }) %>
-        </select>
-      </label>
-      <label class="field">
-        <span>Date</span>
-        <input type="date" name="appointment_date" id="bk-date" required
-               min="<%= minBookDate %>" max="<%= maxBookDate %>" />
-      </label>
-      <label class="field" style="grid-column:1/-1">
-        <span>Note for the clinic <span class="muted">(optional)</span></span>
-        <input type="text" name="notes" maxlength="255" placeholder="e.g. follow-up, medsakit ang lalamunan…" />
-      </label>
-    </div>
-    <button type="submit" class="btn" style="align-self:flex-start">Book appointment</button>
-  </form>
-  <% } %>
-</div>
-<% } %>
 
 <div class="card">
   <div class="panel-title" style="margin-bottom:12px">My appointments</div>
@@ -86,7 +48,7 @@
     <p class="muted" style="margin:0">No appointments yet.</p>
   <% } else { %>
     <table class="tbl">
-      <thead><tr><th>Date</th><th>Service</th><th>Time</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>Date</th><th>Service</th><th>Time</th><th>Status</th></tr></thead>
       <tbody>
         <% appointments.forEach(a => { %>
           <tr>
@@ -94,19 +56,15 @@
             <td><%= pretty(a.service_name) %></td>
             <td class="mono"><%= shortTime(a.appointment_time) || "—" %></td>
             <td><%- statusBadge(a.status) %></td>
-            <td style="text-align:right">
-              <% if (a.status === "scheduled" && a.appointment_date >= today) { %>
-                <form method="POST" action="/portal/cancel/<%= a.appointment_id %>" style="margin:0"
-                      onsubmit="return confirm('Cancel this appointment?')">
-                  <button type="submit" class="mini-btn bad">Cancel</button>
-                </form>
-              <% } %>
-            </td>
           </tr>
         <% }) %>
       </tbody>
     </table>
   <% } %>
+  <p class="muted" style="font-size:12px;margin:12px 2px 0">
+    Kailangan mong magpalit o magpakansela ng schedule? Sabihin sa clinic staff —
+    sila ang humahawak ng kalendaryo ng clinic.
+  </p>
 </div>
 
 <% if (me.is_verified) { %>
@@ -254,19 +212,19 @@
     <div class="auth-error" style="margin-bottom:14px"><%= flash.pwErr %></div>
   <% } %>
 
-  <form method="POST" action="/portal/password" class="auth-form" style="gap:12px" autocomplete="off">
+  <form method="POST" action="/portal/password" class="auth-form" style="gap:12px">
     <div class="form-grid">
       <label class="field" style="grid-column:1/-1">
         <span>Current password</span>
-        <input type="password" name="current_password" required />
+        <%- include("../partials/password-field", { name: "current_password", autocomplete: "current-password" }) %>
       </label>
       <label class="field">
         <span>New password</span>
-        <input type="password" name="password" minlength="8" required />
+        <%- include("../partials/password-field", { name: "password", minlength: 8, autocomplete: "new-password" }) %>
       </label>
       <label class="field">
         <span>Type it again</span>
-        <input type="password" name="password2" minlength="8" required />
+        <%- include("../partials/password-field", { name: "password2", minlength: 8, autocomplete: "new-password" }) %>
       </label>
     </div>
     <p class="muted" style="margin:0;font-size:12px">Kahit anong 8 characters pataas.</p>

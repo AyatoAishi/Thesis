@@ -88,7 +88,13 @@ CREATE TABLE patient_accounts (
     valid_id_type   VARCHAR(50),                   -- e.g. 'National ID', 'PhilHealth'
     valid_id_number VARCHAR(60),
     is_verified     BOOLEAN NOT NULL DEFAULT false, -- staff confirms the valid ID
-    recovery_id     VARCHAR(60),                    -- system-generated ID for password recovery
+    recovery_id     VARCHAR(60),                    -- unused since v1.2 (patient-held recovery codes were dropped)
+    -- Password state. Only the hash above is stored, so the temporary password
+    -- can never be shown a second time; these say what HAPPENED to it, which is
+    -- what staff actually need to see on the patient page.
+    temp_issued_at      TIMESTAMPTZ,                -- last time staff issued a temporary password
+    temp_issued_by      INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+    password_changed_at TIMESTAMPTZ,                -- when the patient last set their own
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

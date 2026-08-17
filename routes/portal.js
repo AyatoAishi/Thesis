@@ -6,12 +6,19 @@
 // self-signup: this is a small barangay clinic, patients only learn the portal
 // exists when staff tell them at the counter and hand over their credentials,
 // so a public registration form bought nothing and added a way for unverified
-// accounts to pile up. Patients here only sign in, read, and book.
+// accounts to pile up.
+//
+// Patients here READ. They do not book, cancel, or reschedule: the clinic owns
+// the schedule, because the staff at the desk are the only ones who can see the
+// whole day, the queue in the waiting area, and whether the midwife is even in.
+// An online booking that the clinic hasn't agreed to isn't an appointment, it's
+// a surprise. That call is the client's, and the code for it is gone rather
+// than merely hidden behind a flag — a disabled feature still rots.
 //
 // Security rules:
 //   - Every data query keys off req.session.patient.patient_id (never the URL).
-//   - Generic error messages on login/recover (no record enumeration).
-//   - Booking re-checks is_verified from the DB, not the session.
+//   - Generic error messages on login (no record enumeration).
+//   - Health records are gated on is_verified, read fresh from the DB.
 //   - Passwords are bcrypt-hashed, never stored or emailed in the clear.
 // ============================================================================
 const express = require("express");
@@ -20,14 +27,8 @@ const db = require("../db");
 const F = require("../lib/format");
 const { buildCard } = require("../lib/immunizationCard");
 const { requirePatient } = require("../middleware/portalAuth");
-const { sendBookingConfirmation } = require("../services/reminders");
 
 const router = express.Router();
-
-const MAX_OPEN_BOOKINGS = 3;   // open 'scheduled' appointments a patient may hold
-const BOOKING_HORIZON = 90;    // how far ahead (days) online booking is allowed
-
-const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || "");
 
 // ---- LOGIN ------------------------------------------------------------------
 router.get("/portal/login", (req, res) => {
@@ -65,8 +66,17 @@ router.post("/portal/login", async (req, res, next) => {
     const acct = rows[0];
     if (!acct || !(await bcrypt.compare(password, acct.password_hash))) return fail();
 
-    req.session.patient = { account_id: acct.account_id, patient_id: acct.patient_id };
-    res.redirect("/portal");
+    // Same hardening as the staff side: a fresh session ID once this browser is
+    // authenticated (session fixation), the staff half carried across, and the
+    // session written to Postgres BEFORE the redirect so the portal can't be
+    // reached a beat before the session exists.
+    const staffHalf = req.session.user;
+    req.session.regenerate((regenErr) => {
+      if (regenErr) return next(regenErr);
+      if (staffHalf) req.session.user = staffHalf;
+      req.session.patient = { account_id: acct.account_id, patient_id: acct.patient_id };
+      req.session.save((saveErr) => (saveErr ? next(saveErr) : res.redirect("/portal")));
+    });
   } catch (e) {
     next(e);
   }
@@ -217,8 +227,13 @@ router.post("/portal/password", requirePatient, async (req, res, next) => {
       return oops("Pareho lang ng luma ang bagong password — pumili ng iba.");
     }
 
+    // Stamping the change is what lets the staff page stop saying "still on the
+    // temporary password we handed out" — the only visible sign that the
+    // patient ever did this, since the password itself is never readable.
     await db.query(
-      "UPDATE patient_accounts SET password_hash = $1 WHERE account_id = $2",
+      `UPDATE patient_accounts
+          SET password_hash = $1, password_changed_at = now()
+        WHERE account_id = $2`,
       [await bcrypt.hash(password, 10), acct.account_id]
     );
     res.redirect("/portal?pw=1");
@@ -252,7 +267,7 @@ router.get("/portal", requirePatient, async (req, res, next) => {
     // Everything below the appointment list is a health record, so it's gated
     // on is_verified the same way the visit list already was.
     const none = Promise.resolve({ rows: [] });
-    const [apptsQ, visitsQ, services, medsQ, immCard, prenatalQ, dependents] = await Promise.all([
+    const [apptsQ, visitsQ, medsQ, immCard, prenatalQ, dependents] = await Promise.all([
       db.query(
         `SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.status,
                 s.name AS service_name
@@ -270,7 +285,6 @@ router.get("/portal", requirePatient, async (req, res, next) => {
             [pid]
           )
         : none,
-      db.query("SELECT service_id, name, schedule_day, description FROM services ORDER BY service_id"),
       // Only medicines that actually left the shelf — a dispense still waiting
       // on a doctor's approval hasn't been handed over yet.
       me.is_verified
@@ -348,14 +362,7 @@ router.get("/portal", requirePatient, async (req, res, next) => {
       prenatal,
       prenatalVisits,
       dependents,
-      bookOptions: services.rows,
-      minBookDate: F.addDays(today, 1),
-      maxBookDate: F.addDays(today, BOOKING_HORIZON),
-      canBookMore: upcoming.length < MAX_OPEN_BOOKINGS,
-      maxOpen: MAX_OPEN_BOOKINGS,
       flash: {
-        booked: req.query.booked === "1",
-        cancelled: req.query.cancelled === "1",
         err: req.query.err || null,
         pwOk: req.query.pw === "1",
         pwErr: req.query.pw_err || null,
@@ -364,83 +371,6 @@ router.get("/portal", requirePatient, async (req, res, next) => {
       longDate: F.longDate,
       shortTime: F.shortTime,
     });
-  } catch (e) {
-    next(e);
-  }
-});
-
-// ---- BOOK (verified patients only) -------------------------------------------
-router.post("/portal/book", requirePatient, async (req, res, next) => {
-  try {
-    const pid = req.session.patient.patient_id;
-    const oops = (msg) => res.redirect(`/portal?err=${encodeURIComponent(msg)}`);
-
-    // Verification is checked against the DB — never trust the session for this.
-    const acct = await db.query(
-      "SELECT is_verified FROM patient_accounts WHERE patient_id = $1", [pid]
-    );
-    if (!acct.rows[0] || !acct.rows[0].is_verified) {
-      return oops("Your account must be verified at the clinic before booking online.");
-    }
-
-    const service_id = parseInt(req.body.service_id, 10) || null;
-    const date = (req.body.appointment_date || "").trim();
-    const notes = (req.body.notes || "").trim().slice(0, 255) || null;
-
-    const svcQ = await db.query(
-      "SELECT name FROM services WHERE service_id = $1", [service_id]
-    );
-    const svc = svcQ.rows[0];
-    const today = F.manilaToday();
-
-    if (!svc) return oops("Choose a service.");
-    if (!isDate(date)) return oops("Choose a date.");
-    if (date <= today) return oops("Online booking starts from tomorrow — for today, please walk in.");
-    if (date > F.addDays(today, BOOKING_HORIZON)) return oops("That date is too far ahead.");
-
-    const dup = await db.query(
-      `SELECT 1 FROM appointments
-        WHERE patient_id=$1 AND service_id=$2 AND appointment_date=$3 AND status='scheduled'`,
-      [pid, service_id, date]
-    );
-    if (dup.rowCount) return oops("You already have this service booked on that date.");
-
-    const open = await db.query(
-      `SELECT count(*)::int n FROM appointments
-        WHERE patient_id=$1 AND status='scheduled' AND appointment_date >= $2`,
-      [pid, today]
-    );
-    if (open.rows[0].n >= MAX_OPEN_BOOKINGS) {
-      return oops(`You can hold up to ${MAX_OPEN_BOOKINGS} upcoming appointments. Cancel one first, or visit the clinic.`);
-    }
-
-    // created_by stays NULL = "booked online by the patient".
-    const ins = await db.query(
-      `INSERT INTO appointments (patient_id, service_id, appointment_date, notes)
-       VALUES ($1,$2,$3,$4) RETURNING appointment_id`,
-      [pid, service_id, date, notes]
-    );
-    sendBookingConfirmation(ins.rows[0].appointment_id, "booked")
-      .catch((e) => console.error("[confirmation email]", e.message));
-
-    res.redirect("/portal?booked=1");
-  } catch (e) {
-    next(e);
-  }
-});
-
-// ---- CANCEL own upcoming appointment ------------------------------------------
-router.post("/portal/cancel/:id", requirePatient, async (req, res, next) => {
-  try {
-    const pid = req.session.patient.patient_id;
-    // Constrained to the OWN patient's future scheduled rows — nothing else.
-    const { rowCount } = await db.query(
-      `UPDATE appointments SET status='cancelled', updated_at=now()
-        WHERE appointment_id=$1 AND patient_id=$2 AND status='scheduled'
-          AND appointment_date >= $3`,
-      [req.params.id, pid, F.manilaToday()]
-    );
-    res.redirect(rowCount ? "/portal?cancelled=1" : `/portal?err=${encodeURIComponent("That appointment can no longer be cancelled online.")}`);
   } catch (e) {
     next(e);
   }

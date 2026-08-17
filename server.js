@@ -79,6 +79,27 @@ app.use((req, res, next) => {
   next();
 });
 
+// ----- Never let a browser store a page that has records on it ----------------
+// Two separate bug reports traced back to this header being missing. In both
+// cases the server was doing the right thing and the browser was replaying its
+// own saved copy of a page:
+//
+//   1. Sign out, press Back — the previous page reappeared, apparently still
+//      signed in. The session really was destroyed (opening the same URL in an
+//      incognito tab correctly bounced to the login page).
+//   2. "/" serves the public landing page to visitors and the dashboard to
+//      staff. Same address, two different pages. Seconds after signing in, the
+//      browser could re-serve the landing copy it had fetched on the way TO the
+//      login form, so staff got asked "Ako ay Pasyente / Clinic Staff" again in
+//      the middle of signing in. The patient side never showed this because it
+//      lands on /portal, a URL the landing page never occupies.
+//
+// Static assets are mounted above this line and keep their normal caching.
+app.use((req, res, next) => {
+  res.set("Cache-Control", "no-store");
+  next();
+});
+
 // ----- Routes ---------------------------------------------------------------
 // Health check (handy for uptime pings / deploy)
 app.get("/health", async (req, res) => {
@@ -113,8 +134,12 @@ app.use("/", portalRoutes);
 // "Authorized clinic staff only" and reasonably concluded there was no patient
 // side at all — the portal existed but nothing anywhere linked to it. Signed-in
 // users skip this and go where they were already going.
-app.get("/", (req, res, next) => {
-  if (req.session.user) return next();               // staff → dashboard below
+// The dashboard now lives at its own address (/dashboard) instead of sharing
+// "/" with this page. One URL that renders two completely different pages
+// depending on who is asking is what let a cached landing page surface in the
+// middle of signing in — and it made "/" impossible to reason about.
+app.get("/", (req, res) => {
+  if (req.session.user) return res.redirect("/dashboard");
   if (req.session.patient) return res.redirect("/portal");
   res.render("landing", { title: "Sampaguita Health Clinic", layout: false });
 });
@@ -151,7 +176,7 @@ app.use("/", prenatalRoutes);
 app.use("/", formRoutes);
 
 // Dashboard — live setup checklist + real stats (best-effort if DB is up)
-app.get("/", async (req, res) => {
+app.get("/dashboard", async (req, res) => {
   const dbStatus = await db.ping();
   const setup = {
     database: Boolean(process.env.DATABASE_URL),

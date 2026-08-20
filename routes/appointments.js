@@ -21,6 +21,27 @@ const router = express.Router();
 const STATUSES = ["scheduled", "completed", "missed", "cancelled"];
 const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || "");
 
+// Wait briefly for the confirmation email so the person at the desk can be told
+// the truth, but never hold up the booking itself. Between 2026-07-26 and
+// 2026-08-19 every confirmation this system "sent" silently timed out, and the
+// only place that showed was a log page nobody opens. Now it lands on the
+// screen of whoever booked it.
+function raceConfirmation(promise, ms = 4000) {
+  return Promise.race([
+    promise,
+    new Promise((resolve) => setTimeout(() => resolve({ status: "pending" }), ms)),
+  ]);
+}
+
+function confirmationFlash(r, name) {
+  if (r.status === "sent" && r.reason) return { kind: "warn", text: `${name}: ${r.reason}` };
+  if (r.status === "sent") return { kind: "ok", text: `Naipadala ang kumpirmasyon kay ${name} sa ${r.to}.` };
+  if (r.status === "skipped") return { kind: "info", text: `Walang kumpirmasyong naipadala kay ${name} — ${r.reason}` };
+  if (r.status === "pending")
+    return { kind: "info", text: `Ipinapadala pa ang kumpirmasyon kay ${name}. Tingnan sa Reminders kung nakarating.` };
+  return { kind: "warn", text: `Hindi naipadala ang kumpirmasyon kay ${name}. ${r.reason || ""}`.trim() };
+}
+
 async function loadServices() {
   const { rows } = await db.query(
     "SELECT service_id, name, schedule_day, description FROM services ORDER BY service_id"
@@ -111,9 +132,12 @@ router.get("/appointments", async (req, res, next) => {
     const groups = [...byId.values()].sort((a, b) => a.service_id - b.service_id);
 
     const count = (st) => rows.filter((r) => r.status === st).length;
+    const flash = req.session.flash || null;
+    delete req.session.flash;
     res.render("appointments/schedule", {
       title: "Appointments · Sampaguita HC",
       active: "appointments",
+      flash,
       date,
       today: F.manilaToday(),
       prevDate: F.addDays(date, -1),
@@ -248,9 +272,14 @@ router.post("/appointments", async (req, res, next) => {
        RETURNING appointment_id`,
       [value.patient_id, value.service_id, value.date, value.time, value.notes, req.session.user.user_id]
     );
-    // Instant confirmation email — fire-and-forget so mail issues never block booking.
-    sendBookingConfirmation(ins.rows[0].appointment_id, "booked")
-      .catch((e) => console.error("[confirmation email]", e.message));
+    const who = await db.query("SELECT full_name FROM patients WHERE patient_id=$1", [value.patient_id]);
+    const name = (who.rows[0] || {}).full_name || "ang pasyente";
+    const conf = await raceConfirmation(
+      sendBookingConfirmation(ins.rows[0].appointment_id, "booked").catch((e) => ({
+        status: "failed", to: null, reason: e.message,
+      }))
+    );
+    req.session.flash = confirmationFlash(conf, name);
     res.redirect(`/appointments?date=${value.date}`);
   } catch (e) {
     next(e);
@@ -357,9 +386,14 @@ router.post("/appointments/:id", async (req, res, next) => {
     );
     if (!rowCount) return next();
     audit.log(req.session.user.user_id, "reschedule", "appointment", req.params.id, `moved to ${value.date}`);
-    // Instant "rescheduled" email — fire-and-forget.
-    sendBookingConfirmation(req.params.id, "rescheduled")
-      .catch((e) => console.error("[confirmation email]", e.message));
+    const who = await db.query("SELECT full_name FROM patients WHERE patient_id=$1", [value.patient_id]);
+    const name = (who.rows[0] || {}).full_name || "ang pasyente";
+    const conf = await raceConfirmation(
+      sendBookingConfirmation(req.params.id, "rescheduled").catch((e) => ({
+        status: "failed", to: null, reason: e.message,
+      }))
+    );
+    req.session.flash = confirmationFlash(conf, name);
     res.redirect(`/appointments?date=${value.date}`);
   } catch (e) {
     next(e);

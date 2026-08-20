@@ -6,6 +6,9 @@
   }
   const backUrl = `/appointments?date=${date}`;
 %>
+<% if (typeof flash !== "undefined" && flash) { %>
+  <div class="page-alert <%= flash.kind %>"><span><%= flash.text %></span></div>
+<% } %>
 <div class="page-head" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
   <div>
     <h1>Appointments</h1>

@@ -406,6 +406,27 @@ body {
   background: var(--warn-bg); color: var(--warn-ink);
   border: 1px solid rgba(217, 148, 17, .22);
 }
+.page-alert.ok {
+  background: var(--ok-bg); color: var(--ok-ink);
+  border: 1px solid rgba(24, 165, 113, .2);
+}
+.page-alert.ok::before { content: "¹3"; }
+.page-alert.info {
+  background: var(--accent-softer); color: var(--ink-2);
+  border: 1px solid var(--accent-soft);
+}
+.page-alert.info::before { content: "i"; font-style: italic; }
+
+/* Mail delivery self-test result on the Reminders page */
+.mail-test { margin-top: 14px; }
+.mail-test .detail { margin: 6px 2px 0; font-size: 13px; line-height: 1.55; }
+.mail-facts {
+  display: grid; grid-template-columns: auto 1fr; gap: 4px 14px;
+  margin: 10px 0 0; padding: 11px 13px; font-size: 12.5px;
+  background: var(--surface-2); border-radius: var(--r-sm); color: var(--ink-2);
+}
+.mail-facts dt { color: var(--ink-3); }
+.mail-facts dd { margin: 0; font-family: "JetBrains Mono", ui-monospace, monospace; }
 
 /* Notification bell */
 .bell { position: relative; }

@@ -7,27 +7,76 @@
   <div class="card" style="background:var(--accent-softer);border-color:var(--accent-soft)"><%= flash %></div>
 <% } %>
 
+<% if (failures && failures.n > 0) { %>
+  <div class="page-alert bad">
+    <span>
+      <b><%= failures.n %> reminder<%= failures.n === 1 ? "" : "s" %> failed to send in the last 30 days.</b>
+      Those patients were never told about their appointment. Press <b>Test email now</b> below to find out why.
+    </span>
+  </div>
+<% } %>
+
 <div class="card">
   <div class="svc-head">
     <div>
       <span class="panel-title">Email</span>
-      <% if (emailLive) { %>
-        <span class="badge ok">LIVE — Gmail SMTP connected</span>
+      <% if (emailInfo.mode === "api") { %>
+        <span class="badge ok">LIVE — Brevo API</span>
+      <% } else if (emailInfo.mode === "smtp") { %>
+        <span class="badge ok">LIVE — SMTP (<%= emailInfo.smtp_host %>)</span>
       <% } else { %>
-        <span class="badge warn">SIMULATION — no SMTP credentials yet</span>
+        <span class="badge warn">SIMULATION — no mail credentials</span>
       <% } %>
     </div>
+    <form method="POST" action="/reminders/test-email" style="margin:0">
+      <button class="logout-btn" type="submit" style="cursor:pointer">Test email now</button>
+    </form>
   </div>
   <p class="muted" style="margin:8px 2px 0;font-size:13px">
-    Reminders are emailed to the patient (or the family contact as fallback) the day before the appointment.
+    Reminders are emailed to the patient (or the family contact as fallback) the day before the
+    appointment. A confirmation also goes out the moment an appointment is booked.
   </p>
-  <div class="svc-head" style="margin-top:14px;opacity:.55" title="SMS is temporarily unavailable — looking for an affordable SMS provider to replace Semaphore.">
+
+  <% if (emailTest) { %>
+    <div class="mail-test">
+      <div class="page-alert <%= emailTest.ok ? "ok" : "bad" %>" style="margin:0">
+        <span>
+          <b><%= emailTest.ok ? "Email is working." : "Email cannot go out from this server." %></b>
+          <%= emailTest.detail %>
+        </span>
+      </div>
+      <dl class="mail-facts">
+        <dt>Sending by</dt>
+        <dd><%= emailTest.mode === "api" ? "Brevo HTTP API" : emailTest.mode === "smtp" ? "SMTP" : "nothing (simulation)" %></dd>
+        <% if (emailTest.mode === "smtp") { %>
+          <dt>Server</dt><dd><%= emailTest.smtp_host %>:<%= emailTest.smtp_port %></dd>
+          <dt>Username</dt><dd><%= emailTest.smtp_user_set ? "set" : "MISSING" %></dd>
+          <dt>Password</dt><dd><%= emailTest.smtp_pass_set ? "set" : "MISSING" %></dd>
+        <% } %>
+        <% if (emailTest.mode === "api") { %>
+          <dt>API key</dt><dd><%= emailTest.api_key_set ? "set" : "MISSING" %></dd>
+        <% } %>
+        <dt>From</dt><dd><%= emailTest.from_email %></dd>
+        <dt>Took</dt><dd><%= emailTest.ms %> ms</dd>
+      </dl>
+      <% if (!emailTest.ok && emailTest.mode === "smtp") { %>
+        <p class="detail muted">
+          If this says the connection timed out, the credentials are fine — this host is blocking
+          outgoing mail, which free hosting commonly does. Set <code class="mono">BREVO_API_KEY</code>
+          in the hosting dashboard to send over the web instead; nothing else needs to change.
+        </p>
+      <% } %>
+    </div>
+  <% } %>
+
+  <div class="svc-head" style="margin-top:16px;opacity:.6"
+       title="No SMS provider is connected yet — PhilSMS is being looked at.">
     <div>
       <span class="panel-title">SMS</span>
       <% if (live) { %>
-        <span class="badge ok">LIVE — provider connected</span>
+        <span class="badge ok">LIVE — <%= smsProvider %></span>
       <% } else { %>
-        <span class="badge info">PENDING PROVIDER — simulation only</span>
+        <span class="badge info">NO PROVIDER — simulation only</span>
       <% } %>
     </div>
     <% if (live && balance !== null) { %>
@@ -35,9 +84,11 @@
     <% } %>
   </div>
   <% if (!live) { %>
-    <p class="muted" style="margin:8px 2px 0;font-size:13px;opacity:.7">
-      SMS sends are logged as a dry run. When an SMS provider is chosen, add its credentials to
-      <code class="mono">.env</code> to go live — no other change needed.
+    <p class="muted" style="margin:8px 2px 0;font-size:13px;opacity:.75">
+      No text message has actually been sent. SMS rows in the log below are a dry run — the message
+      was composed and recorded, but nothing left the building. Add
+      <code class="mono">PHILSMS_TOKEN</code> and <code class="mono">PHILSMS_SENDER</code> to go
+      live; no other change is needed.
     </p>
   <% } %>
 </div>
@@ -49,6 +100,14 @@
       <span>For appointments on</span>
       <input type="date" name="date" value="<%= date %>" />
     </label>
+    <label class="field" style="gap:4px">
+      <span>Send by</span>
+      <select name="only">
+        <option value="">Each patient's own setting</option>
+        <option value="email">Email only</option>
+        <option value="sms">SMS only</option>
+      </select>
+    </label>
     <label class="check" style="align-items:center">
       <input type="checkbox" name="force" /> <span>Resend even if already reminded</span>
     </label>
@@ -56,7 +115,8 @@
   </form>
   <p class="muted" style="font-size:12px;margin:10px 2px 0">
     Runs automatically every day at the schedule <code class="mono"><%= cronExpr %></code> (Asia/Manila).
-    Use this to send manually or re-send for a specific date.
+    Each patient's record says how they want to be reminded — <b>Send by</b> narrows this one run further.
+    A patient with no address on a channel is skipped, not marked failed.
   </p>
 </div>
 

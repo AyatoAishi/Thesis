@@ -1,10 +1,15 @@
 // ============================================================================
 // services/reminders.js — appointment reminder engine (M4 + M4.5 email)
-// Finds scheduled appointments for a target date and reminds the patient on
-// EVERY channel they have: email (LIVE via Gmail SMTP) and SMS (simulation
-// until an affordable provider replaces Semaphore). Falls back to the family
-// contact per channel. EVERY attempt is logged in the notifications table
-// (audit trail — RA 10173 + panel requirement).
+// Finds scheduled appointments for a target date and reminds the patient on the
+// channels that actually apply to them. Two things decide that: the patient's
+// own preference (patients.reminder_channel) and whether they have a usable
+// address on that channel at all.
+//
+// Every real ATTEMPT is logged in the notifications table (audit trail —
+// RA 10173 + panel requirement). A channel that was never attempted is not
+// logged: an elderly patient with no email address has not "failed" to be
+// reminded, and filling the log with red rows for her only hid the failures
+// that mattered.
 //
 // CLI:  node services/reminders.js [YYYY-MM-DD]   (force run, for testing)
 // ============================================================================
@@ -16,9 +21,26 @@ const email = require("./email");
 const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || "");
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+const CHANNELS = ["both", "email", "sms", "none"];
+const CHANNEL_LABELS = {
+  both: "Email at SMS",
+  email: "Email lang",
+  sms: "SMS lang",
+  none: "Huwag magpadala",
+};
+
 function leadDays() {
   const n = Number(process.env.REMINDER_LEAD_DAYS);
   return Number.isFinite(n) && n >= 0 ? n : 1;
+}
+
+// Does this patient get reminded on this channel, on this run?
+// `only` is the per-run override from the Reminders page ("email"/"sms"/null).
+function wantsChannel(patient, channel, only) {
+  if (only && only !== channel) return false;
+  const pref = CHANNELS.includes(patient.reminder_channel) ? patient.reminder_channel : "both";
+  if (pref === "none") return false;
+  return pref === "both" || pref === channel;
 }
 
 // Build the SMS reminder text. Must NOT start with "TEST". Kept short (~1 credit).
@@ -79,14 +101,18 @@ function buildConfirmation(appt, kind = "booked") {
   };
 }
 
-// Send the instant confirmation for one appointment (fire-and-forget from the
-// booking route — a mail failure must never block the booking itself).
-// Logged in notifications like everything else.
+// Send the instant confirmation for one appointment.
+//
+// Returns a result the booking screen can show the person at the desk, because
+// the thing worth knowing is knowable immediately: whether this patient can be
+// reached by email at all. Staff booked appointments for three weeks believing
+// a confirmation went out; not one of them did.
+//   { status: 'sent'|'failed'|'skipped', to, reason }
 async function sendBookingConfirmation(appointment_id, kind = "booked") {
   const { rows } = await db.query(
     `SELECT a.appointment_id, a.appointment_date, a.appointment_time,
             s.name AS service_name,
-            p.patient_id, p.full_name, p.email, p.family_email
+            p.patient_id, p.full_name, p.email, p.family_email, p.reminder_channel
        FROM appointments a
        JOIN services s ON s.service_id = a.service_id
        JOIN patients p ON p.patient_id = a.patient_id
@@ -94,10 +120,16 @@ async function sendBookingConfirmation(appointment_id, kind = "booked") {
     [appointment_id]
   );
   const appt = rows[0];
-  if (!appt) return { sent: false, response: "Appointment not found." };
+  if (!appt) return { status: "skipped", to: null, reason: "Appointment not found." };
+
+  if (!wantsChannel(appt, "email", null)) {
+    return { status: "skipped", to: null, reason: "Naka-set ang pasyenteng ito na huwag paalalahanan sa email." };
+  }
 
   const to = resolveEmailRecipient(appt);
-  if (!to) return { sent: false, response: "No valid email for patient or family." };
+  if (!to) {
+    return { status: "skipped", to: null, reason: "Walang email address ang pasyenteng ito sa record." };
+  }
 
   const mail = buildConfirmation(appt, kind);
   const r = await email.sendMail({ to: to.address, ...mail });
@@ -108,7 +140,11 @@ async function sendBookingConfirmation(appointment_id, kind = "booked") {
     status: r.sent ? "sent" : "failed",
     provider_message_id: null, provider_response: r.response,
   });
-  return r;
+  return {
+    status: r.sent ? "sent" : "failed",
+    to: to.address,
+    reason: r.sent ? (r.simulated ? "Simulated — walang tunay na email na lumabas." : null) : r.response,
+  };
 }
 
 // Resolve who to text: the patient first, then the family contact fallback.
@@ -151,19 +187,21 @@ async function alreadySent(appointment_id, channel) {
   return dup.rowCount > 0;
 }
 
-// Process reminders for one date (both channels per appointment).
+// Process reminders for one date.
 //   opts.date   — 'YYYY-MM-DD' (defaults to today + REMINDER_LEAD_DAYS)
 //   opts.force  — resend even if a 'sent' reminder already exists
-// Returns { date, total, sent, failed, skipped, simulated,
+//   opts.only   — 'email' | 'sms' to restrict this run to one channel
+// Returns { date, only, total, sent, failed, skipped, simulated,
 //           email:{sent,failed,skipped}, sms:{sent,failed,skipped,simulated} }.
-async function processReminders({ date, force = false } = {}) {
+async function processReminders({ date, force = false, only = null } = {}) {
   const target = isDate(date) ? date : F.addDays(F.manilaToday(), leadDays());
+  const restrict = only === "email" || only === "sms" ? only : null;
 
   const { rows } = await db.query(
     `SELECT a.appointment_id, a.appointment_date, a.appointment_time,
             s.name AS service_name,
             p.patient_id, p.full_name, p.contact_number, p.family_contact_number,
-            p.email, p.family_email
+            p.email, p.family_email, p.reminder_channel
        FROM appointments a
        JOIN services s ON s.service_id = a.service_id
        JOIN patients p ON p.patient_id = a.patient_id
@@ -173,7 +211,7 @@ async function processReminders({ date, force = false } = {}) {
   );
 
   const summary = {
-    date: target, total: rows.length,
+    date: target, only: restrict, total: rows.length,
     sent: 0, failed: 0, skipped: 0, simulated: 0,
     email: { sent: 0, failed: 0, skipped: 0 },
     sms: { sent: 0, failed: 0, skipped: 0, simulated: 0 },
@@ -183,57 +221,41 @@ async function processReminders({ date, force = false } = {}) {
   for (const appt of rows) {
     const message = buildMessage(appt);
 
-    // ---- EMAIL channel (live via Gmail SMTP) --------------------------------
-    if (force || !(await alreadySent(appt.appointment_id, "email"))) {
-      const to = resolveEmailRecipient(appt);
-      if (!to) {
-        await logNotification({
-          patient_id: appt.patient_id, appointment_id: appt.appointment_id,
-          channel: "email", recipient: "(none)", recipient_type: "patient",
-          message, status: "failed", provider_message_id: null,
-          provider_response: "No valid email for patient or family.",
-        });
-        bump("email", "failed");
-      } else {
-        const mail = buildEmail(appt);
-        const r = await email.sendMail({ to: to.address, ...mail });
-        await logNotification({
-          patient_id: appt.patient_id, appointment_id: appt.appointment_id,
-          channel: "email", recipient: to.address, recipient_type: to.type,
-          message: `${mail.subject} — ${mail.text}`,
-          status: r.sent ? "sent" : "failed",
-          provider_message_id: null, provider_response: r.response,
-        });
-        bump("email", r.sent ? "sent" : "failed");
-      }
-    } else {
+    // ---- EMAIL channel ------------------------------------------------------
+    const emailTo = wantsChannel(appt, "email", restrict) ? resolveEmailRecipient(appt) : null;
+    if (!emailTo) {
       bump("email", "skipped");
+    } else if (!force && (await alreadySent(appt.appointment_id, "email"))) {
+      bump("email", "skipped");
+    } else {
+      const mail = buildEmail(appt);
+      const r = await email.sendMail({ to: emailTo.address, ...mail });
+      await logNotification({
+        patient_id: appt.patient_id, appointment_id: appt.appointment_id,
+        channel: "email", recipient: emailTo.address, recipient_type: emailTo.type,
+        message: `${mail.subject} — ${mail.text}`,
+        status: r.sent ? "sent" : "failed",
+        provider_message_id: null, provider_response: r.response,
+      });
+      bump("email", r.sent ? "sent" : "failed");
     }
 
-    // ---- SMS channel (simulation until a provider is configured) ------------
-    if (force || !(await alreadySent(appt.appointment_id, "sms"))) {
-      const recipient = resolveRecipient(appt);
-      if (!recipient) {
-        await logNotification({
-          patient_id: appt.patient_id, appointment_id: appt.appointment_id,
-          channel: "sms", recipient: "(none)", recipient_type: "patient",
-          message, status: "failed", provider_message_id: null,
-          provider_response: "No valid contact number for patient or family.",
-        });
-        bump("sms", "failed");
-      } else {
-        const result = await sms.sendSMS(recipient.number, message);
-        if (result.simulated) { summary.sms.simulated++; summary.simulated++; }
-        await logNotification({
-          patient_id: appt.patient_id, appointment_id: appt.appointment_id,
-          channel: "sms", recipient: recipient.number, recipient_type: recipient.type,
-          message, status: result.status === "sent" ? "sent" : "failed",
-          provider_message_id: result.message_id, provider_response: result.response,
-        });
-        bump("sms", result.status === "sent" ? "sent" : "failed");
-      }
-    } else {
+    // ---- SMS channel (no provider connected — see services/sms.js) ----------
+    const smsTo = wantsChannel(appt, "sms", restrict) ? resolveRecipient(appt) : null;
+    if (!smsTo) {
       bump("sms", "skipped");
+    } else if (!force && (await alreadySent(appt.appointment_id, "sms"))) {
+      bump("sms", "skipped");
+    } else {
+      const result = await sms.sendSMS(smsTo.number, message);
+      if (result.simulated) { summary.sms.simulated++; summary.simulated++; }
+      await logNotification({
+        patient_id: appt.patient_id, appointment_id: appt.appointment_id,
+        channel: "sms", recipient: smsTo.number, recipient_type: smsTo.type,
+        message, status: result.status === "sent" ? "sent" : "failed",
+        provider_message_id: result.message_id, provider_response: result.response,
+      });
+      bump("sms", result.status === "sent" ? "sent" : "failed");
     }
   }
 
@@ -241,6 +263,7 @@ async function processReminders({ date, force = false } = {}) {
 }
 
 module.exports = {
+  CHANNELS, CHANNEL_LABELS, wantsChannel,
   buildMessage, buildEmail, buildConfirmation, resolveRecipient,
   resolveEmailRecipient, sendBookingConfirmation, processReminders, leadDays,
 };

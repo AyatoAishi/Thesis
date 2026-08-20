@@ -32,6 +32,28 @@ const BREVO_ACCOUNT = "https://api.brevo.com/v3/account";
 // failing. Ten seconds is plenty for a socket that is going to open at all.
 const TIMEOUT_MS = 10000;
 
+// The last thing we learned about whether mail can actually get out of here,
+// and when. `ok: null` means nobody has found out yet.
+//
+// This exists because "credentials are present" and "email works" are not the
+// same question, and for three weeks this system could only answer the first
+// one. A page that has to decide whether to promise a patient an email needs
+// the second. Every real send updates it, so ordinary traffic keeps it honest
+// without anything extra being run.
+const HEALTH_TTL_MS = 5 * 60 * 1000;
+let health = { ok: null, at: 0, detail: null };
+
+function noteHealth(ok, detail) {
+  health = { ok, at: Date.now(), detail: detail || null };
+}
+
+// What we already know, or null if we don't know or it has gone stale.
+// Never makes a network call — safe on a public page.
+function cachedHealth() {
+  if (health.ok === null || Date.now() - health.at > HEALTH_TTL_MS) return null;
+  return health.ok;
+}
+
 function mode() {
   if (process.env.BREVO_API_KEY) return "api";
   if (process.env.SMTP_USER && process.env.SMTP_PASS) return "smtp";
@@ -135,6 +157,7 @@ async function sendViaApi({ to, subject, text, html }) {
     if (res.ok) {
       let id = "ok";
       try { id = JSON.parse(body).messageId || "ok"; } catch { /* keep "ok" */ }
+      noteHealth(true);
       return { sent: true, simulated: false, response: String(id).slice(0, 200) };
     }
     // Brevo answers with a JSON { code, message } that is worth keeping whole —
@@ -142,6 +165,7 @@ async function sendViaApi({ to, subject, text, html }) {
     return { sent: false, simulated: false, response: `Brevo ${res.status}: ${body.slice(0, 300)}` };
   } catch (e) {
     const why = e.name === "AbortError" ? "Request timed out." : explain(e);
+    noteHealth(false, why);
     return { sent: false, simulated: false, response: `Email error: ${why}` };
   } finally {
     clearTimeout(timer);
@@ -154,9 +178,15 @@ async function sendViaSmtp({ to, subject, text, html }) {
   const from = `${f.name} <${f.email}>`;
   try {
     const info = await getTransport().sendMail({ from, to, subject, text, html });
+    noteHealth(true);
     return { sent: true, simulated: false, response: info.messageId || "ok" };
   } catch (e) {
-    return { sent: false, simulated: false, response: `Email error: ${explain(e)}` };
+    const why = explain(e);
+    // A refused recipient is that recipient's problem; a timeout is the whole
+    // channel's. Only the second one should stop the portal promising anybody
+    // an email.
+    if (!/^\s*5\d\d/.test(e && e.message ? e.message : "")) noteHealth(false, why);
+    return { sent: false, simulated: false, response: `Email error: ${why}` };
   }
 }
 
@@ -181,7 +211,10 @@ async function sendMail({ to, subject, text, html }) {
 async function selfTest() {
   const d = describe();
   const started = Date.now();
-  const done = (ok, detail) => ({ ok, detail, ms: Date.now() - started, ...d });
+  const done = (ok, detail) => {
+    noteHealth(ok, detail);
+    return { ok, detail, ms: Date.now() - started, ...d };
+  };
 
   if (d.mode === "simulation") {
     return done(false, "No mail credentials are set on this server, so nothing is being sent. Reminders are only being written to the log.");
@@ -214,4 +247,17 @@ async function selfTest() {
   }
 }
 
-module.exports = { isLive, mode, describe, selfTest, sendMail, parseFrom };
+// Answer "can this server send email" for certain, reusing a recent answer if
+// there is one. May take up to TIMEOUT_MS on a server that cannot — so call it
+// from a deliberate action (someone pressed a button), never from a page load.
+async function ensureHealth() {
+  if (mode() === "simulation") return false;
+  const known = cachedHealth();
+  if (known !== null) return known;
+  return (await selfTest()).ok;
+}
+
+module.exports = {
+  isLive, mode, describe, selfTest, sendMail, parseFrom,
+  cachedHealth, ensureHealth,
+};

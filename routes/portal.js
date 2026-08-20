@@ -132,18 +132,28 @@ function renderRecover(res, opts) {
   });
 }
 
+// This page tells everyone the same thing, whoever they are. Whether mail can
+// leave this server is a fact about the server, not about any patient, so
+// saying it out loud gives nothing away about who does or doesn't have an
+// account here.
+//
+// The GET only ever uses an answer we already have. Checking properly can take
+// ten seconds on a server that can't send, and this page is public — nobody
+// gets to make the clinic's website slow by refreshing it.
 router.get("/portal/recover", (req, res) => {
-  // If this server can't send email at all, say so up front rather than
-  // collecting an address and quietly doing nothing with it. This is a fact
-  // about the server, not about any particular patient, so it gives nothing
-  // away about who does or doesn't have an account.
-  if (emailSvc.mode() === "simulation") return renderRecover(res, { mode: "unavailable" });
+  const known = emailSvc.mode() === "simulation" ? false : emailSvc.cachedHealth();
+  if (known === false) return renderRecover(res, { mode: "unavailable" });
   renderRecover(res);
 });
 
 router.post("/portal/recover", async (req, res, next) => {
   try {
-    if (emailSvc.mode() === "simulation") return renderRecover(res, { mode: "unavailable" });
+    // Submitting the form is a deliberate act by one person, so here it is worth
+    // finding out for certain rather than promising an email that cannot be
+    // sent. Between 2026-07-26 and 2026-08-19 this server had working
+    // credentials and could not deliver a single message; "credentials are
+    // set" is not the same question as "email works".
+    if (!(await emailSvc.ensureHealth())) return renderRecover(res, { mode: "unavailable" });
 
     const address = (req.body.email || "").trim();
     if (!reset.isEmail(address)) {

@@ -10,10 +10,10 @@ curious teammate asking.
 
 A web-based system for Barangay Sampaguita Health Clinic that replaces paper-based patient records
 and appointment logs. Staff register patients, book and track appointments across the clinic's 3
-fixed service days, get automatic email reminders sent out, manage a medicine inventory with a
-doctor-approval step for controlled medicines, and pull reports on attendance/no-shows/trends/
-inventory. Patients get their own limited self-service login to see their next appointment and book
-their own visits. It's currently live at `https://sampaguita-clinic.onrender.com`.
+services, get automatic email reminders sent out, manage a medicine inventory, record consultations
+and vital signs, and pull reports on attendance/no-shows/trends/inventory. Patients get their own
+read-only login to see their next appointment, their records, and their household's — and to change
+or reset their own password. It's currently live at `https://sampaguita-clinic.onrender.com`.
 
 ---
 
@@ -42,12 +42,13 @@ Everything lives in one PostgreSQL database with about 10 tables. The core ones:
 - **patient_accounts** — the *separate* patient portal login (not the same table as staff)
 - **services** — the 3 fixed clinic services and which weekday each runs on
 - **appointments** — links a patient + a service + a date + a status
-- **medicines** / **medicine_dispenses** — stock levels and who received what, including the pending
-  doctor-approval state
+- **medicines** / **medicine_dispenses** — stock levels and who received what
 - **visits** — the consultation record: vital signs (BP, weight, height, temperature), the
-  diagnosis, the clinician's notes, who attended, and the doctor present if any. This is what
-  Chapter 1 calls "recorded vital signs" and "diagnoses and consultation notes"
+  diagnosis, the clinician's notes and who attended. This is what Chapter 1 calls "recorded vital
+  signs" and "diagnoses and consultation notes"
 - **notifications** — a log of every reminder/confirmation attempt, sent or failed
+- **password_resets** — one row per emailed reset link. Only a SHA-256 of the token is stored, so
+  the table cannot be used to reset anyone's password
 
 Every table that matters is connected by ID references, not duplicated data — e.g. an appointment
 doesn't repeat the patient's name, it just points at their one row in `patients`.
@@ -64,7 +65,8 @@ doesn't repeat the patient's name, it just points at their one row in `patients`
   into the URL — a patient cannot view another patient's data by guessing a different number.
 - Minors require a recorded guardian name **and** an explicit consent checkbox before their record
   can even be saved — not optional, enforced by the registration form itself.
-- Role-based access: some pages (reports, medicine-approval) are restricted to specific staff roles.
+- Role-based access: some pages (reports, staff accounts, reminders) are restricted to specific
+  staff roles.
 - Session cookies are `httpOnly` (JavaScript on the page can't read them) and `secure` (only sent over
   an encrypted connection).
 
@@ -72,7 +74,17 @@ doesn't repeat the patient's name, it just points at their one row in `patients`
 
 ## Known limitations (good to be upfront about)
 
-- **SMS is not live** — built and ready, but inactive until an affordable provider is arranged.
+- **Email could not leave the host over SMTP, and this went unnoticed for three weeks.** Between
+  2026-07-26 and 2026-08-19 every reminder and confirmation sent from the live server failed with
+  "Connection timeout" — 26 in a row. The credentials were correct the whole time and worked from a
+  laptop; free hosting blocks outbound SMTP. Fixed on 2026-08-20 by adding a second route out over
+  an HTTP mail API on port 443, plus a self-test button on the Reminders page that answers "can this
+  server send email right now" in one press. Worth naming rather than hiding: the lesson is that a
+  feature which only reports failure into a log nobody opens is a feature nobody is watching.
+- **SMS has never sent a real text.** The code and both provider adapters are written; no provider
+  is connected. Semaphore was priced out (~₱0.50/text plus a sender ID that takes days to approve)
+  and PhilSMS is still being evaluated. Every `channel='sms'` row in the log is a dry run, and the
+  Reminders page says so on screen.
 - **Free-tier hosting** — Render's free plan sleeps after 15 minutes of no traffic; a "keep-alive"
   ping every 10 minutes works around this, but it's still a free-tier constraint worth naming if asked.
 - **No rate limit on sign-in attempts** — passwords can be tried repeatedly without the system
@@ -120,9 +132,20 @@ explain and defend those decisions is what matters for a thesis defense — not 
 code.
 
 **"What was the hardest part / most interesting design decision?"**
-Two good examples: (1) medicine dispensing was designed so stock is only ever deducted the moment a
-dispense is *truly final* — either immediately, or the instant a doctor approves it — so the shelf
-count can never drift out of sync with what a pending, not-yet-approved request implies. (2) The
-patient portal's identity verification deliberately gives *generic* error messages on a failed
-signup match, so the system can't be used to check whether a specific patient number or name exists
-in the clinic's records.
+Three good examples. (1) The reminder emails failed silently for three weeks — see the limitations
+above. Nothing in the code was wrong; what was missing was any way for a person to *find out*. The
+fix was as much a screen as a code path: a button that opens a real connection and says in plain
+words whether mail can get out, and a banner counting recent failures. (2) Two people editing the
+same patient used to overwrite each other, both seeing "saved" — now each form carries the timestamp
+it was drawn with, compared inside the UPDATE itself so nothing can slip in between the check and
+the write; the loser is told, and redrawn with the current values. (3) The patient portal gives
+*generic* error messages on a failed sign-in and on a forgotten-password request, byte-identical
+whether or not the account exists, so neither can be used to check whether a particular person is a
+patient here.
+
+**"Why did you remove the doctor-approval step for controlled medicines?"**
+Because there is no doctor at this clinic — the staff confirmed it. Every request sat in a queue
+waiting for a sign-off that was never coming; one had been waiting since launch day. A safeguard
+that cannot fire is not a safeguard, it is a medicine that never reaches the patient. The historical
+records of how earlier dispenses *were* handled are left untouched in the database, because
+rewriting them to match today's workflow would be falsifying a medical record.

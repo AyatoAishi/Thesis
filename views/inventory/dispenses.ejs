@@ -1,22 +1,11 @@
 <%
-  const backUrl = `/inventory/dispenses?status=${status}`;
-  function rowStatus(d) {
-    if (!d.requires_doctor_approval) return "completed";
-    return d.approved_at ? "approved" : "pending";
-  }
-  function statusBadge(s) {
-    const m = { pending: ["warn", "Pending approval"], approved: ["info", "Approved"], completed: ["ok", "Completed"] };
-    const [c, l] = m[s];
-    return `<span class="badge ${c}">${l}</span>`;
-  }
   function fmt(ts) {
     if (!ts) return "—";
     return new Date(ts).toLocaleString("en-PH", { timeZone: "Asia/Manila", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   }
-  const tabs = [["pending", `Pending${pendingCount ? ` (${pendingCount})` : ""}`], ["approved", "Approved"], ["completed", "Completed"], ["all", "All"]];
 %>
 <div class="page-head" style="display:flex;align-items:center;justify-content:space-between">
-  <div><h1>Dispenses</h1><div class="sub">Medicine dispense history &amp; doctor-approval queue</div></div>
+  <div><h1>Dispenses</h1><div class="sub">Every medicine handed out, newest first</div></div>
   <a class="btn" href="/inventory/dispense/new">+ Dispense</a>
 </div>
 
@@ -25,24 +14,15 @@
 <% } %>
 
 <div class="card">
-  <div class="tabbar">
-    <% tabs.forEach(t => { %>
-      <a href="/inventory/dispenses?status=<%= t[0] %>" class="tab <%= status === t[0] ? 'active' : '' %>"><%= t[1] %></a>
-    <% }) %>
-  </div>
-
   <% if (!rows.length) { %>
-    <p class="muted" style="padding:8px 2px;margin:0">No <%= status === 'all' ? '' : status %> dispenses.</p>
+    <p class="muted" style="padding:8px 2px;margin:0">No medicine has been dispensed yet.</p>
   <% } else { %>
     <table class="tbl">
       <thead>
-        <tr><th>When</th><th>Patient</th><th>Medicine</th><th>Qty</th><th>Status</th><th>Dispensed by</th><th>Approved by</th>
-          <% if (isDoctor) { %><th style="text-align:right">Actions</th><% } %>
-        </tr>
+        <tr><th>When</th><th>Patient</th><th>Medicine</th><th>Qty</th><th>Dispensed by</th><th>Notes</th></tr>
       </thead>
       <tbody>
         <% rows.forEach(d => { %>
-          <% const st = rowStatus(d); %>
           <tr>
             <td class="mono" style="font-size:12px"><%= fmt(d.dispensed_at) %></td>
             <td>
@@ -51,27 +31,8 @@
             </td>
             <td><a href="/inventory/<%= d.medicine_id %>"><%= d.medicine_name %></a></td>
             <td><%= d.quantity %> <%= d.unit || "" %></td>
-            <td><%- statusBadge(st) %></td>
             <td><%= d.dispensed_by_name || "—" %></td>
-            <td><%= d.approved_by_name || "—" %></td>
-            <% if (isDoctor) { %>
-              <td>
-                <% if (st === 'pending') { %>
-                  <div class="appt-actions">
-                    <form method="POST" action="/inventory/dispense/<%= d.dispense_id %>/approve"
-                          onsubmit="return confirm('Approve this dispense? Stock will be deducted now.')">
-                      <input type="hidden" name="back" value="<%= backUrl %>" />
-                      <button class="mini-btn ok">Approve</button>
-                    </form>
-                    <form method="POST" action="/inventory/dispense/<%= d.dispense_id %>/reject"
-                          onsubmit="return confirm('Reject this pending dispense? It will be removed.')">
-                      <input type="hidden" name="back" value="<%= backUrl %>" />
-                      <button class="mini-btn bad">Reject</button>
-                    </form>
-                  </div>
-                <% } %>
-              </td>
-            <% } %>
+            <td class="muted" style="font-size:12.5px"><%= d.notes || "—" %></td>
           </tr>
         <% }) %>
       </tbody>

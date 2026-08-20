@@ -32,9 +32,6 @@
         <% if (medicine) { %>
           <input type="hidden" name="medicine_id" value="<%= medicine.medicine_id %>" />
           <input type="text" value="<%= medicine.name %><%= medicine.dosage ? ' ' + medicine.dosage : '' %> (<%= medicine.unit || 'unit' %>) — <%= medicine.stock_quantity %> in stock" disabled />
-          <% if (medicine.requires_doctor_approval) { %>
-            <span class="muted" style="font-size:11.5px">Requires doctor approval — stock won't be deducted until approved.</span>
-          <% } %>
         <% } else if (!medicines.length) { %>
           <p class="muted" style="margin:6px 0 0">No medicines in inventory yet. <a href="/inventory/new">Add one first →</a></p>
         <% } else { %>
@@ -42,7 +39,7 @@
                 items: medicines.map(med => ({
                   id: med.medicine_id,
                   label: `${med.name}${med.dosage ? " " + med.dosage : ""} (${med.unit || "unit"})`,
-                  meta: `${med.stock_quantity} in stock${med.requires_doctor_approval ? " · needs doctor approval" : ""}`,
+                  meta: `${med.stock_quantity} in stock`,
                 })),
                 name: "medicine_id",
                 selectedId: dispense.medicine_id,

@@ -171,7 +171,6 @@ router.get("/portal/household/:id", requirePatient, async (req, res, next) => {
         `SELECT d.dispensed_at, d.quantity, m.name AS medicine_name, m.dosage, m.unit
            FROM medicine_dispenses d JOIN medicines m ON m.medicine_id = d.medicine_id
           WHERE d.patient_id = $1
-            AND (d.requires_doctor_approval = false OR d.approved_at IS NOT NULL)
           ORDER BY d.dispensed_at DESC
           LIMIT 50`,
         [childId]
@@ -303,7 +302,6 @@ router.get("/portal", requirePatient, async (req, res, next) => {
             `SELECT d.dispensed_at, d.quantity, m.name AS medicine_name, m.dosage, m.unit
                FROM medicine_dispenses d JOIN medicines m ON m.medicine_id = d.medicine_id
               WHERE d.patient_id = $1
-                AND (d.requires_doctor_approval = false OR d.approved_at IS NOT NULL)
               ORDER BY d.dispensed_at DESC
               LIMIT 50`,
             [pid]

@@ -183,6 +183,9 @@ function readForm(body) {
     family_contact_relation: readRelation(body),
     family_contact_number: digitsOnly(body.family_contact_number) || null,
     family_email: (body.family_email || "").trim().toLowerCase() || null,
+    // How this patient wants to be reminded. Defaults to both so an existing
+    // record that predates the field behaves exactly as it always did.
+    reminder_channel: REMINDER_CHANNELS.includes(body.reminder_channel) ? body.reminder_channel : "both",
     is_minor: calcIsMinor(birthdate),
     guardian_name: (body.guardian_name || "").trim() || null,
     guardian_consent: body.guardian_consent === "on" || body.guardian_consent === "true",
@@ -191,6 +194,7 @@ function readForm(body) {
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const REMINDER_CHANNELS = ["both", "email", "sms", "none"];
 
 // Shared validation. Returns an array of error strings (empty = valid).
 function validate(p) {
@@ -198,6 +202,13 @@ function validate(p) {
   if (!p.full_name) errors.push("Full name is required.");
   if (p.email && !EMAIL_RE.test(p.email)) errors.push("Patient email is not a valid email address.");
   if (p.family_email && !EMAIL_RE.test(p.family_email)) errors.push("Family email is not a valid email address.");
+  // Choosing a channel this record has no address for would quietly mean "never
+  // remind this patient" — which is a real option, but it should be the one
+  // that was actually chosen.
+  if (p.reminder_channel === "email" && !p.email && !p.family_email)
+    errors.push("You chose email reminders, but there is no email address on this record. Add one, or pick another way to remind them.");
+  if (p.reminder_channel === "sms" && !p.contact_number && !p.family_contact_number)
+    errors.push("You chose SMS reminders, but there is no mobile number on this record. Add one, or pick another way to remind them.");
   if (p.sex && !["male", "female"].includes(p.sex)) errors.push("Invalid sex.");
   // Panel requirement: minors need guardian + consent.
   if (p.is_minor) {
@@ -322,13 +333,13 @@ router.post("/patients", async (req, res, next) => {
       `INSERT INTO patients
          (patient_number, full_name, birthdate, sex, address, contact_number, email,
           family_number, family_contact_name, family_contact_relation, family_contact_number, family_email,
-          is_minor, guardian_name, guardian_consent, privacy_consent, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+          reminder_channel, is_minor, guardian_name, guardian_consent, privacy_consent, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
        RETURNING patient_id`,
       [
         patient_number, p.full_name, p.birthdate, p.sex, p.address,
         p.contact_number, p.email, p.family_number, p.family_contact_name, p.family_contact_relation,
-        p.family_contact_number, p.family_email, p.is_minor, p.guardian_name,
+        p.family_contact_number, p.family_email, p.reminder_channel, p.is_minor, p.guardian_name,
         p.guardian_consent, p.privacy_consent, req.session.user.user_id,
       ]
     );
@@ -380,7 +391,7 @@ router.get("/patients/:id", async (req, res, next) => {
         [req.params.id]
       ),
       db.query(
-        `SELECT d.dispense_id, d.quantity, d.dispensed_at, d.requires_doctor_approval, d.approved_at,
+        `SELECT d.dispense_id, d.quantity, d.dispensed_at, d.notes,
                 m.medicine_id, m.name AS medicine_name, m.unit
            FROM medicine_dispenses d
            JOIN medicines m ON m.medicine_id = d.medicine_id
@@ -393,10 +404,9 @@ router.get("/patients/:id", async (req, res, next) => {
       db.query(
         `SELECT v.visit_id, v.visit_date, v.bp_systolic, v.bp_diastolic, v.weight_kg,
                 v.height_cm, v.temperature_c, v.diagnosis, v.consultation_notes,
-                a.full_name AS attended_by_name, d.full_name AS doctor_name
+                a.full_name AS attended_by_name
            FROM visits v
            LEFT JOIN users a ON a.user_id = v.attended_by
-           LEFT JOIN users d ON d.user_id = v.doctor_id
           WHERE v.patient_id = $1
           ORDER BY v.visit_date DESC, v.visit_id DESC
           LIMIT 50`,
@@ -534,13 +544,15 @@ router.post("/patients/:id", async (req, res, next) => {
       `UPDATE patients SET
          full_name=$1, birthdate=$2, sex=$3, address=$4, contact_number=$5, email=$6,
          family_number=$7, family_contact_name=$8, family_contact_relation=$9, family_contact_number=$10,
-         family_email=$11, is_minor=$12, guardian_name=$13, guardian_consent=$14, privacy_consent=$15, updated_at=now()
-       WHERE patient_id=$16
-         ${guarded ? "AND date_trunc('milliseconds', updated_at) = $17" : ""}`,
+         family_email=$11, reminder_channel=$12, is_minor=$13, guardian_name=$14, guardian_consent=$15,
+         privacy_consent=$16, updated_at=now()
+       WHERE patient_id=$17
+         ${guarded ? "AND date_trunc('milliseconds', updated_at) = $18" : ""}`,
       [
         p.full_name, p.birthdate, p.sex, p.address, p.contact_number, p.email,
         p.family_number, p.family_contact_name, p.family_contact_relation, p.family_contact_number,
-        p.family_email, p.is_minor, p.guardian_name, p.guardian_consent, p.privacy_consent, req.params.id,
+        p.family_email, p.reminder_channel, p.is_minor, p.guardian_name, p.guardian_consent,
+        p.privacy_consent, req.params.id,
         ...(guarded ? [new Date(seenAt)] : []),
       ]
     );

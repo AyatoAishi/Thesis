@@ -182,8 +182,6 @@ app.use(async (req, res, next) => {
          (SELECT count(*)::int FROM appointments WHERE appointment_date=$1) AS today_appts,
          (SELECT count(*)::int FROM appointments WHERE appointment_date=$1 AND status='scheduled') AS today_waiting,
          (SELECT count(*)::int FROM medicines WHERE stock_quantity < low_stock_threshold) AS low_stock,
-         (SELECT count(*)::int FROM medicine_dispenses
-           WHERE requires_doctor_approval = true AND approved_at IS NULL) AS pending_approval,
          (SELECT role   FROM users WHERE user_id=$2) AS live_role,
          (SELECT status FROM users WHERE user_id=$2) AS live_status,
          (SELECT full_name FROM users WHERE user_id=$2) AS live_name`,
@@ -212,9 +210,6 @@ app.use(async (req, res, next) => {
       { key: "today_waiting", n: c.today_waiting, href: "/appointments",
         label: `${c.today_waiting} patient${c.today_waiting === 1 ? "" : "s"} still expected today`,
         roles: ["nurse", "facilitator", "recorder", "doctor", "admin"] },
-      { key: "pending_approval", n: c.pending_approval, href: "/inventory/dispenses?status=pending",
-        label: `${c.pending_approval} medicine request${c.pending_approval === 1 ? "" : "s"} waiting for the doctor`,
-        roles: ["nurse", "doctor", "admin"] },
       { key: "low_stock", n: c.low_stock, href: "/inventory?low=1",
         label: `${c.low_stock} medicine${c.low_stock === 1 ? "" : "s"} low on stock`,
         roles: ["nurse", "admin"] },

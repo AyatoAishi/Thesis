@@ -78,9 +78,9 @@ async function findOrCreateMedicine(m) {
   const existing = await db.query("SELECT medicine_id FROM medicines WHERE name=$1", [m.name]);
   if (existing.rows[0]) return { id: existing.rows[0].medicine_id, created: false };
   const ins = await db.query(
-    `INSERT INTO medicines (name, description, unit, stock_quantity, low_stock_threshold, source, requires_doctor_approval)
-     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING medicine_id`,
-    [m.name, m.description || null, m.unit, m.stock_quantity, m.low_stock_threshold, m.source, Boolean(m.requires_doctor_approval)]
+    `INSERT INTO medicines (name, description, unit, stock_quantity, low_stock_threshold, source)
+     VALUES ($1,$2,$3,$4,$5,$6) RETURNING medicine_id`,
+    [m.name, m.description || null, m.unit, m.stock_quantity, m.low_stock_threshold, m.source]
   );
   return { id: ins.rows[0].medicine_id, created: true };
 }
@@ -106,7 +106,6 @@ async function findOrCreateMedicine(m) {
         [s.full_name, s.username, hash, s.role]
       );
     }
-    const doctorId = (await db.query("SELECT user_id FROM users WHERE username='liza.ang'")).rows[0].user_id;
     const nurseId = (await db.query("SELECT user_id FROM users WHERE username='elena.marquez'")).rows[0].user_id;
     console.log(`  ✓ Staff ready: ${staff.map((s) => s.username).join(", ")} (password: Demo1234!)`);
 
@@ -219,13 +218,13 @@ async function findOrCreateMedicine(m) {
     // the moment someone opens the app. ----------------------------------------
     const medDefs = [
       { name: "Paracetamol 500mg", unit: "tablet", stock_quantity: 150, low_stock_threshold: 30, source: "DOH supply" },
-      { name: "Amoxicillin 500mg", unit: "capsule", stock_quantity: 80, low_stock_threshold: 20, source: "DOH supply", requires_doctor_approval: true },
+      { name: "Amoxicillin 500mg", unit: "capsule", stock_quantity: 80, low_stock_threshold: 20, source: "DOH supply" },
       { name: "Ferrous Sulfate + Folic Acid", unit: "tablet", stock_quantity: 200, low_stock_threshold: 40, source: "DOH supply" },
       { name: "Amlodipine 10mg", unit: "tablet", stock_quantity: 60, low_stock_threshold: 20, source: "City Health Office" },
       { name: "Losartan 50mg", unit: "tablet", stock_quantity: 45, low_stock_threshold: 20, source: "City Health Office" },
       { name: "Metformin 500mg", unit: "tablet", stock_quantity: 12, low_stock_threshold: 20, source: "City Health Office" }, // low
       { name: "Vitamin B-Complex", unit: "tablet", stock_quantity: 90, low_stock_threshold: 20, source: "DOH supply" },
-      { name: "Tramadol 50mg", unit: "tablet", stock_quantity: 15, low_stock_threshold: 10, source: "City Health Office", requires_doctor_approval: true },
+      { name: "Tramadol 50mg", unit: "tablet", stock_quantity: 15, low_stock_threshold: 10, source: "City Health Office" },
       { name: "Tetanus Toxoid vaccine", unit: "vial", stock_quantity: 6, low_stock_threshold: 10, source: "DOH supply" }, // low
     ];
     const medicines = {};
@@ -237,8 +236,9 @@ async function findOrCreateMedicine(m) {
     }
     console.log(`  ✓ Medicines ready: ${medDefs.length} total (${createdMeds} newly created) — 2 low stock, 2 require doctor approval.`);
 
-    // ---- 6) dispenses: completed history + one live pending approval + one
-    // already-approved, so every dispense-queue tab has something in it. ------
+    // ---- 6) dispenses: completed history. The demo used to seed one pending
+    // and one approved request so every tab of the old approval queue had
+    // something in it; the queue is gone (2026-08-20) and so are they. --------
     async function seedDispense(patientName, medName, qty, opts = {}) {
       const patient_id = patients[patientName];
       const medicine_id = medicines[medName];
@@ -247,10 +247,9 @@ async function findOrCreateMedicine(m) {
         [patient_id, medicine_id]
       );
       if (exists.rowCount) return;
-      const cols = ["patient_id", "medicine_id", "quantity", "dispensed_by", "requires_doctor_approval"];
-      const vals = [patient_id, medicine_id, qty, nurseId, Boolean(opts.requiresApproval)];
+      const cols = ["patient_id", "medicine_id", "quantity", "dispensed_by"];
+      const vals = [patient_id, medicine_id, qty, nurseId];
       if (opts.dispensedAt) { cols.push("dispensed_at"); vals.push(opts.dispensedAt); }
-      if (opts.approved) { cols.push("approved_by", "approved_at"); vals.push(doctorId, opts.approvedAt || new Date()); }
       const params = vals.map((_, i) => `$${i + 1}`).join(",");
       await db.query(`INSERT INTO medicine_dispenses (${cols.join(",")}) VALUES (${params})`, vals);
     }
@@ -261,14 +260,9 @@ async function findOrCreateMedicine(m) {
     await seedDispense("Remedios Bautista", "Losartan 50mg", 30, { dispensedAt: `${F.addDays(today, -21)} 10:05:00+08` });
     await seedDispense("Sofia Castillo", "Vitamin B-Complex", 30, { dispensedAt: `${F.addDays(today, -14)} 11:00:00+08` });
     await seedDispense("Liam Andres Reyes", "Paracetamol 500mg", 1, { dispensedAt: `${F.addDays(today, -21)} 14:00:00+08` });
-    // already-approved (doctor already signed off) — shows in the "Approved" tab
-    await seedDispense("Norma Villanueva", "Tramadol 50mg", 10, {
-      requiresApproval: true, dispensedAt: `${F.addDays(today, -7)} 15:00:00+08`,
-      approved: true, approvedAt: `${F.addDays(today, -7)} 16:30:00+08`,
-    });
-    // still pending — this is what makes the doctor's approval queue non-empty on a fresh login
-    await seedDispense("Jose Rizalino Mendoza", "Amoxicillin 500mg", 21, { requiresApproval: true });
-    console.log("  ✓ Dispenses seeded — including one pending doctor approval (Jose Mendoza / Amoxicillin) and one already approved.");
+    await seedDispense("Norma Villanueva", "Tramadol 50mg", 10, { dispensedAt: `${F.addDays(today, -7)} 15:00:00+08` });
+    await seedDispense("Jose Rizalino Mendoza", "Amoxicillin 500mg", 21, { dispensedAt: `${F.addDays(today, -7)} 15:30:00+08` });
+    console.log("  ✓ Dispenses seeded.");
 
     console.log("\n  Demo data ready. Log in as any of:");
     staff.forEach((s) => console.log(`    ${s.role.padEnd(11)} ${s.username} / Demo1234!`));

@@ -322,8 +322,7 @@ router.get("/reports/inventory", requireRole(...REPORT_ROLES), async (req, res, 
       db.query(
         `SELECT m.medicine_id, m.name, m.unit,
                 count(*)::int AS dispense_count,
-                sum(d.quantity)::int AS total_qty,
-                count(*) FILTER (WHERE d.requires_doctor_approval AND d.approved_at IS NULL)::int AS pending_count
+                sum(d.quantity)::int AS total_qty
            FROM medicine_dispenses d JOIN medicines m ON m.medicine_id = d.medicine_id
           WHERE d.dispensed_at::date BETWEEN $1 AND $2
           GROUP BY m.medicine_id, m.name, m.unit
@@ -387,7 +386,6 @@ router.get("/reports/consumption", requireRole(...REPORT_ROLES), async (req, res
          JOIN medicines m ON m.medicine_id = d.medicine_id
          LEFT JOIN users u ON u.user_id = d.dispensed_by
         WHERE d.dispensed_at::date BETWEEN $1 AND $2
-          AND (d.requires_doctor_approval = false OR d.approved_at IS NOT NULL)
         ORDER BY d.dispensed_at`,
       [from, to]
     );
@@ -465,7 +463,6 @@ router.get("/reports/senior-citizen", requireRole(...REPORT_ROLES), async (req, 
            FROM medicine_dispenses d
            JOIN patients p ON p.patient_id = d.patient_id
           WHERE d.dispensed_at::date BETWEEN $1 AND $2
-            AND (d.requires_doctor_approval = false OR d.approved_at IS NOT NULL)
             AND d.medicine_id = ANY ($3)
             AND EXTRACT(YEAR FROM age($2::date, p.birthdate)) >= 60
           GROUP BY p.patient_id, p.full_name, p.sex, p.birthdate, d.medicine_id`,
@@ -543,7 +540,6 @@ router.get("/reports/family-planning", requireRole(...REPORT_ROLES), async (req,
          JOIN medicines m ON m.medicine_id = d.medicine_id
          LEFT JOIN users u ON u.user_id = d.dispensed_by
         WHERE d.dispensed_at::date BETWEEN $1 AND $2
-          AND (d.requires_doctor_approval = false OR d.approved_at IS NOT NULL)
           AND m.is_family_planning = true
         ORDER BY d.dispensed_at`,
       [from, to]
@@ -621,7 +617,6 @@ router.get("/reports/analytics", requireRole(...REPORT_ROLES), async (req, res, 
         `SELECT count(DISTINCT d.patient_id)::int n
            FROM medicine_dispenses d JOIN medicines m ON m.medicine_id=d.medicine_id
           WHERE d.dispensed_at::date BETWEEN $1 AND $2
-            AND (d.requires_doctor_approval=false OR d.approved_at IS NOT NULL)
             AND m.is_family_planning=true`,
         [from, to]
       ),
@@ -631,7 +626,6 @@ router.get("/reports/analytics", requireRole(...REPORT_ROLES), async (req, res, 
            JOIN patients p ON p.patient_id=d.patient_id
            JOIN medicines m ON m.medicine_id=d.medicine_id
           WHERE d.dispensed_at::date BETWEEN $1 AND $2
-            AND (d.requires_doctor_approval=false OR d.approved_at IS NOT NULL)
             AND m.name ILIKE ANY ($3)
             AND EXTRACT(YEAR FROM age($2::date, p.birthdate)) >= 60`,
         [from, to, SENIOR_MED_PATTERNS]
@@ -640,7 +634,6 @@ router.get("/reports/analytics", requireRole(...REPORT_ROLES), async (req, res, 
         `SELECT m.medicine_id, m.name, m.dosage, m.unit, m.stock_quantity,
                 coalesce(sum(d.quantity) FILTER (
                   WHERE d.dispensed_at::date BETWEEN $1 AND $2
-                    AND (d.requires_doctor_approval=false OR d.approved_at IS NOT NULL)
                 ), 0)::int AS qty_in_range
            FROM medicines m
            LEFT JOIN medicine_dispenses d ON d.medicine_id = m.medicine_id
@@ -659,7 +652,6 @@ router.get("/reports/analytics", requireRole(...REPORT_ROLES), async (req, res, 
              JOIN fam f ON f.patient_id = d.patient_id
              JOIN medicines m ON m.medicine_id = d.medicine_id
             WHERE m.is_family_planning = true
-              AND (d.requires_doctor_approval=false OR d.approved_at IS NOT NULL)
          )
          SELECT (SELECT count(DISTINCT fam_key) FROM fam) AS total_families,
                 (SELECT count(*) FROM fp_fam) AS fp_families`
@@ -719,7 +711,7 @@ router.get("/reports/export/patient/:id", async (req, res, next) => {
         [req.params.id]
       ),
       db.query(
-        `SELECT d.dispensed_at, d.quantity, d.requires_doctor_approval, d.approved_at,
+        `SELECT d.dispensed_at, d.quantity, d.notes,
                 m.name AS medicine_name, m.unit
            FROM medicine_dispenses d JOIN medicines m ON m.medicine_id = d.medicine_id
           WHERE d.patient_id = $1

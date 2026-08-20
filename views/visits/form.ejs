@@ -82,14 +82,6 @@
         <textarea name="consultation_notes" rows="5"
                   placeholder="Symptoms, history, advice given, follow-up…"><%= v.consultation_notes || '' %></textarea>
       </label>
-      <label class="field"><span>Seen by doctor <span class="muted">(optional)</span></span>
-        <select name="doctor_id">
-          <option value="">— no doctor present —</option>
-          <% doctors.forEach(d => { %>
-            <option value="<%= d.user_id %>" <%= String(v.doctor_id) === String(d.user_id) ? "selected" : "" %>><%= d.full_name %></option>
-          <% }) %>
-        </select>
-      </label>
     </div>
     <p class="muted" style="font-size:12px;margin:14px 2px 0">
       The patient sees the date, vital signs and diagnosis on their portal.

@@ -16,9 +16,6 @@
     <a href="/inventory?low=1" style="text-decoration:none">
       <span class="sum-pill <%= lowCount ? 'bad' : '' %>"><b><%= lowCount %></b> low stock</span>
     </a>
-    <a href="/inventory/dispenses?status=pending" style="text-decoration:none">
-      <span class="sum-pill <%= pendingCount ? 'warn' : '' %>"><b><%= pendingCount %></b> pending doctor approval</span>
-    </a>
     <% if (lowOnly) { %><a class="mini-btn" href="/inventory">Clear filter</a><% } %>
   </div>
 
@@ -35,7 +32,7 @@
   <% } else { %>
     <table class="tbl">
       <thead>
-        <tr><th>Name</th><th>Unit</th><th>Stock</th><th>Source</th><th>Approval</th><th></th></tr>
+        <tr><th>Name</th><th>Unit</th><th>Stock</th><th>Source</th><th></th></tr>
       </thead>
       <tbody>
         <% medicines.forEach(m => { %>
@@ -53,7 +50,6 @@
               <% if (low) { %><span class="badge bad" style="margin-left:6px">Low</span><% } %>
             </td>
             <td><%= m.source || "—" %></td>
-            <td><% if (m.requires_doctor_approval) { %><span class="badge warn">Doctor approval</span><% } else { %><span class="muted">—</span><% } %></td>
             <td style="text-align:right"><a href="/inventory/<%= m.medicine_id %>/edit" class="muted">Edit</a></td>
           </tr>
         <% }) %>

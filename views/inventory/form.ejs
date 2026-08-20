@@ -57,16 +57,6 @@
 
   <div class="card">
     <label class="check">
-      <input type="checkbox" name="requires_doctor_approval" <%= m.requires_doctor_approval ? 'checked' : '' %> />
-      <span>Requires <b>doctor approval</b> before dispensing (e.g. controlled/prescription medicine)</span>
-    </label>
-    <p class="muted" style="font-size:12px;margin:10px 0 0">
-      When checked, dispensing this medicine stays pending — stock isn't deducted — until a doctor approves it.
-    </p>
-  </div>
-
-  <div class="card">
-    <label class="check">
       <input type="checkbox" name="is_family_planning" <%= m.is_family_planning ? 'checked' : '' %> />
       <span>This is a <b>family planning commodity</b> (pills, condoms, injectables, IUD, implant, etc.)</span>
     </label>

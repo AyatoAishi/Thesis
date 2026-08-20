@@ -53,7 +53,6 @@ function readForm(body) {
     temperature_c: num(body.temperature_c),
     diagnosis: (body.diagnosis || "").trim() || null,
     consultation_notes: (body.consultation_notes || "").trim() || null,
-    doctor_id: parseInt(body.doctor_id, 10) || null,
     appointment_id: parseInt(body.appointment_id, 10) || null,
   };
 }
@@ -84,13 +83,6 @@ function validate(v) {
   if (!anything) errors.push("Record at least one vital sign, a diagnosis, or a note.");
 
   return errors;
-}
-
-async function loadDoctors() {
-  const { rows } = await db.query(
-    "SELECT user_id, full_name FROM users WHERE role='doctor' AND status='active' ORDER BY full_name"
-  );
-  return rows;
 }
 
 async function loadPatient(id) {
@@ -129,7 +121,6 @@ router.get("/patients/:id/visits/new", requireRole(...CLINICAL_ROLES), async (re
         visit_date: F.manilaToday(),
         appointment_id: parseInt(req.query.appointment_id, 10) || null,
       },
-      doctors: await loadDoctors(),
       appointments: await loadAppointments(patient.patient_id),
       errors: [],
       longDate: F.longDate,
@@ -155,8 +146,7 @@ router.post("/patients/:id/visits", requireRole(...CLINICAL_ROLES), async (req, 
         mode: "new",
         patient,
         visit: v,
-        doctors: await loadDoctors(),
-        appointments: await loadAppointments(patient.patient_id),
+          appointments: await loadAppointments(patient.patient_id),
         errors,
         longDate: F.longDate,
         pretty: F.prettyService,
@@ -167,13 +157,13 @@ router.post("/patients/:id/visits", requireRole(...CLINICAL_ROLES), async (req, 
       `INSERT INTO visits
          (patient_id, appointment_id, visit_date, bp_systolic, bp_diastolic,
           weight_kg, height_cm, temperature_c, diagnosis, consultation_notes,
-          attended_by, doctor_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+          attended_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
        RETURNING visit_id`,
       [
         patient.patient_id, v.appointment_id, v.visit_date, v.bp_systolic, v.bp_diastolic,
         v.weight_kg, v.height_cm, v.temperature_c, v.diagnosis, v.consultation_notes,
-        req.session.user.user_id, v.doctor_id,
+        req.session.user.user_id,
       ]
     );
 
@@ -201,7 +191,6 @@ router.get("/visits/:id/edit", requireRole(...CLINICAL_ROLES), async (req, res, 
       mode: "edit",
       patient,
       visit: rows[0],
-      doctors: await loadDoctors(),
       appointments: await loadAppointments(patient.patient_id),
       errors: [],
       longDate: F.longDate,
@@ -230,8 +219,7 @@ router.post("/visits/:id", requireRole(...CLINICAL_ROLES), async (req, res, next
         mode: "edit",
         patient,
         visit: { ...v, visit_id: req.params.id },
-        doctors: await loadDoctors(),
-        appointments: await loadAppointments(patient.patient_id),
+          appointments: await loadAppointments(patient.patient_id),
         errors,
         longDate: F.longDate,
         pretty: F.prettyService,
@@ -242,12 +230,12 @@ router.post("/visits/:id", requireRole(...CLINICAL_ROLES), async (req, res, next
       `UPDATE visits SET
          appointment_id=$1, visit_date=$2, bp_systolic=$3, bp_diastolic=$4,
          weight_kg=$5, height_cm=$6, temperature_c=$7, diagnosis=$8,
-         consultation_notes=$9, doctor_id=$10
-       WHERE visit_id=$11`,
+         consultation_notes=$9
+       WHERE visit_id=$10`,
       [
         v.appointment_id, v.visit_date, v.bp_systolic, v.bp_diastolic,
         v.weight_kg, v.height_cm, v.temperature_c, v.diagnosis,
-        v.consultation_notes, v.doctor_id, req.params.id,
+        v.consultation_notes, req.params.id,
       ]
     );
 

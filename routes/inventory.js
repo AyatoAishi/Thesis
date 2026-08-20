@@ -1,25 +1,27 @@
 // ============================================================================
-// routes/inventory.js — medicine stock + dispensing with doctor approval (M6)
-// Behind requireLogin (mounted after the gate in server.js); only the
-// approve/reject actions are further gated to the doctor role.
+// routes/inventory.js — medicine stock + dispensing (M6)
+// Behind requireLogin (mounted after the gate in server.js).
+//
+// The doctor-approval step was removed on 2026-08-20. There is no doctor at
+// this clinic — the staff confirmed it — so every controlled-medicine request
+// sat in a queue waiting for someone who was never going to come. One had been
+// waiting since the day the system launched. A safeguard that cannot fire is
+// not a safeguard; it is a medicine that never reaches the patient.
 //
 // Design notes:
-//   - `requires_doctor_approval` lives on the MEDICINE (not chosen per-dispense
-//     by whoever is dispensing — that would let the safeguard be bypassed by
-//     just unchecking a box). It's copied onto the dispense row at creation
-//     time so history stays accurate even if the medicine's flag changes later.
-//   - Stock is only subtracted when a dispense actually completes: immediately
-//     for medicines that don't need approval, or at the moment a doctor
-//     approves one that does. A pending request never touches stock_quantity,
-//     so the shelf count always matches what has truly left the shelf.
-//   - Both the stock-check and the subtract happen in one DB transaction
+//   - Stock is subtracted the moment a dispense is recorded, because that is
+//     the moment the medicine leaves the shelf.
+//   - The stock-check and the subtract happen in one DB transaction
 //     (db.getClient) with a conditional UPDATE ... WHERE stock_quantity >= $n,
 //     so two concurrent dispenses can't push stock negative.
+//   - medicine_dispenses.requires_doctor_approval / approved_by / approved_at
+//     remain in the schema and are left untouched on old rows. They record how
+//     those dispenses were actually handled at the time, and rewriting history
+//     to match today's workflow would be a lie.
 // ============================================================================
 const express = require("express");
 const db = require("../db");
 const audit = require("../lib/audit");
-const { requireRole } = require("../middleware/auth");
 
 const router = express.Router();
 
@@ -39,7 +41,6 @@ function readMedicineForm(body) {
     stock_quantity: toInt(body.stock_quantity, 0),
     low_stock_threshold: toInt(body.low_stock_threshold, 10),
     source: (body.source || "").trim() || null,
-    requires_doctor_approval: body.requires_doctor_approval === "on" || body.requires_doctor_approval === "true",
     is_family_planning: body.is_family_planning === "on" || body.is_family_planning === "true",
   };
 }
@@ -96,7 +97,7 @@ async function rerenderDispenseForm(res, { body, medicine, errors }) {
     ? null
     : (
         await db.query(
-          "SELECT medicine_id, name, unit, dosage, stock_quantity, requires_doctor_approval FROM medicines ORDER BY name LIMIT 500"
+          "SELECT medicine_id, name, unit, dosage, stock_quantity FROM medicines ORDER BY name LIMIT 500"
         )
       ).rows;
   return res.status(400).render("inventory/dispense-form", {
@@ -125,19 +126,16 @@ router.get("/inventory", async (req, res, next) => {
     if (lowOnly) conds.push("stock_quantity < low_stock_threshold");
     const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
 
-    const [{ rows }, totalQ, lowQ, pendingQ] = await Promise.all([
+    const [{ rows }, totalQ, lowQ] = await Promise.all([
       db.query(
         `SELECT medicine_id, name, description, unit, dosage, stock_quantity, low_stock_threshold,
-                source, requires_doctor_approval, is_family_planning
+                source, is_family_planning
            FROM medicines ${where}
           ORDER BY name LIMIT 500`,
         params
       ),
       db.query("SELECT count(*)::int n FROM medicines"),
       db.query("SELECT count(*)::int n FROM medicines WHERE stock_quantity < low_stock_threshold"),
-      db.query(
-        "SELECT count(*)::int n FROM medicine_dispenses WHERE requires_doctor_approval=true AND approved_at IS NULL"
-      ),
     ]);
 
     res.render("inventory/list", {
@@ -148,7 +146,6 @@ router.get("/inventory", async (req, res, next) => {
       lowOnly,
       total: totalQ.rows[0].n,
       lowCount: lowQ.rows[0].n,
-      pendingCount: pendingQ.rows[0].n,
       flash: req.query.flash || null,
     });
   } catch (e) {
@@ -213,10 +210,10 @@ router.post("/inventory", async (req, res, next) => {
     }
     const { rows } = await db.query(
       `INSERT INTO medicines
-         (name, description, unit, dosage, stock_quantity, low_stock_threshold, source, requires_doctor_approval, is_family_planning)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+         (name, description, unit, dosage, stock_quantity, low_stock_threshold, source, is_family_planning)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
        RETURNING medicine_id`,
-      [m.name, m.description, m.unit, m.dosage, m.stock_quantity, m.low_stock_threshold, m.source, m.requires_doctor_approval, m.is_family_planning]
+      [m.name, m.description, m.unit, m.dosage, m.stock_quantity, m.low_stock_threshold, m.source, m.is_family_planning]
     );
     audit.log(
       req.session.user.user_id, "create", "medicine", rows[0].medicine_id,
@@ -231,44 +228,23 @@ router.post("/inventory", async (req, res, next) => {
 // ---- DISPENSE QUEUE/HISTORY  GET /inventory/dispenses ----------------------
 router.get("/inventory/dispenses", async (req, res, next) => {
   try {
-    const statuses = ["pending", "approved", "completed", "all"];
-    const status = statuses.includes(req.query.status) ? req.query.status : "pending";
-    const where =
-      status === "pending"
-        ? "d.requires_doctor_approval=true AND d.approved_at IS NULL"
-        : status === "approved"
-        ? "d.requires_doctor_approval=true AND d.approved_at IS NOT NULL"
-        : status === "completed"
-        ? "d.requires_doctor_approval=false"
-        : "TRUE";
-
-    const [{ rows }, pendingQ] = await Promise.all([
-      db.query(
-        `SELECT d.dispense_id, d.quantity, d.dispensed_at, d.requires_doctor_approval, d.approved_at, d.notes,
-                m.medicine_id, m.name AS medicine_name, m.unit,
-                p.patient_id, p.patient_number, p.full_name,
-                du.full_name AS dispensed_by_name, au.full_name AS approved_by_name
-           FROM medicine_dispenses d
-           JOIN medicines m ON m.medicine_id = d.medicine_id
-           JOIN patients  p ON p.patient_id  = d.patient_id
-           LEFT JOIN users du ON du.user_id = d.dispensed_by
-           LEFT JOIN users au ON au.user_id = d.approved_by
-          WHERE ${where}
-          ORDER BY d.dispensed_at DESC
-          LIMIT 300`
-      ),
-      db.query(
-        "SELECT count(*)::int n FROM medicine_dispenses WHERE requires_doctor_approval=true AND approved_at IS NULL"
-      ),
-    ]);
+    const { rows } = await db.query(
+      `SELECT d.dispense_id, d.quantity, d.dispensed_at, d.notes,
+              m.medicine_id, m.name AS medicine_name, m.unit,
+              p.patient_id, p.patient_number, p.full_name,
+              du.full_name AS dispensed_by_name
+         FROM medicine_dispenses d
+         JOIN medicines m ON m.medicine_id = d.medicine_id
+         JOIN patients  p ON p.patient_id  = d.patient_id
+         LEFT JOIN users du ON du.user_id = d.dispensed_by
+        ORDER BY d.dispensed_at DESC
+        LIMIT 300`
+    );
 
     res.render("inventory/dispenses", {
       title: "Dispenses · Sampaguita HC",
       active: "inventory",
       rows,
-      status,
-      pendingCount: pendingQ.rows[0].n,
-      isDoctor: req.session.user.role === "doctor",
       flash: req.query.flash || null,
     });
   } catch (e) {
@@ -304,7 +280,7 @@ router.get("/inventory/dispense/new", async (req, res, next) => {
     }
     if (!medicine) {
       medicines = (
-        await db.query("SELECT medicine_id, name, unit, dosage, stock_quantity, requires_doctor_approval FROM medicines ORDER BY name LIMIT 500")
+        await db.query("SELECT medicine_id, name, unit, dosage, stock_quantity FROM medicines ORDER BY name LIMIT 500")
       ).rows;
     }
 
@@ -340,23 +316,6 @@ router.post("/inventory/dispense", async (req, res, next) => {
     try {
       await client.query("BEGIN");
 
-      if (medicine.requires_doctor_approval) {
-        // Just record the request — stock isn't touched until a doctor approves.
-        await client.query(
-          `INSERT INTO medicine_dispenses
-             (patient_id, medicine_id, quantity, dispensed_by, requires_doctor_approval, notes)
-           VALUES ($1,$2,$3,$4,true,$5)`,
-          [value.patient_id, medicine.medicine_id, value.quantity, req.session.user.user_id, value.notes]
-        );
-        await client.query("COMMIT");
-        return safeRedirect(
-          res,
-          null,
-          `/inventory/${medicine.medicine_id}`,
-          "Dispense recorded — pending doctor approval before stock is deducted."
-        );
-      }
-
       const upd = await client.query(
         `UPDATE medicines SET stock_quantity = stock_quantity - $1, updated_at = now()
           WHERE medicine_id = $2 AND stock_quantity >= $1`,
@@ -372,8 +331,8 @@ router.post("/inventory/dispense", async (req, res, next) => {
       }
       await client.query(
         `INSERT INTO medicine_dispenses
-           (patient_id, medicine_id, quantity, dispensed_by, requires_doctor_approval, notes)
-         VALUES ($1,$2,$3,$4,false,$5)`,
+           (patient_id, medicine_id, quantity, dispensed_by, notes)
+         VALUES ($1,$2,$3,$4,$5)`,
         [value.patient_id, medicine.medicine_id, value.quantity, req.session.user.user_id, value.notes]
       );
       await client.query("COMMIT");
@@ -389,66 +348,6 @@ router.post("/inventory/dispense", async (req, res, next) => {
   }
 });
 
-// ---- APPROVE pending dispense  POST /inventory/dispense/:id/approve -------
-router.post("/inventory/dispense/:id/approve", requireRole("doctor"), async (req, res, next) => {
-  const client = await db.getClient();
-  try {
-    await client.query("BEGIN");
-    const dQ = await client.query(
-      `SELECT dispense_id, medicine_id, quantity FROM medicine_dispenses
-        WHERE dispense_id=$1 AND requires_doctor_approval=true AND approved_at IS NULL
-        FOR UPDATE`,
-      [req.params.id]
-    );
-    if (!dQ.rowCount) {
-      await client.query("ROLLBACK");
-      return safeRedirect(res, req.body.back, "/inventory/dispenses", "That dispense is no longer pending.");
-    }
-    const d = dQ.rows[0];
-    const upd = await client.query(
-      `UPDATE medicines SET stock_quantity = stock_quantity - $1, updated_at = now()
-        WHERE medicine_id=$2 AND stock_quantity >= $1`,
-      [d.quantity, d.medicine_id]
-    );
-    if (!upd.rowCount) {
-      await client.query("ROLLBACK");
-      return safeRedirect(res, req.body.back, "/inventory/dispenses", "Not enough stock left to approve this dispense.");
-    }
-    await client.query(
-      `UPDATE medicine_dispenses SET approved_by=$1, approved_at=now() WHERE dispense_id=$2`,
-      [req.session.user.user_id, req.params.id]
-    );
-    await client.query("COMMIT");
-    safeRedirect(res, req.body.back, "/inventory/dispenses", "Dispense approved — stock updated.");
-  } catch (e) {
-    await client.query("ROLLBACK");
-    next(e);
-  } finally {
-    client.release();
-  }
-});
-
-// ---- REJECT pending dispense  POST /inventory/dispense/:id/reject ---------
-// Stock was never touched for a pending request, so rejecting is just removing
-// the request — nothing to roll back.
-router.post("/inventory/dispense/:id/reject", requireRole("doctor"), async (req, res, next) => {
-  try {
-    const { rowCount } = await db.query(
-      `DELETE FROM medicine_dispenses
-        WHERE dispense_id=$1 AND requires_doctor_approval=true AND approved_at IS NULL`,
-      [req.params.id]
-    );
-    safeRedirect(
-      res,
-      req.body.back,
-      "/inventory/dispenses",
-      rowCount ? "Pending dispense rejected." : "That dispense is no longer pending."
-    );
-  } catch (e) {
-    next(e);
-  }
-});
-
 // ---- VIEW  GET /inventory/:id ----------------------------------------------
 router.get("/inventory/:id", async (req, res, next) => {
   try {
@@ -456,13 +355,12 @@ router.get("/inventory/:id", async (req, res, next) => {
     if (!rows[0]) return next();
 
     const { rows: dispenses } = await db.query(
-      `SELECT d.dispense_id, d.quantity, d.dispensed_at, d.requires_doctor_approval, d.approved_at, d.notes,
+      `SELECT d.dispense_id, d.quantity, d.dispensed_at, d.notes,
               p.patient_id, p.patient_number, p.full_name,
-              du.full_name AS dispensed_by_name, au.full_name AS approved_by_name
+              du.full_name AS dispensed_by_name
          FROM medicine_dispenses d
          JOIN patients p ON p.patient_id = d.patient_id
          LEFT JOIN users du ON du.user_id = d.dispensed_by
-         LEFT JOIN users au ON au.user_id = d.approved_by
         WHERE d.medicine_id = $1
         ORDER BY d.dispensed_at DESC
         LIMIT 50`,
@@ -546,10 +444,10 @@ router.post("/inventory/:id", async (req, res, next) => {
     const { rowCount } = await db.query(
       `UPDATE medicines SET
          name=$1, description=$2, unit=$3, dosage=$4, stock_quantity=$5, low_stock_threshold=$6,
-         source=$7, requires_doctor_approval=$8, is_family_planning=$9, updated_at=now()
-       WHERE medicine_id=$10 ${guarded ? "AND date_trunc('milliseconds', updated_at) = $11" : ""}`,
+         source=$7, is_family_planning=$8, updated_at=now()
+       WHERE medicine_id=$9 ${guarded ? "AND date_trunc('milliseconds', updated_at) = $10" : ""}`,
       [m.name, m.description, m.unit, m.dosage, m.stock_quantity, m.low_stock_threshold,
-       m.source, m.requires_doctor_approval, m.is_family_planning, req.params.id,
+       m.source, m.is_family_planning, req.params.id,
        ...(guarded ? [new Date(seenAt)] : [])]
     );
 

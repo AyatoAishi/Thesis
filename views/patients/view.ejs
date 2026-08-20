@@ -76,6 +76,15 @@
     <div><dt>Birthdate</dt><dd><%= fmt(p.birthdate) %><%= a !== null ? ` (${a} yrs)` : "" %></dd></div>
     <div><dt>Patient contact</dt><dd><%= p.contact_number || "—" %></dd></div>
     <div><dt>Email</dt><dd><%= p.email || "—" %></dd></div>
+    <div><dt>Reminders</dt><dd>
+      <%
+        const rcLabel = { both: "Email and SMS", email: "Email only", sms: "SMS only", none: "None" };
+        const rc = p.reminder_channel || "both";
+      %>
+      <% if (rc === "none") { %>
+        <span class="badge warn">Not reminded</span>
+      <% } else { %><%= rcLabel[rc] %><% } %>
+    </dd></div>
     <div><dt>Family</dt><dd>
       <% if (familyMembers && familyMembers.length) { %>
         Linked with <% familyMembers.forEach((m, i) => { %><a href="/patients/<%= m.patient_id %>" style="color:var(--accent-strong);font-weight:600;text-decoration:none"><%= m.full_name %></a><%= i < familyMembers.length - 1 ? ", " : "" %><% }) %>
@@ -163,7 +172,7 @@
         <div class="visit-head">
           <b><%= longDate(v.visit_date) %></b>
           <span class="muted">
-            <%= v.attended_by_name ? `seen by ${v.attended_by_name}` : "" %><%= v.doctor_name ? ` · doctor: ${v.doctor_name}` : "" %>
+            <%= v.attended_by_name ? `seen by ${v.attended_by_name}` : "" %>
           </span>
           <% if (typeof canRecordVisit !== "undefined" && canRecordVisit) { %>
             <a class="visit-edit muted" href="/visits/<%= v.visit_id %>/edit">Edit</a>
@@ -194,13 +203,6 @@
   <% } %>
 </div>
 
-<%
-  function dispenseBadge(d) {
-    if (!d.requires_doctor_approval) return '<span class="badge ok">Completed</span>';
-    if (d.approved_at) return '<span class="badge info">Approved</span>';
-    return '<span class="badge warn">Pending approval</span>';
-  }
-%>
 <div class="card">
   <div class="svc-head">
     <span class="panel-title">Medicines</span>
@@ -210,14 +212,14 @@
     <p class="muted" style="margin:6px 2px 0">No medicines dispensed yet.</p>
   <% } else { %>
     <table class="tbl">
-      <thead><tr><th>Date</th><th>Medicine</th><th>Qty</th><th>Status</th></tr></thead>
+      <thead><tr><th>Date</th><th>Medicine</th><th>Qty</th><th>Notes</th></tr></thead>
       <tbody>
         <% dispenses.forEach(d => { %>
           <tr>
             <td><%= fmt(d.dispensed_at) %></td>
             <td><a href="/inventory/<%= d.medicine_id %>"><%= d.medicine_name %></a></td>
             <td><%= d.quantity %> <%= d.unit || "" %></td>
-            <td><%- dispenseBadge(d) %></td>
+            <td class="muted" style="font-size:12.5px"><%= d.notes || "—" %></td>
           </tr>
         <% }) %>
       </tbody>

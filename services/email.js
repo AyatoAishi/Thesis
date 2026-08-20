@@ -43,12 +43,19 @@ function isLive() {
 }
 
 // "Sampaguita Health Clinic <clinic@example.com>" -> { name, email }
+//
+// Tolerant of a whole value wrapped in quotes, because that is what was found
+// in the live hosting dashboard: MAIL_FROM had been pasted complete with the
+// quotation marks around it. SMTP shrugged that off, but an HTTP mail API will
+// not — it wants a bare address and rejects anything else outright.
 function parseFrom() {
-  const raw = process.env.MAIL_FROM || "Sampaguita Health Clinic <noreply@example.com>";
+  let raw = (process.env.MAIL_FROM || "Sampaguita Health Clinic <noreply@example.com>").trim();
+  if (raw.length > 1 && raw[0] === '"' && raw[raw.length - 1] === '"') raw = raw.slice(1, -1).trim();
   const m = raw.match(/^\s*(.*?)\s*<([^>]+)>\s*$/);
+  const clean = (v) => v.replace(/^["'\s]+|["'\s]+$/g, "");
   return m
-    ? { name: m[1].replace(/^"|"$/g, "") || "Sampaguita Health Clinic", email: m[2].trim() }
-    : { name: "Sampaguita Health Clinic", email: raw.trim() };
+    ? { name: clean(m[1]) || "Sampaguita Health Clinic", email: clean(m[2]) }
+    : { name: "Sampaguita Health Clinic", email: clean(raw) };
 }
 
 // What this server is configured to do, in a shape that is safe to put on a
@@ -143,7 +150,8 @@ async function sendViaApi({ to, subject, text, html }) {
 
 // ---- SMTP send --------------------------------------------------------------
 async function sendViaSmtp({ to, subject, text, html }) {
-  const from = process.env.MAIL_FROM || "Sampaguita Health Clinic <noreply@example.com>";
+  const f = parseFrom();
+  const from = `${f.name} <${f.email}>`;
   try {
     const info = await getTransport().sendMail({ from, to, subject, text, html });
     return { sent: true, simulated: false, response: info.messageId || "ok" };

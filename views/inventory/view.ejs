@@ -5,16 +5,10 @@
     if (!ts) return "—";
     return new Date(ts).toLocaleString("en-PH", { timeZone: "Asia/Manila", year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   }
-  function dispenseBadge(d) {
-    if (!d.requires_doctor_approval) return '<span class="badge ok">Completed</span>';
-    if (d.approved_at) return '<span class="badge info">Approved</span>';
-    return '<span class="badge warn">Pending approval</span>';
-  }
 %>
 <div class="page-head" style="display:flex;align-items:center;justify-content:space-between">
   <div>
     <h1><%= m.name %><% if (m.dosage) { %> <span class="muted" style="font-weight:400"><%= m.dosage %></span><% } %>
-      <% if (m.requires_doctor_approval) { %><span class="badge warn" style="vertical-align:middle">Doctor approval</span><% } %>
       <% if (m.is_family_planning) { %><span class="badge info" style="vertical-align:middle">Family planning</span><% } %>
       <% if (low) { %><span class="badge bad" style="vertical-align:middle">Low stock</span><% } %>
     </h1>
@@ -37,7 +31,6 @@
     <div><dt>Stock quantity</dt><dd style="<%= low ? 'color:var(--bad-ink);font-weight:700' : '' %>"><%= m.stock_quantity %> <%= m.unit || "" %></dd></div>
     <div><dt>Low-stock threshold</dt><dd><%= m.low_stock_threshold %></dd></div>
     <div><dt>Source</dt><dd><%= m.source || "—" %></dd></div>
-    <div><dt>Doctor approval required</dt><dd><%= m.requires_doctor_approval ? "Yes" : "No" %></dd></div>
   </dl>
 </div>
 
@@ -50,16 +43,15 @@
     <p class="muted" style="margin:6px 2px 0">No dispenses recorded yet.</p>
   <% } else { %>
     <table class="tbl">
-      <thead><tr><th>When</th><th>Patient</th><th>Qty</th><th>Status</th><th>Dispensed by</th><th>Approved by</th></tr></thead>
+      <thead><tr><th>When</th><th>Patient</th><th>Qty</th><th>Dispensed by</th><th>Notes</th></tr></thead>
       <tbody>
         <% dispenses.forEach(d => { %>
           <tr>
             <td class="mono" style="font-size:12px"><%= fmt(d.dispensed_at) %></td>
             <td><a href="/patients/<%= d.patient_id %>"><%= d.full_name %></a></td>
             <td><%= d.quantity %></td>
-            <td><%- dispenseBadge(d) %></td>
             <td><%= d.dispensed_by_name || "—" %></td>
-            <td><%= d.approved_by_name || "—" %></td>
+            <td class="muted" style="font-size:12.5px"><%= d.notes || "—" %></td>
           </tr>
         <% }) %>
       </tbody>

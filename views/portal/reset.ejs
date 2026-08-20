@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= title %></title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body class="auth-body">
+  <main class="auth-wrap">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <span class="brand-badge">S</span>
+        <div>
+          <b>Sampaguita Health Clinic</b>
+          <span class="muted">Patient portal</span>
+        </div>
+      </div>
+
+      <% if (!valid) { %>
+        <h1 class="auth-title">Hindi na gumagana ang link</h1>
+        <div class="auth-notice warn">
+          Ang link na ito ay <b>lumipas na</b>, <b>nagamit na</b>, o hindi tama ang pagkakakopya.
+        </div>
+        <p style="margin:14px 0 0;font-size:13.5px;line-height:1.6">
+          Isang oras lang po gumagana ang link, at isang beses lang magagamit. Humingi po ulit ng
+          bago — o kung wala kayong natatanggap na email, pumunta sa clinic dala ang valid ID.
+        </p>
+        <div class="auth-links" style="margin-top:18px">
+          <a href="/portal/recover">Humingi ng bagong link</a>
+          <a href="/portal/login">Balik sa sign in</a>
+        </div>
+
+      <% } else { %>
+        <h1 class="auth-title">Bagong password</h1>
+        <p style="margin:0 0 16px;font-size:14px;line-height:1.6">
+          Magandang araw po, <b><%= full_name %></b>. Maglagay po kayo ng bagong password dito.
+        </p>
+
+        <% if (error) { %>
+          <div class="auth-error"><%= error %></div>
+        <% } %>
+
+        <form method="POST" action="/portal/reset/<%= token %>" class="auth-form">
+          <label class="field">
+            <span>Bagong password</span>
+            <%- include("../partials/password-field", { name: "password", id: "reset-pw" }) %>
+            <span class="muted" style="font-size:11.5px;font-weight:500">
+              Kahit anong 8 characters pataas. Huwag pong gamitin ang birthday ninyo.
+            </span>
+          </label>
+          <label class="field">
+            <span>Ulitin ang bagong password</span>
+            <%- include("../partials/password-field", { name: "password2", id: "reset-pw2" }) %>
+          </label>
+          <button type="submit" class="btn auth-submit">I-save ang bagong password</button>
+        </form>
+
+        <p class="muted" style="margin:16px 0 0;font-size:12.5px;line-height:1.6">
+          Kapag na-save na ito, masi-sign out ang anumang ibang device na naka-log in sa account
+          ninyo, at kailangan nang gamitin ang bagong password.
+        </p>
+      <% } %>
+
+      <p class="auth-foot muted">Your health records are private · RA 10173 protected</p>
+    </div>
+  </main>
+</body>
+</html>

@@ -28,6 +28,8 @@ const F = require("../lib/format");
 const { buildCard } = require("../lib/immunizationCard");
 const { requirePatient } = require("../middleware/portalAuth");
 const { endOtherPatientSessions } = require("../lib/sessions");
+const emailSvc = require("../services/email");
+const reset = require("../lib/passwordReset");
 
 const router = express.Router();
 
@@ -42,7 +44,7 @@ router.get("/portal/login", (req, res) => {
     notice: req.query.ended
       ? "Nabago ang password ng account mo, kaya na-sign out ka rito. Mag-sign in ulit gamit ang bagong password."
       : req.query.reset
-      ? "Password updated — you can sign in now."
+      ? "Nailigtas na ang bagong password mo. Mag-sign in na gamit ito."
       : null,
   });
 });
@@ -99,21 +101,158 @@ router.post("/portal/logout", (req, res) => {
 router.all("/portal/signup", (req, res) => res.redirect("/portal/login"));
 
 // ---- FORGOT PASSWORD ---------------------------------------------------------
-// Instructions only — there is no self-service reset. A recovery code the
-// patient carries is nearly self-defeating: someone who has lost their password
-// has almost certainly lost the slip of paper too. Email can't replace it
-// either, since only about half the patients here have an address on file, and
-// the ones who don't are mostly the elderly who need help the most.
+// Two ways home, and the patient takes whichever one they can:
 //
-// So recovery is what it already was in practice: the patient walks in, staff
-// check the ID they can see, and hit Reset (routes/portalAccounts.js) to issue
-// a fresh temporary password. Nothing to steal, nothing to expire, works for
-// every patient.
-router.get("/portal/recover", (req, res) => {
+//   1. A link emailed to the address the clinic already has on file. Added
+//      2026-08-20 — the staff shouldn't have to be the password reset desk for
+//      something this ordinary.
+//   2. Walk in with the valid ID and let staff press Reset. Unchanged, and
+//      still the only route for the 6 of 11 patients with no email on record,
+//      who are mostly the elderly.
+//
+// The desk route is spelled out on this page whichever way it goes, because a
+// patient who gets no email needs to know what to do next, not to keep waiting.
+//
+// See lib/passwordReset.js for how the token is kept safe.
+
+function baseUrlOf(req) {
+  return process.env.APP_URL
+    ? process.env.APP_URL.replace(/\/+$/, "")
+    : `${req.protocol}://${req.get("host")}`;
+}
+
+function renderRecover(res, opts) {
   res.render("portal/recover", {
     title: "Nakalimutang password · Sampaguita HC",
     layout: false,
+    mode: "form",
+    error: null,
+    emailValue: "",
+    ...opts,
   });
+}
+
+router.get("/portal/recover", (req, res) => {
+  // If this server can't send email at all, say so up front rather than
+  // collecting an address and quietly doing nothing with it. This is a fact
+  // about the server, not about any particular patient, so it gives nothing
+  // away about who does or doesn't have an account.
+  if (emailSvc.mode() === "simulation") return renderRecover(res, { mode: "unavailable" });
+  renderRecover(res);
+});
+
+router.post("/portal/recover", async (req, res, next) => {
+  try {
+    if (emailSvc.mode() === "simulation") return renderRecover(res, { mode: "unavailable" });
+
+    const address = (req.body.email || "").trim();
+    if (!reset.isEmail(address)) {
+      return res.status(400).render("portal/recover", {
+        title: "Nakalimutang password · Sampaguita HC",
+        layout: false,
+        mode: "form",
+        error: "Mukhang hindi tama ang email address. Pakisuri po ulit.",
+        emailValue: address,
+      });
+    }
+
+    // Everything below ends at the same screen. Whether an account exists is
+    // not something a stranger typing addresses into this box gets to find out.
+    const account = await reset.findAccountByEmail(address);
+    if (account) {
+      const token = await reset.issueToken(account.account_id, account.email);
+      if (token) {
+        const r = await reset.sendResetLink({ account, token, baseUrl: baseUrlOf(req) });
+        if (!r.sent) console.error("[portal/recover] send failed:", r.response);
+      }
+      // A null token means one was already sent in the last two minutes. The
+      // earlier link is still good, so there is nothing to do and nothing to
+      // say that would differ from the message below.
+    }
+
+    renderRecover(res, { mode: "sent" });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ---- THE LINK IN THE EMAIL ----------------------------------------------------
+function renderReset(res, opts) {
+  res.render("portal/reset", {
+    title: "Bagong password · Sampaguita HC",
+    layout: false,
+    valid: true,
+    token: "",
+    full_name: "",
+    error: null,
+    ...opts,
+  });
+}
+
+router.get("/portal/reset/:token", async (req, res, next) => {
+  try {
+    const found = await reset.checkToken(req.params.token);
+    if (!found) return res.status(400).render("portal/reset", {
+      title: "Bagong password · Sampaguita HC",
+      layout: false,
+      valid: false,
+      token: "",
+      full_name: "",
+      error: null,
+    });
+    renderReset(res, { token: req.params.token, full_name: found.full_name });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post("/portal/reset/:token", async (req, res, next) => {
+  try {
+    const token = req.params.token;
+    const password = req.body.password || "";
+    const password2 = req.body.password2 || "";
+
+    // Checked before the token is spent, so a mistyped confirmation doesn't
+    // burn the link and send the patient back to the clinic for a new one.
+    const found = await reset.checkToken(token);
+    if (!found) return res.status(400).render("portal/reset", {
+      title: "Bagong password · Sampaguita HC",
+      layout: false, valid: false, token: "", full_name: "", error: null,
+    });
+
+    const oops = (msg) =>
+      res.status(400).render("portal/reset", {
+        title: "Bagong password · Sampaguita HC",
+        layout: false, valid: true, token, full_name: found.full_name, error: msg,
+      });
+
+    if (password.length < 8) return oops("Dapat 8 characters pataas ang bagong password.");
+    if (password !== password2) return oops("Hindi magkatugma ang dalawang password.");
+
+    const accountId = await reset.redeemToken(token);
+    if (!accountId) return res.status(400).render("portal/reset", {
+      title: "Bagong password · Sampaguita HC",
+      layout: false, valid: false, token: "", full_name: "", error: null,
+    });
+
+    const upd = await db.query(
+      `UPDATE patient_accounts
+          SET password_hash = $1, password_changed_at = now()
+        WHERE account_id = $2
+        RETURNING patient_id`,
+      [await bcrypt.hash(password, 10), accountId]
+    );
+    await reset.invalidateOthers(accountId);
+
+    // Whoever was signed in with the old password goes out. Forgetting a
+    // password is often how someone finds out that somebody else has been
+    // using their account.
+    if (upd.rows[0]) await endOtherPatientSessions(upd.rows[0].patient_id, req.sessionID);
+
+    res.redirect("/portal/login?reset=1");
+  } catch (e) {
+    next(e);
+  }
 });
 
 // ---- HOUSEHOLD (a guardian seeing a minor's records) --------------------------

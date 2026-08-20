@@ -25,22 +25,64 @@
 
       <h1 class="auth-title">Nakalimutan ang password?</h1>
 
-      <div class="recover-steps">
-        <p style="margin:0 0 14px;font-size:14px">
-          Ang clinic staff ang magbibigay sa iyo ng bagong password. Ganito:
+      <% if (mode === "sent") { %>
+        <div class="auth-notice">
+          Kung may account na naka-ugnay sa email na iyon, may ipinadala kaming link doon.
+          Pindutin po ito sa loob ng <b>isang oras</b> para makapaglagay ng bagong password.
+        </div>
+        <div class="recover-steps" style="margin-top:16px">
+          <p class="muted" style="margin:0;font-size:13px">
+            Tingnan din po ang <b>Spam</b> o <b>Promotions</b> folder. Kung wala pa ring dumating
+            pagkalipas ng ilang minuto, ibig sabihin ay walang email na nakatala sa account mo —
+            pumunta na lang po sa clinic dala ang valid ID at bibigyan ka ng staff ng bagong
+            pansamantalang password.
+          </p>
+        </div>
+
+      <% } else if (mode === "unavailable") { %>
+        <div class="auth-notice warn">
+          Hindi po muna kayang magpadala ng email ng sistema ngayon, kaya walang link na
+          maipapadala.
+        </div>
+        <div class="recover-steps">
+          <p style="margin:0 0 14px;font-size:14px">Ganito po ang gawin:</p>
+          <ol>
+            <li>Pumunta sa <b>Barangay Sampaguita Health Clinic</b>.</li>
+            <li>Dalhin ang <b>valid ID</b> na ginamit noong ginawa ang account mo.</li>
+            <li>Sabihin sa staff na nakalimutan mo ang password mo sa portal.</li>
+            <li>Bibigyan ka nila ng <b>bagong pansamantalang password</b> — pwede mo itong
+                palitan pagkapasok mo.</li>
+          </ol>
+        </div>
+
+      <% } else { %>
+        <p style="margin:0 0 16px;font-size:14px;line-height:1.6">
+          Ilagay po ang email address na ibinigay ninyo sa clinic. Ipapadala namin doon ang link
+          para makapaglagay kayo ng bagong password.
         </p>
-        <ol>
-          <li>Pumunta sa <b>Barangay Sampaguita Health Clinic</b>.</li>
-          <li>Dalhin ang <b>valid ID</b> na ginamit mo noong ginawa ang account mo.</li>
-          <li>Sabihin sa staff na nakalimutan mo ang password mo sa portal.</li>
-          <li>Bibigyan ka nila ng <b>bagong pansamantalang password</b> — pwede mo itong palitan
-              pagkatapos mong makapasok.</li>
-        </ol>
-        <p class="muted" style="margin:14px 0 0;font-size:12.5px">
-          Sa clinic lang ito ginagawa dahil kailangang makita ng staff ang ID mo bago ibigay ang
-          bagong password. Ito ang pumipigil na may ibang tao ang makapasok sa records mo.
-        </p>
-      </div>
+
+        <% if (error) { %>
+          <div class="auth-error"><%= error %></div>
+        <% } %>
+
+        <form method="POST" action="/portal/recover" class="auth-form">
+          <label class="field">
+            <span>Email address</span>
+            <input type="email" name="email" value="<%= emailValue %>" required autofocus
+                   autocomplete="email" autocapitalize="none" spellcheck="false"
+                   placeholder="pangalan@gmail.com" />
+          </label>
+          <button type="submit" class="btn auth-submit">Ipadala ang link</button>
+        </form>
+
+        <div class="recover-steps" style="margin-top:18px">
+          <p class="muted" style="margin:0;font-size:12.5px;line-height:1.6">
+            <b>Walang email na naibigay sa clinic?</b> Pumunta po sa clinic dala ang valid ID na
+            ginamit noong ginawa ang account ninyo, at bibigyan kayo ng staff ng bagong
+            pansamantalang password.
+          </p>
+        </div>
+      <% } %>
 
       <div class="auth-links" style="margin-top:18px">
         <a href="/portal/login">← Balik sa sign in</a>

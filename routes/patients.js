@@ -370,7 +370,7 @@ router.get("/patients/:id", async (req, res, next) => {
     );
     if (!rows[0]) return next();
 
-    const [appts, acctQ, dispensesQ, familyMembers, visitsQ] = await Promise.all([
+    const [appts, acctQ, dispensesQ, familyMembers, visitsQ, sharedQ] = await Promise.all([
       db.query(
         `SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.status,
                 s.name AS service_name
@@ -401,6 +401,19 @@ router.get("/patients/:id", async (req, res, next) => {
         [req.params.id]
       ),
       loadFamilyMembers(rows[0].family_number, req.params.id),
+      // Anyone else reachable at this same address. Sharing one is allowed and
+      // ordinary — a mother's inbox is often the only one a family has — but it
+      // has to be visible, because a password reset sent here reaches all of
+      // them, and because a duplicate is just as often a typing slip.
+      rows[0].email
+        ? db.query(
+            `SELECT patient_id, full_name
+               FROM patients
+              WHERE lower(trim(email)) = lower(trim($1)) AND patient_id <> $2
+              ORDER BY full_name`,
+            [rows[0].email, req.params.id]
+          )
+        : Promise.resolve({ rows: [] }),
       db.query(
         `SELECT v.visit_id, v.visit_date, v.bp_systolic, v.bp_diastolic, v.weight_kg,
                 v.height_cm, v.temperature_c, v.diagnosis, v.consultation_notes,
@@ -432,6 +445,7 @@ router.get("/patients/:id", async (req, res, next) => {
       canRecordVisit: ["nurse", "doctor", "admin"].includes(req.session.user.role),
       account: acctQ.rows[0] || null,
       familyMembers,
+      emailSharedWith: sharedQ.rows,
       secrets,
       nextStep: req.query.next === "book" ? "book" : "",
       acctErr: req.query.acct_err || null,

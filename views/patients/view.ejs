@@ -75,7 +75,16 @@
     <div><dt>Sex</dt><dd><%= p.sex || "—" %></dd></div>
     <div><dt>Birthdate</dt><dd><%= fmt(p.birthdate) %><%= a !== null ? ` (${a} yrs)` : "" %></dd></div>
     <div><dt>Patient contact</dt><dd><%= p.contact_number || "—" %></dd></div>
-    <div><dt>Email</dt><dd><%= p.email || "—" %></dd></div>
+    <div><dt>Email</dt><dd>
+      <%= p.email || "—" %>
+      <% if (emailSharedWith && emailSharedWith.length) { %>
+        <div class="muted" style="margin-top:4px;font-size:12.5px">
+          Ginagamit din ni
+          <% emailSharedWith.forEach((m, i) => { %><a href="/patients/<%= m.patient_id %>" style="color:var(--accent-strong);font-weight:600;text-decoration:none"><%= m.full_name %></a><%= i < emailSharedWith.length - 1 ? ", " : "" %><% }) %>.
+          Aabot sa kanila ang anumang password reset na hihilingin dito.
+        </div>
+      <% } %>
+    </dd></div>
     <div><dt>Reminders</dt><dd>
       <%
         const rcLabel = { both: "Email and SMS", email: "Email only", sms: "SMS only", none: "None" };

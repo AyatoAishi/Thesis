@@ -168,16 +168,22 @@ router.post("/portal/recover", async (req, res, next) => {
 
     // Everything below ends at the same screen. Whether an account exists is
     // not something a stranger typing addresses into this box gets to find out.
-    const account = await reset.findAccountByEmail(address);
-    if (account) {
+    // An address can own more than one account — one email for a mother and
+    // her children is the ordinary case here, not the odd one. Every account
+    // on it gets a link, in a single email that names each one, because
+    // choosing one of them for the reader is how somebody ends up changing a
+    // namesake's password instead of their own.
+    const accounts = await reset.findAccountsByEmail(address);
+    const issued = [];
+    for (const account of accounts) {
       const token = await reset.issueToken(account.account_id, account.email);
-      if (token) {
-        const r = await reset.sendResetLink({ account, token, baseUrl: baseUrlOf(req) });
-        if (!r.sent) console.error("[portal/recover] send failed:", r.response);
-      }
-      // A null token means one was already sent in the last two minutes. The
-      // earlier link is still good, so there is nothing to do and nothing to
-      // say that would differ from the message below.
+      // A null token means one was already sent for that account in the last
+      // two minutes; its earlier link is still good, so it is simply left out.
+      if (token) issued.push({ account, token });
+    }
+    if (issued.length) {
+      const r = await reset.sendResetLinks({ issued, baseUrl: baseUrlOf(req) });
+      if (!r.sent) console.error("[portal/recover] send failed:", r.response);
     }
 
     renderRecover(res, { mode: "sent" });

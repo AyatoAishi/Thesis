@@ -94,7 +94,7 @@ async function findOrCreateMedicine(m) {
     const hash = await bcrypt.hash("Demo1234!", 10);
     const staff = [
       { full_name: "Elena Marquez", username: "elena.marquez", role: "nurse" },
-      { full_name: "Liza Ang", username: "liza.ang", role: "doctor" },
+      { full_name: "Liza Ang", username: "liza.ang", role: "nurse" },
       { full_name: "Carmela Ibarra", username: "carmela.ibarra", role: "recorder" },
       { full_name: "Ramon Suarez", username: "ramon.suarez", role: "facilitator" },
     ];
@@ -213,9 +213,9 @@ async function findOrCreateMedicine(m) {
     await seedAppt("Norma Villanueva", "medicine_distribution", onOrAfter(F.addDays(today, 1), fri), "scheduled");
     console.log("  ✓ Appointments seeded across all 3 services with a mix of statuses.");
 
-    // ---- 5) medicines — includes 2 intentionally low-stock + 2 requiring
-    // doctor approval, so the low-stock flag and approval queue are visible
-    // the moment someone opens the app. ----------------------------------------
+    // ---- 5) medicines — includes 2 intentionally low-stock, so the
+    // low-stock flag on the dashboard is visible the moment someone opens
+    // the app. ----------------------------------------------------------------
     const medDefs = [
       { name: "Paracetamol 500mg", unit: "tablet", stock_quantity: 150, low_stock_threshold: 30, source: "DOH supply" },
       { name: "Amoxicillin 500mg", unit: "capsule", stock_quantity: 80, low_stock_threshold: 20, source: "DOH supply" },
@@ -234,7 +234,7 @@ async function findOrCreateMedicine(m) {
       medicines[m.name] = id;
       if (created) createdMeds++;
     }
-    console.log(`  ✓ Medicines ready: ${medDefs.length} total (${createdMeds} newly created) — 2 low stock, 2 require doctor approval.`);
+    console.log(`  ✓ Medicines ready: ${medDefs.length} total (${createdMeds} newly created) — 2 low stock.`);
 
     // ---- 6) dispenses: completed history. The demo used to seed one pending
     // and one approved request so every tab of the old approval queue had
@@ -263,6 +263,40 @@ async function findOrCreateMedicine(m) {
     await seedDispense("Norma Villanueva", "Tramadol 50mg", 10, { dispensedAt: `${F.addDays(today, -7)} 15:00:00+08` });
     await seedDispense("Jose Rizalino Mendoza", "Amoxicillin 500mg", 21, { dispensedAt: `${F.addDays(today, -7)} 15:30:00+08` });
     console.log("  ✓ Dispenses seeded.");
+
+    // ---- 7) consultations: enough of a spread that the seasonal report has a
+    // shape rather than an empty card. Respiratory cases weighted into the
+    // cooler end of the year on purpose — that pattern is the whole point of
+    // the illness chart, and a demo where every bucket is flat demonstrates
+    // nothing. ------------------------------------------------------------------
+    async function seedVisit(patientName, daysAgo, category, diagnosis) {
+      const patient_id = patients[patientName];
+      const date = F.addDays(today, -daysAgo);
+      const exists = await db.query(
+        "SELECT 1 FROM visits WHERE patient_id=$1 AND visit_date=$2", [patient_id, date]
+      );
+      if (exists.rowCount) return;
+      await db.query(
+        `INSERT INTO visits (patient_id, visit_date, diagnosis_category, diagnosis, attended_by)
+         VALUES ($1,$2,$3,$4,$5)`,
+        [patient_id, date, category, diagnosis, nurseId]
+      );
+    }
+
+    const ARI = "Acute respiratory infection (ubo, sipon)";
+    const FLU = "Influenza-like illness (trangkaso)";
+    const LBM = "Diarrhea / gastroenteritis (LBM)";
+    await seedVisit("Liam Andres Reyes", 12, ARI, "Cough and colds, 3 days");
+    await seedVisit("Mateo Cruz", 19, ARI, "Upper respiratory tract infection");
+    await seedVisit("Norma Villanueva", 26, FLU, "Fever, body aches");
+    await seedVisit("Jose Rizalino Mendoza", 33, "Hypertension", "Hypertension, maintenance review");
+    await seedVisit("Sofia Castillo", 40, LBM, "Acute gastroenteritis, mild dehydration");
+    await seedVisit("Remedios Bautista", 47, "Hypertension", "Hypertension, follow-up");
+    await seedVisit("Angelica Ramos", 54, ARI, "Cough, no fever");
+    await seedVisit("Maria Clara Dela Cruz", 61, "Anemia", "Iron-deficiency anemia");
+    await seedVisit("Liam Andres Reyes", 68, LBM, "Loose stools, 2 days");
+    await seedVisit("Norma Villanueva", 75, ARI, "Cough and colds");
+    console.log("  ✓ Consultations seeded across several months, with illness categories.");
 
     console.log("\n  Demo data ready. Log in as any of:");
     staff.forEach((s) => console.log(`    ${s.role.padEnd(11)} ${s.username} / Demo1234!`));

@@ -7,7 +7,7 @@
 // appointments recorded that a visit HAPPENED, never what happened during it.
 // This is that screen.
 //
-// Who may write: nurse, doctor, admin. A facilitator queues patients and a
+// Who may write: nurse, admin. A facilitator queues patients and a
 // recorder handles paperwork; neither writes a clinical finding, and the panel
 // asked for roles that actually mean something.
 //
@@ -20,11 +20,12 @@ const express = require("express");
 const db = require("../db");
 const F = require("../lib/format");
 const audit = require("../lib/audit");
+const ILLNESSES = require("../lib/illnesses");
 const { requireRole } = require("../middleware/auth");
 
 const router = express.Router();
 
-const CLINICAL_ROLES = ["nurse", "doctor", "admin"];
+const CLINICAL_ROLES = ["nurse", "admin"];
 
 // Ranges are wide on purpose — they exist to stop a slipped keystroke or a
 // mis-typed field, not to second-guess a clinician. A prenatal record once
@@ -51,6 +52,12 @@ function readForm(body) {
     weight_kg: num(body.weight_kg),
     height_cm: num(body.height_cm),
     temperature_c: num(body.temperature_c),
+    // Only a value actually on the list gets stored. A hand-edited form post
+    // must not be able to invent a category and quietly split the report into
+    // two buckets that mean the same thing.
+    diagnosis_category: ILLNESSES.includes((body.diagnosis_category || "").trim())
+      ? body.diagnosis_category.trim()
+      : null,
     diagnosis: (body.diagnosis || "").trim() || null,
     consultation_notes: (body.consultation_notes || "").trim() || null,
     appointment_id: parseInt(body.appointment_id, 10) || null,
@@ -79,7 +86,7 @@ function validate(v) {
   // A row with a date and nothing else is not a consultation record.
   const anything = ["bp_systolic", "weight_kg", "height_cm", "temperature_c"].some(
     (k) => v[k] !== null
-  ) || v.diagnosis || v.consultation_notes;
+  ) || v.diagnosis || v.consultation_notes || v.diagnosis_category;
   if (!anything) errors.push("Record at least one vital sign, a diagnosis, or a note.");
 
   return errors;
@@ -113,6 +120,7 @@ router.get("/patients/:id/visits/new", requireRole(...CLINICAL_ROLES), async (re
     const patient = await loadPatient(req.params.id);
     if (!patient) return next();
     res.render("visits/form", {
+        illnesses: ILLNESSES,
       title: `Record consultation — ${patient.full_name} · Sampaguita HC`,
       active: "patients",
       mode: "new",
@@ -141,6 +149,7 @@ router.post("/patients/:id/visits", requireRole(...CLINICAL_ROLES), async (req, 
     const errors = validate(v);
     if (errors.length) {
       return res.status(400).render("visits/form", {
+        illnesses: ILLNESSES,
         title: `Record consultation — ${patient.full_name} · Sampaguita HC`,
         active: "patients",
         mode: "new",
@@ -156,14 +165,14 @@ router.post("/patients/:id/visits", requireRole(...CLINICAL_ROLES), async (req, 
     const { rows } = await db.query(
       `INSERT INTO visits
          (patient_id, appointment_id, visit_date, bp_systolic, bp_diastolic,
-          weight_kg, height_cm, temperature_c, diagnosis, consultation_notes,
-          attended_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+          weight_kg, height_cm, temperature_c, diagnosis_category, diagnosis,
+          consultation_notes, attended_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
        RETURNING visit_id`,
       [
         patient.patient_id, v.appointment_id, v.visit_date, v.bp_systolic, v.bp_diastolic,
-        v.weight_kg, v.height_cm, v.temperature_c, v.diagnosis, v.consultation_notes,
-        req.session.user.user_id,
+        v.weight_kg, v.height_cm, v.temperature_c, v.diagnosis_category, v.diagnosis,
+        v.consultation_notes, req.session.user.user_id,
       ]
     );
 
@@ -186,6 +195,7 @@ router.get("/visits/:id/edit", requireRole(...CLINICAL_ROLES), async (req, res, 
     if (!rows[0]) return next();
     const patient = await loadPatient(rows[0].patient_id);
     res.render("visits/form", {
+        illnesses: ILLNESSES,
       title: `Edit consultation — ${patient.full_name} · Sampaguita HC`,
       active: "patients",
       mode: "edit",
@@ -214,6 +224,7 @@ router.post("/visits/:id", requireRole(...CLINICAL_ROLES), async (req, res, next
     const errors = validate(v);
     if (errors.length) {
       return res.status(400).render("visits/form", {
+        illnesses: ILLNESSES,
         title: `Edit consultation — ${patient.full_name} · Sampaguita HC`,
         active: "patients",
         mode: "edit",
@@ -229,13 +240,13 @@ router.post("/visits/:id", requireRole(...CLINICAL_ROLES), async (req, res, next
     await db.query(
       `UPDATE visits SET
          appointment_id=$1, visit_date=$2, bp_systolic=$3, bp_diastolic=$4,
-         weight_kg=$5, height_cm=$6, temperature_c=$7, diagnosis=$8,
-         consultation_notes=$9
-       WHERE visit_id=$10`,
+         weight_kg=$5, height_cm=$6, temperature_c=$7, diagnosis_category=$8,
+         diagnosis=$9, consultation_notes=$10
+       WHERE visit_id=$11`,
       [
         v.appointment_id, v.visit_date, v.bp_systolic, v.bp_diastolic,
-        v.weight_kg, v.height_cm, v.temperature_c, v.diagnosis,
-        v.consultation_notes, req.params.id,
+        v.weight_kg, v.height_cm, v.temperature_c, v.diagnosis_category,
+        v.diagnosis, v.consultation_notes, req.params.id,
       ]
     );
 

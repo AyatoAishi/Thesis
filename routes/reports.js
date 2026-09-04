@@ -5,10 +5,13 @@
 // admin-only — a documented, deliberate restriction, not an oversight).
 // Export is left open to any signed-in staff, also per that table.
 //
-// "Seasonal-case trend" is built from `appointments` (service + date), not
-// `visits`/diagnosis — nothing in this app ever writes a visits row (there's
-// no visits UI), so appointment volume per service per month is the only
-// data that can actually show a real trend.
+// "Seasonal trend" is two questions on one page. How many came, per service,
+// per month — built from `appointments`, which is the only thing that existed
+// when the page was written. And what they came WITH, per month, built from
+// `visits.diagnosis_category`, which became possible once routes/visits.js
+// started recording consultations on 2026-08-17. The second one is the one
+// that shows respiratory cases climbing through the cold months; the first
+// cannot, because everybody with a cough is booked under the same service.
 // ============================================================================
 const express = require("express");
 const PDFDocument = require("pdfkit");
@@ -275,6 +278,43 @@ router.get("/reports/trend", requireRole(...REPORT_ROLES), async (req, res, next
       })),
     };
 
+    // ---- and what they came in with ------------------------------------
+    // Consultations, not appointments: a visit row is written when somebody is
+    // actually seen, so this counts illnesses treated rather than slots booked.
+    // Visits recorded before the category column existed come back as NULL and
+    // are labelled honestly rather than being dropped or guessed at.
+    const illQ = await db.query(
+      `SELECT to_char(date_trunc('month', v.visit_date), 'YYYY-MM') AS month,
+              coalesce(v.diagnosis_category, 'Not recorded') AS illness,
+              count(*)::int AS total
+         FROM visits v
+        WHERE v.visit_date BETWEEN $1 AND $2
+        GROUP BY month, illness
+        ORDER BY month, illness`,
+      [from, to]
+    );
+
+    const illMonths = [...new Set(illQ.rows.map((r) => r.month))].sort();
+    // Ordered by how much of the range each illness accounts for, so the chart
+    // legend opens with the ones worth looking at instead of alphabetically.
+    const illTotals = {};
+    illQ.rows.forEach((r) => { illTotals[r.illness] = (illTotals[r.illness] || 0) + r.total; });
+    const illnesses = Object.keys(illTotals).sort((a, b) => illTotals[b] - illTotals[a]);
+
+    const illGrid = {};
+    illQ.rows.forEach((r) => {
+      illGrid[r.illness] ||= {};
+      illGrid[r.illness][r.month] = r.total;
+    });
+
+    const illChartData = {
+      labels: illMonths,
+      datasets: illnesses.map((name) => ({
+        label: name,
+        data: illMonths.map((m) => (illGrid[name] && illGrid[name][m]) || 0),
+      })),
+    };
+
     if (req.query.format === "pdf") {
       return sendReportPdf(res, `trend-${from}_to_${to}.pdf`, {
         title: "Seasonal / appointment trend",
@@ -286,6 +326,18 @@ router.get("/reports/trend", requireRole(...REPORT_ROLES), async (req, res, next
             headers: ["Month", ...services.map((s) => F.prettyService(s.name))],
             rows: months.map((m) => [m, ...services.map((s) => (grid[s.service_id] && grid[s.service_id][m]) || 0)]),
             widths: [70, ...services.map(() => Math.floor(425 / Math.max(services.length, 1)))],
+          },
+          {
+            // Illness down the side rather than across the top: there are twenty
+            // of these and a column each would be unreadable on A4.
+            title: "Consultations per month, by illness",
+            headers: ["Illness", ...illMonths, "Total"],
+            rows: illnesses.map((name) => [
+              name,
+              ...illMonths.map((m) => (illGrid[name] && illGrid[name][m]) || 0),
+              illTotals[name],
+            ]),
+            widths: [170, ...illMonths.map(() => Math.floor(280 / Math.max(illMonths.length, 1))), 45],
           },
         ],
       });
@@ -301,6 +353,11 @@ router.get("/reports/trend", requireRole(...REPORT_ROLES), async (req, res, next
       services,
       grid,
       chartData,
+      illMonths,
+      illnesses,
+      illGrid,
+      illTotals,
+      illChartData,
       pretty: F.prettyService,
     });
   } catch (e) {

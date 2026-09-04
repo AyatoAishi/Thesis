@@ -74,6 +74,18 @@
   <div class="card">
     <div class="panel-title" style="margin-bottom:14px">Findings</div>
     <div class="form-grid">
+      <label class="field" style="grid-column:1/-1"><span>What they came in with</span>
+        <select name="diagnosis_category">
+          <option value="">— choose one —</option>
+          <% illnesses.forEach(i => { %>
+            <option value="<%= i %>" <%= v.diagnosis_category === i ? 'selected' : '' %>><%= i %></option>
+          <% }) %>
+        </select>
+        <span class="muted" style="font-size:11.5px;font-weight:500">
+          The coarse bucket the seasonal report counts. Write what you actually mean in the box below —
+          this one only has to be close enough to group by.
+        </span>
+      </label>
       <label class="field" style="grid-column:1/-1"><span>Diagnosis / assessment</span>
         <input type="text" name="diagnosis" value="<%= v.diagnosis || '' %>" maxlength="255"
                placeholder="e.g. Acute upper respiratory tract infection" />

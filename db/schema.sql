@@ -31,7 +31,7 @@ DROP TABLE IF EXISTS patients           CASCADE;
 DROP TABLE IF EXISTS users              CASCADE;
 
 
--- 1) USERS — clinic staff + visiting doctor (this powers role-based access) -----
+-- 1) USERS — clinic staff (this powers role-based access) ---------------------
 CREATE TABLE users (
     user_id       SERIAL PRIMARY KEY,
     full_name     VARCHAR(150) NOT NULL,
@@ -39,7 +39,10 @@ CREATE TABLE users (
     email         VARCHAR(150) UNIQUE,
     password_hash VARCHAR(255) NOT NULL,           -- store a HASH, never the raw password
     role          VARCHAR(20)  NOT NULL
-                  CHECK (role IN ('nurse','facilitator','recorder','doctor','admin')),
+                  -- No 'doctor'. There is no doctor at this clinic; the role was
+                  -- removed 2026-09-04 (db/migrations/2026-09-04-remove-doctor-role.js).
+                  CONSTRAINT users_role_allowed
+                  CHECK (role IN ('nurse','facilitator','recorder','admin')),
     status        VARCHAR(10)  NOT NULL DEFAULT 'active'
                   CHECK (status IN ('active','inactive')),
     created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
@@ -137,13 +140,16 @@ CREATE TABLE visits (
     weight_kg         NUMERIC(5,2),
     height_cm         NUMERIC(5,2),
     temperature_c     NUMERIC(4,1),
+    -- One of lib/illnesses.js. The coarse bucket the seasonal report groups
+    -- by; `diagnosis` below stays free text for what the nurse actually means.
+    diagnosis_category VARCHAR(60),
     diagnosis         TEXT,
     consultation_notes TEXT,
     attended_by       INTEGER REFERENCES users(user_id),   -- nurse/facilitator
-    doctor_id         INTEGER REFERENCES users(user_id),   -- visiting doctor (nullable)
     created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_visits_patient ON visits (patient_id);
+CREATE INDEX idx_visits_category_date ON visits (diagnosis_category, visit_date);
 
 
 -- 7) MEDICINES — inventory stock ------------------------------------------------

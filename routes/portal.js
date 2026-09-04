@@ -30,6 +30,8 @@ const { requirePatient } = require("../middleware/portalAuth");
 const { endOtherPatientSessions } = require("../lib/sessions");
 const emailSvc = require("../services/email");
 const reset = require("../lib/passwordReset");
+const guard = require("../lib/loginGuard");
+const audit = require("../lib/audit");
 
 const router = express.Router();
 
@@ -53,16 +55,26 @@ router.post("/portal/login", async (req, res, next) => {
   try {
     const username = (req.body.username || "").trim().toLowerCase();
     const password = req.body.password || "";
-    const fail = () =>
+    const ip = guard.addressOf(req);
+    const fail = (msg) =>
       res.status(401).render("portal/login", {
         title: "Patient portal · Sampaguita HC",
         layout: false,
-        error: "Incorrect username or password.",
+        error: msg || "Maling username o password.",
         username,
         notice: null,
       });
 
     if (!username || !password) return fail();
+
+    // The same limit as the staff door. This one matters more, not less:
+    // a portal username is derived from the patient’s own name, so it is
+    // the half of the credential an attacker already knows.
+    const gate = await guard.check({ kind: "portal", username, ip });
+    if (gate.blocked) {
+      await guard.record({ kind: "portal", username, ip, ok: false, reason: "locked_out" });
+      return fail(guard.lockoutMessageTagalog(gate.retryAfterMinutes));
+    }
     const { rows } = await db.query(
       `SELECT a.account_id, a.patient_id, a.password_hash, p.full_name
          FROM patient_accounts a
@@ -71,7 +83,22 @@ router.post("/portal/login", async (req, res, next) => {
       [username]
     );
     const acct = rows[0];
-    if (!acct || !(await bcrypt.compare(password, acct.password_hash))) return fail();
+    if (!acct || !(await bcrypt.compare(password, acct.password_hash))) {
+      await guard.record({
+        kind: "portal", username, ip, ok: false,
+        reason: acct ? "wrong_password" : "no_such_user",
+      });
+      const after = await guard.check({ kind: "portal", username, ip });
+      return fail(after.blocked ? guard.lockoutMessageTagalog(after.retryAfterMinutes) : null);
+    }
+
+    await guard.record({ kind: "portal", username, ip, ok: true, reason: null });
+    // Gap 3. audit_log has always recorded which STAFF member signed in and
+    // never recorded a patient doing it — through the same door, onto the
+    // same health records. user_id stays NULL because no staff member did
+    // this; the account is named in the details instead.
+    audit.log(null, "login", "patient_account", acct.account_id,
+      `${acct.full_name} signed in to the portal as "${username}"`);
 
     // Same hardening as the staff side: a fresh session ID once this browser is
     // authenticated (session fixation), the staff half carried across, and the

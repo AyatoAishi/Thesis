@@ -8,6 +8,7 @@ const bcrypt = require("bcryptjs");
 const db = require("../db");
 const audit = require("../lib/audit");
 const { endOtherStaffSessions, REASONS } = require("../lib/sessions");
+const guard = require("../lib/loginGuard");
 
 const router = express.Router();
 
@@ -56,7 +57,19 @@ router.post("/login", async (req, res) => {
 
   if (!username || !password) return fail("Enter your username and password.");
 
+  const ip = guard.addressOf(req);
+
   try {
+    // Asked before the row is fetched and before bcrypt runs. A locked-out
+    // attempt should cost this server nothing — making an attacker’s
+    // thousandth guess as expensive as the first is most of the point.
+    const gate = await guard.check({ kind: "staff", username, ip });
+    if (gate.blocked) {
+      await guard.record({ kind: "staff", username, ip, ok: false, reason: "locked_out" });
+      audit.log(null, "login_blocked", "user", null,
+        `rate limit hit for "${username}" (${gate.reason})`);
+      return fail(guard.lockoutMessage(gate.retryAfterMinutes));
+    }
     // Exact match, capitalisation included: "Admin" is not "admin". A staff
     // username is issued by an admin and typed as issued — the client's call,
     // and it keeps the login a strict comparison with nothing inferred.
@@ -72,17 +85,34 @@ router.post("/login", async (req, res) => {
     // WHICH of the two it was, so an intermittent "wrong password" that the
     // user swears was correct can actually be diagnosed instead of guessed at.
     if (!u) {
+      await guard.record({ kind: "staff", username, ip, ok: false, reason: "no_such_user" });
       audit.log(null, "login_failed", "user", null, `no such username: "${username}"`);
       return fail("Invalid username or password.");
     }
-    if (u.status !== "active")
+    if (u.status !== "active") {
+      await guard.record({ kind: "staff", username, ip, ok: false, reason: "inactive" });
       return fail("This account is inactive. Contact an admin.");
+    }
 
     const ok = await bcrypt.compare(password, u.password_hash);
     if (!ok) {
+      await guard.record({ kind: "staff", username, ip, ok: false, reason: "wrong_password" });
       audit.log(u.user_id, "login_failed", "user", u.user_id, `wrong password for ${u.username}`);
-      return fail("Invalid username or password.");
+      // One short of the limit is the last warning anyone gets, and the
+      // person it helps most is the nurse who genuinely forgot.
+      const after = await guard.check({ kind: "staff", username, ip });
+      if (after.blocked) return fail(guard.lockoutMessage(after.retryAfterMinutes));
+      const left = guard.MAX_PER_USERNAME - (after.userFails || 0);
+      return fail(
+        left === 1
+          ? "Invalid username or password. One more failed attempt will lock this account for a few minutes."
+          : "Invalid username or password."
+      );
     }
+
+    // Recorded before the redirect, because this success is what clears the
+    // failure count for this username.
+    await guard.record({ kind: "staff", username, ip, ok: true, reason: null });
 
     // Start a brand-new session ID now that this browser is authenticated
     // (session fixation): whatever cookie was sitting here before must not be

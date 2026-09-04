@@ -14,7 +14,7 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const db = require("../db");
-const ID_TYPES = require("../lib/idTypes");
+const { ID_TYPES, UNVERIFIED: NO_ID } = require("../lib/idTypes");
 const { endOtherPatientSessions } = require("../lib/sessions");
 
 const router = express.Router();
@@ -98,9 +98,21 @@ router.get("/portal-accounts", async (req, res, next) => {
 // ---- VERIFY  POST /portal-accounts/:id/verify --------------------------------
 router.post("/portal-accounts/:id/verify", async (req, res, next) => {
   try {
+    // An account created without an ID has NULL in both columns. Verifying it
+    // has to record which ID was finally checked, or the clinic ends up with a
+    // "Verified" badge and no answer to "verified against what?". The form on
+    // an already-identified account sends neither field and this is a no-op.
+    const idType = (req.body.valid_id_type || "").trim();
+    const idNumber = (req.body.valid_id_number || "").trim();
+    if (idType && !ID_TYPES.includes(idType))
+      return res.redirect(safeBack(req.body.back, "/portal-accounts"));
     await db.query(
-      "UPDATE patient_accounts SET is_verified = true WHERE account_id = $1",
-      [req.params.id]
+      `UPDATE patient_accounts
+          SET is_verified = true,
+              valid_id_type   = COALESCE(NULLIF($2, ''), valid_id_type),
+              valid_id_number = COALESCE(NULLIF($3, ''), valid_id_number)
+        WHERE account_id = $1`,
+      [req.params.id, idType, idNumber]
     );
     res.redirect(safeBack(req.body.back, "/portal-accounts"));
   } catch (e) {
@@ -179,6 +191,7 @@ router.get("/patients/:id/portal-account/new", async (req, res, next) => {
       patient,
       suggestedUsername: await uniqueUsername(suggestUsername(patient.full_name)),
       idTypes: ID_TYPES,
+      noIdValue: NO_ID,
       next: chain,
       error: req.query.acct_err || null,
     });
@@ -212,8 +225,13 @@ router.post("/patients/:id/portal-account", async (req, res, next) => {
 
     if (!USERNAME_RE.test(username))
       return oops("Username must be 4–30 characters: lowercase letters, numbers, dots or underscores.");
-    if (!ID_TYPES.includes(valid_id_type)) return oops("Choose which valid ID was presented.");
-    if (!valid_id_number) return oops("Enter the valid ID number.");
+    // "No ID on hand" is an answer, and the only one that produces an
+    // unverified account. Everything else must name an ID *and* its number,
+    // because an ID type with no number recorded is not evidence of anything.
+    const noId = valid_id_type === NO_ID;
+    if (!noId && !ID_TYPES.includes(valid_id_type))
+      return oops("Choose which valid ID was presented, or “No ID on hand”.");
+    if (!noId && !valid_id_number) return oops("Enter the valid ID number.");
 
     const existing = await db.query(
       "SELECT 1 FROM patient_accounts WHERE patient_id = $1", [patient_id]
@@ -231,9 +249,13 @@ router.post("/patients/:id/portal-account", async (req, res, next) => {
         `INSERT INTO patient_accounts
            (patient_id, username, password_hash, valid_id_type, valid_id_number, is_verified,
             temp_issued_at, temp_issued_by)
-         VALUES ($1,$2,$3,$4,$5,true,now(),$6)`,
+         VALUES ($1,$2,$3,$4,$5,$6,now(),$7)`,
+        // NULL, not the sentinel: the columns mean "the ID we checked", and
+        // there wasn't one. The account is born unverified and shows up in
+        // the pending list on /portal-accounts until somebody checks an ID.
         [patient_id, username, await bcrypt.hash(tempPassword, 10),
-         valid_id_type, valid_id_number, req.session.user.user_id]
+         noId ? null : valid_id_type, noId ? null : valid_id_number, !noId,
+         req.session.user.user_id]
       );
     } catch (e) {
       // Two staff at two desks can pass the SELECT above at the same moment;
@@ -247,6 +269,7 @@ router.post("/patients/:id/portal-account", async (req, res, next) => {
       username,
       temp_password: tempPassword,
       kind: "created",
+      unverified: noId,
     };
     // Always via the profile page — that's where the one-time credentials are
     // shown, so the booking chain must not jump straight past them.

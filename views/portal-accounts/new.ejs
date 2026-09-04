@@ -32,7 +32,9 @@
   <div class="card">
     <div class="panel-title" style="margin-bottom:6px">Account details</div>
     <p class="muted" style="font-size:12.5px;margin:0 0 14px">
-      Check the patient's physical valid ID first — creating the account here marks it verified straight away.
+      Check the patient's physical valid ID and the account is verified straight away.
+      If they came without one, pick <b>No ID on hand</b> — the account still gets made,
+      just unverified, and someone checks the ID on their profile later.
     </p>
     <div class="form-grid">
       <label class="field"><span>Username *</span>
@@ -41,23 +43,52 @@
         <span class="muted" style="font-size:11.5px;font-weight:500">Suggested from their name — change it if they'd rather use something else.</span>
       </label>
       <label class="field"><span>Valid ID presented *</span>
-        <select name="valid_id_type" required>
+        <select name="valid_id_type" required data-id-type>
           <option value="">— choose an ID —</option>
           <% idTypes.forEach(t => { %><option value="<%= t %>"><%= t %></option><% }) %>
+          <option value="<%= noIdValue %>">No ID on hand — create unverified</option>
         </select>
       </label>
-      <label class="field"><span>Valid ID number *</span>
-        <input type="text" name="valid_id_number" required />
+      <label class="field" data-id-number-field><span>Valid ID number *</span>
+        <input type="text" name="valid_id_number" required data-id-number />
       </label>
+      <div class="muted" style="font-size:11.5px;font-weight:500;grid-column:1/-1" data-id-note></div>
     </div>
   </div>
 
   <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
     <button type="submit" class="btn">Create account</button>
-    <a class="back-link" href="<%= skipHref %>">Skip for now — no valid ID on hand</a>
+    <a class="back-link" href="<%= skipHref %>">Skip — don’t create an account yet</a>
   </div>
 </form>
 
 <p class="muted" style="font-size:12px;margin-top:16px">
   Skipping is fine — the account can be created later from the patient's profile.
 </p>
+
+<script>
+  // The ID number is evidence for the ID type beside it. Choosing "No ID on
+  // hand" means there is nothing to write down, so the field stops being
+  // required and gets out of the way instead of blocking the save.
+  (function () {
+    document.querySelectorAll("[data-id-form]").forEach(function (form) {
+      var type = form.querySelector("[data-id-type]");
+      var num = form.querySelector("[data-id-number]");
+      var wrap = form.querySelector("[data-id-number-field]");
+      var note = form.querySelector("[data-id-note]");
+      if (!type || !num) return;
+      function sync() {
+        var none = type.value === "__no_id__";
+        num.required = !none;
+        num.disabled = none;
+        if (none) num.value = "";
+        if (wrap) wrap.style.opacity = none ? "0.45" : "";
+        if (note) note.textContent = none
+          ? "The account is created unverified: they can sign in and see their appointments, but no health records until an ID is checked here."
+          : "";
+      }
+      type.addEventListener("change", sync);
+      sync();
+    });
+  })();
+</script>

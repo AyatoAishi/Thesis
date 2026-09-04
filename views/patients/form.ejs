@@ -51,13 +51,29 @@
           <option value="female" <%= p.sex === 'female' ? 'selected' : '' %>>Female</option>
         </select>
       </label>
-      <label class="field"><span>Patient contact # *</span>
+      <label class="field"><span>Mobile contact # *</span>
         <input type="tel" name="contact_number" value="<%= p.contact_number || '' %>" placeholder="09xxxxxxxxx"
                inputmode="numeric" maxlength="15" data-digits data-phone-primary required />
-        <span class="muted" style="font-size:11.5px;font-weight:500" data-phone-hint>Numbers only. No phone of their own? Fill in the emergency contact # below instead.</span>
+        <%# Silent while the field is simply required. It only speaks up once the
+            emergency contact # below has taken over the requirement, because
+            that is the moment the asterisk here stops being true. %>
+        <span class="muted" style="font-size:11.5px;font-weight:500" data-phone-hint></span>
       </label>
       <label class="field"><span>Patient email <span class="muted">(for reminders)</span></span>
         <input type="email" name="email" value="<%= p.email || '' %>" placeholder="name@gmail.com" />
+      </label>
+      <label class="field" style="grid-column:1/-1"><span>How to remind this patient</span>
+        <% const rc = p.reminder_channel || 'both'; %>
+        <select name="reminder_channel">
+          <option value="both"  <%= rc === 'both'  ? 'selected' : '' %>>Email and SMS</option>
+          <option value="email" <%= rc === 'email' ? 'selected' : '' %>>Email only</option>
+          <option value="sms"   <%= rc === 'sms'   ? 'selected' : '' %>>SMS only</option>
+          <option value="none"  <%= rc === 'none'  ? 'selected' : '' %>>Do not send reminders</option>
+        </select>
+        <span class="muted" style="font-size:11.5px;font-weight:500">
+          The patient's own address is tried first; the emergency contact below is the fallback.
+          SMS is not connected to a provider yet, so those are recorded but not actually sent.
+        </span>
       </label>
       <label class="field" style="grid-column:1/-1"><span>Address</span>
         <input type="text" name="address" value="<%= p.address || '' %>" />
@@ -95,19 +111,6 @@
       </label>
       <label class="field"><span>Emergency contact email <span class="muted">(optional)</span></span>
         <input type="email" name="family_email" value="<%= p.family_email || '' %>" placeholder="name@gmail.com" />
-      </label>
-      <label class="field" style="grid-column:1/-1"><span>How to remind this patient</span>
-        <% const rc = p.reminder_channel || 'both'; %>
-        <select name="reminder_channel">
-          <option value="both"  <%= rc === 'both'  ? 'selected' : '' %>>Email and SMS</option>
-          <option value="email" <%= rc === 'email' ? 'selected' : '' %>>Email only</option>
-          <option value="sms"   <%= rc === 'sms'   ? 'selected' : '' %>>SMS only</option>
-          <option value="none"  <%= rc === 'none'  ? 'selected' : '' %>>Do not send reminders</option>
-        </select>
-        <span class="muted" style="font-size:11.5px;font-weight:500">
-          The patient's own address is tried first; the emergency contact above is the fallback.
-          SMS is not connected to a provider yet, so those are recorded but not actually sent.
-        </span>
       </label>
     </div>
   </div>
@@ -190,7 +193,7 @@
       primary.required = !covered;
       if (hint) hint.textContent = covered
         ? "Covered by the emergency contact # below."
-        : "Numbers only. No phone of their own? Fill in the emergency contact # below instead.";
+        : "";
     }
     if (fallback) fallback.addEventListener("input", syncRequired);
     syncRequired();

@@ -27,7 +27,7 @@
             <% } else { %>
               <form method="POST" action="/admin/users/<%= s.user_id %>/update" style="display:inline-flex;gap:6px;align-items:center">
                 <select name="role">
-                  <% ["nurse","facilitator","recorder","doctor","admin"].forEach(r => { %>
+                  <% ["nurse","facilitator","recorder","admin"].forEach(r => { %>
                     <option value="<%= r %>" <%= s.role === r ? "selected" : "" %>><%= r %></option>
                   <% }) %>
                 </select>

@@ -10,7 +10,7 @@ const audit = require("../lib/audit");
 const { requireRole } = require("../middleware/auth");
 
 const router = express.Router();
-const ROLES = ["nurse", "facilitator", "recorder", "doctor", "admin"];
+const ROLES = ["nurse", "facilitator", "recorder", "admin"];
 const USERNAME_RE = /^[a-z0-9._]{3,30}$/;
 
 // Path-scoped ON PURPOSE. This router is mounted at "/" in server.js, so a

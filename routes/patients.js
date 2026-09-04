@@ -7,7 +7,8 @@
 const express = require("express");
 const db = require("../db");
 const F = require("../lib/format");
-const ID_TYPES = require("../lib/idTypes");
+const { ID_TYPES, UNVERIFIED: NO_ID } = require("../lib/idTypes");
+const { buildCard, overdueCounts } = require("../lib/immunizationCard");
 const audit = require("../lib/audit");
 const { requireRole } = require("../middleware/auth");
 
@@ -251,10 +252,17 @@ router.get("/patients", async (req, res, next) => {
         LIMIT 200`,
       q ? [`%${q}%`] : []
     );
+    // Deliberately one query for the whole page rather than buildCard() per
+    // row — this list is 200 rows and the database is a free-tier instance an
+    // ocean away. See lib/immunizationCard.js: overdueCounts() answers the same
+    // question as buildCard() in SQL, and the two are kept side by side there
+    // so they cannot drift on what "overdue" means.
+    const overdue = await overdueCounts(rows.map((r) => r.patient_id));
     res.render("patients/list", {
       title: "Patients · Sampaguita HC",
       active: "patients",
       patients: rows,
+      overdue,
       q,
       sort,
       sorts: SORTS,
@@ -370,7 +378,10 @@ router.get("/patients/:id", async (req, res, next) => {
     );
     if (!rows[0]) return next();
 
-    const [appts, acctQ, dispensesQ, familyMembers, visitsQ, sharedQ] = await Promise.all([
+    // The order of this array IS the order of the destructuring above it, and
+    // nothing enforces that but care. Each entry is numbered to match.
+    const [appts, acctQ, dispensesQ, familyMembers, visitsQ, sharedQ, card] = await Promise.all([
+      // ---- 1) appts
       db.query(
         `SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.status,
                 s.name AS service_name
@@ -381,6 +392,7 @@ router.get("/patients/:id", async (req, res, next) => {
           LIMIT 50`,
         [req.params.id]
       ),
+      // ---- 2) acctQ
       db.query(
         `SELECT a.account_id, a.username, a.valid_id_type, a.valid_id_number, a.is_verified,
                 a.created_at, a.temp_issued_at, a.password_changed_at,
@@ -390,6 +402,7 @@ router.get("/patients/:id", async (req, res, next) => {
           WHERE a.patient_id = $1`,
         [req.params.id]
       ),
+      // ---- 3) dispensesQ
       db.query(
         `SELECT d.dispense_id, d.quantity, d.dispensed_at, d.notes,
                 m.medicine_id, m.name AS medicine_name, m.unit
@@ -400,7 +413,21 @@ router.get("/patients/:id", async (req, res, next) => {
           LIMIT 50`,
         [req.params.id]
       ),
+      // ---- 4) familyMembers
       loadFamilyMembers(rows[0].family_number, req.params.id),
+      // ---- 5) visitsQ
+      db.query(
+        `SELECT v.visit_id, v.visit_date, v.bp_systolic, v.bp_diastolic, v.weight_kg,
+                v.height_cm, v.temperature_c, v.diagnosis_category, v.diagnosis,
+                v.consultation_notes, a.full_name AS attended_by_name
+           FROM visits v
+           LEFT JOIN users a ON a.user_id = v.attended_by
+          WHERE v.patient_id = $1
+          ORDER BY v.visit_date DESC, v.visit_id DESC
+          LIMIT 50`,
+        [req.params.id]
+      ),
+      // ---- 6) sharedQ
       // Anyone else reachable at this same address. Sharing one is allowed and
       // ordinary — a mother's inbox is often the only one a family has — but it
       // has to be visible, because a password reset sent here reaches all of
@@ -414,17 +441,11 @@ router.get("/patients/:id", async (req, res, next) => {
             [rows[0].email, req.params.id]
           )
         : Promise.resolve({ rows: [] }),
-      db.query(
-        `SELECT v.visit_id, v.visit_date, v.bp_systolic, v.bp_diastolic, v.weight_kg,
-                v.height_cm, v.temperature_c, v.diagnosis, v.consultation_notes,
-                a.full_name AS attended_by_name
-           FROM visits v
-           LEFT JOIN users a ON a.user_id = v.attended_by
-          WHERE v.patient_id = $1
-          ORDER BY v.visit_date DESC, v.visit_id DESC
-          LIMIT 50`,
-        [req.params.id]
-      ),
+      // ---- 7) card
+      // Which doses this patient is behind on, and when the next one falls due.
+      // Read from the same builder the immunization card uses, so the summary
+      // at the top of the profile can never disagree with the card itself.
+      buildCard(rows[0].patient_id, rows[0].birthdate),
     ]);
 
     // One-time credentials flash (set by portal-account create/reset) — read once, then gone.
@@ -442,10 +463,15 @@ router.get("/patients/:id", async (req, res, next) => {
       appointments: appts.rows,
       dispenses: dispensesQ.rows,
       visits: visitsQ.rows,
-      canRecordVisit: ["nurse", "doctor", "admin"].includes(req.session.user.role),
+      canRecordVisit: ["nurse", "admin"].includes(req.session.user.role),
       account: acctQ.rows[0] || null,
       familyMembers,
       emailSharedWith: sharedQ.rows,
+      immOverdue: card.overdue,
+      immNext: card.upcoming[0] || null,
+      // A no-show is the other kind of overdue, and the one the desk is
+      // asked about at the door: “did they ever come back?”
+      missedAppointments: appts.rows.filter((a) => a.status === "missed").length,
       secrets,
       nextStep: req.query.next === "book" ? "book" : "",
       acctErr: req.query.acct_err || null,
@@ -457,6 +483,7 @@ router.get("/patients/:id", async (req, res, next) => {
       // (e.g. a relative who already belongs to another household).
       pageNote: req.query.fam_note || null,
       idTypes: ID_TYPES,
+      noIdValue: NO_ID,
       pretty: F.prettyService,
       shortTime: F.shortTime,
       longDate: F.longDate,

@@ -34,7 +34,7 @@
         <div class="auth-error"><%= error %></div>
       <% } %>
 
-      <form method="POST" action="/portal/login" class="auth-form">
+      <form method="POST" action="/portal/login" class="auth-form"><%- include("../partials/csrf") %>
         <label class="field">
           <span>Username</span>
           <input type="text" name="username" value="<%= username %>" autocomplete="username"

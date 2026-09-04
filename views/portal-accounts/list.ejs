@@ -38,7 +38,7 @@
             <td class="mono" style="font-size:12px"><%= new Date(a.created_at).toLocaleDateString("en-PH", { timeZone:"Asia/Manila", month:"short", day:"numeric", year:"numeric" }) %></td>
             <td style="text-align:right">
               <% if (!a.is_verified && a.valid_id_type) { %>
-                <form method="POST" action="/portal-accounts/<%= a.account_id %>/verify" style="margin:0;display:inline"
+                <form method="POST" action="/portal-accounts/<%= a.account_id %><%- include("../partials/csrf") %>/verify" style="margin:0;display:inline"
                       onsubmit="return confirm('Confirm you checked the physical valid ID?')">
                   <input type="hidden" name="back" value="/portal-accounts" />
                   <button type="submit" class="mini-btn ok">Verify</button>

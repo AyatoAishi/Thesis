@@ -21,7 +21,7 @@
   <%- include("../partials/flow-steps", { step: 3 }) %>
 <% } %>
 
-<form method="POST" action="<%= action %>">
+<form method="POST" action="<%= action %><%- include("../partials/csrf") %>">
   <% if (chain) { %><input type="hidden" name="next" value="<%= chain %>" /><% } %>
   <%# overflow:visible so the patient picker's result list isn't clipped by
       .card's overflow-x. %>

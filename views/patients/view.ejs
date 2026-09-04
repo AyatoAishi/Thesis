@@ -47,7 +47,7 @@
     <a class="mini-btn" href="/reports/export/patient/<%= p.patient_id %>" target="_blank" rel="noopener">Export PDF</a>
     <a class="btn" href="/patients/<%= p.patient_id %>/edit">Edit</a>
     <% if (typeof user !== "undefined" && user && user.role === "admin") { %>
-      <form method="POST" action="/patients/<%= p.patient_id %>/delete"
+      <form method="POST" action="/patients/<%= p.patient_id %><%- include("../partials/csrf") %>/delete"
             data-confirm-title="Warning"
             data-confirm="Deleting <%= p.full_name %> cannot be undone. Everything linked to this patient is destroyed with them: | All appointments, past and upcoming | Their patient portal account and login | Immunization card and every recorded dose | Pre-natal record and all check-ups | Visit records and reminder history"
             data-confirm-yes="Yes, delete permanently"
@@ -344,7 +344,7 @@
     <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
       <% if (!account.is_verified && account.valid_id_type) { %>
         <%# An ID is already on record — verifying only confirms a person held it. %>
-        <form method="POST" action="/portal-accounts/<%= account.account_id %>/verify" style="margin:0"
+        <form method="POST" action="/portal-accounts/<%= account.account_id %><%- include("../partials/csrf") %>/verify" style="margin:0"
               onsubmit="return confirm('Confirm you checked the physical valid ID?')">
           <input type="hidden" name="back" value="/patients/<%= p.patient_id %>" />
           <button type="submit" class="mini-btn ok">Verify (ID checked)</button>
@@ -352,7 +352,7 @@
       <% } else if (!account.is_verified) { %>
         <%# Created with no ID on hand. Verifying has to say which ID was checked,
             or the badge ends up meaning nothing. %>
-        <form method="POST" action="/portal-accounts/<%= account.account_id %>/verify"
+        <form method="POST" action="/portal-accounts/<%= account.account_id %><%- include("../partials/csrf") %>/verify"
               style="margin:0;width:100%" data-id-form>
           <input type="hidden" name="back" value="/patients/<%= p.patient_id %>" />
           <div class="form-grid">
@@ -369,7 +369,7 @@
           <button type="submit" class="mini-btn ok" style="margin-top:10px">Verify (ID checked)</button>
         </form>
       <% } %>
-      <form method="POST" action="/portal-accounts/<%= account.account_id %>/reset" style="margin:0"
+      <form method="POST" action="/portal-accounts/<%= account.account_id %><%- include("../partials/csrf") %>/reset" style="margin:0"
             onsubmit="return confirm('Issue a new temporary password for this patient?')">
         <button type="submit" class="mini-btn">Reset password</button>
       </form>
@@ -378,7 +378,7 @@
     <p class="muted" style="font-size:13px;margin:0 0 12px">
       No portal account. Create one here after checking the patient's valid ID.
     </p>
-    <form method="POST" action="/patients/<%= p.patient_id %>/portal-account" data-id-form>
+    <form method="POST" action="/patients/<%= p.patient_id %><%- include("../partials/csrf") %>/portal-account" data-id-form>
       <div class="form-grid">
         <label class="field"><span>Username</span>
           <input type="text" name="username" placeholder="e.g. juan.dela.cruz" required autocapitalize="none" spellcheck="false" />

@@ -38,7 +38,7 @@
           <b><%= signedInAs %></b> is still signed in on this computer.
           <div class="auth-notice-actions">
             <a class="mini-btn" href="/dashboard">Continue as <%= signedInAs %></a>
-            <form method="POST" action="/logout" style="margin:0">
+            <form method="POST" action="/logout" style="margin:0"><%- include("partials/csrf") %>
               <button type="submit" class="mini-btn">Sign out</button>
             </form>
           </div>
@@ -46,7 +46,7 @@
         </div>
       <% } %>
 
-      <form method="POST" action="/login" class="auth-form">
+      <form method="POST" action="/login" class="auth-form"><%- include("partials/csrf") %>
         <label class="field">
           <span>Username</span>
           <input type="text" name="username" value="<%= username %>" autocomplete="username"

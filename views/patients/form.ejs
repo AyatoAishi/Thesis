@@ -28,7 +28,7 @@
   </div>
 <% } %>
 
-<form method="POST" action="<%= action %>">
+<form method="POST" action="<%= action %><%- include("../partials/csrf") %>">
   <% if (chain) { %><input type="hidden" name="next" value="<%= chain %>" /><% } %>
   <%# When this form was loaded, so the server can refuse to save on top of a
       change someone else made while it sat open — see routes/patients.js. %>

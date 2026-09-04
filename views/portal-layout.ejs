@@ -23,7 +23,7 @@
     </div>
     <div class="portal-top-right">
       <span class="portal-me"><%= me.full_name %></span>
-      <form method="POST" action="/portal/logout" style="margin:0">
+      <form method="POST" action="/portal/logout" style="margin:0"><%- include("partials/csrf") %>
         <button type="submit" class="logout-btn">Log out</button>
       </form>
     </div>

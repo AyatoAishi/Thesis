@@ -12,7 +12,7 @@
   </div>
 <% } %>
 
-<form method="POST" action="/inventory/dispense">
+<form method="POST" action="/inventory/dispense"><%- include("../partials/csrf") %>
   <%# overflow:visible — the pickers' result lists drop below the card's own
       height, and .card sets overflow-x which silently clips them. %>
   <div class="card" style="overflow:visible">

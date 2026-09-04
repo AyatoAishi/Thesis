@@ -30,6 +30,7 @@ const reminders = require("./services/reminders");
 const immSchedule = require("./services/immunizationSchedule");
 const imm = require("./lib/immunizationCard");
 const { requireLogin } = require("./middleware/auth");
+const { csrf } = require("./middleware/csrf");
 const F = require("./lib/format");
 
 const app = express();
@@ -74,6 +75,14 @@ app.use(
     },
   })
 );
+
+// Every write from here on must carry this session’s token. Mounted straight
+// after the session (which it stores the token in) and the body parser
+// (which is what reads it back off the form), and before every route —
+// including /login and the portal, because a forged sign-in is its own
+// attack: log somebody into an account the attacker controls, and whatever
+// they do next is recorded against it.
+app.use(csrf);
 
 // Locals available to every view
 app.use((req, res, next) => {
@@ -309,6 +318,18 @@ app.use((req, res) => {
 });
 
 app.use((err, req, res, next) => {
+  // A rejected form is not a server fault, and saying "something went wrong
+  // on the server" would send somebody hunting for a bug that is not there.
+  // The usual cause is innocent: a page left open past the 8-hour session.
+  if (err && err.csrf) {
+    console.warn("[csrf] rejected", req.method, req.originalUrl);
+    return res.status(403).render("error", {
+      title: "Form expired",
+      active: "",
+      code: 403,
+      message: err.message,
+    });
+  }
   console.error("[error]", err);
   res.status(500).render("error", {
     title: "Error",

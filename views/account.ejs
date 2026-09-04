@@ -16,7 +16,7 @@
 
 <div class="card">
   <div class="panel-title" style="margin-bottom:14px">Update profile</div>
-  <form method="POST" action="/account/profile" class="form-grid">
+  <form method="POST" action="/account/profile" class="form-grid"><%- include("partials/csrf") %>
     <label class="field"><span>Full name</span>
       <input type="text" name="full_name" value="<%= user.full_name %>" required />
     </label>
@@ -26,7 +26,7 @@
 
 <div class="card">
   <div class="panel-title" style="margin-bottom:14px">Change password</div>
-  <form method="POST" action="/account/password" class="form-grid">
+  <form method="POST" action="/account/password" class="form-grid"><%- include("partials/csrf") %>
     <label class="field"><span>Current password</span>
       <%- include("partials/password-field", { name: "current_password", autocomplete: "current-password" }) %>
     </label>

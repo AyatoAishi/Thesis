@@ -21,7 +21,7 @@
   </div>
 <% } %>
 
-<form method="POST" action="<%= action %>">
+<form method="POST" action="<%= action %><%- include("../partials/csrf") %>">
   <div class="card">
     <div class="panel-title" style="margin-bottom:14px">Pregnancy basics</div>
     <div class="form-grid">

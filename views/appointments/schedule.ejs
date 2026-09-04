@@ -75,17 +75,17 @@
               <td>
                 <div class="appt-actions">
                   <% if (it.status === 'scheduled') { %>
-                    <form method="POST" action="/appointments/<%= it.appointment_id %>/status"><input type="hidden" name="status" value="completed"><input type="hidden" name="back" value="<%= backUrl %>"><button class="mini-btn ok">Done</button></form>
-                    <form method="POST" action="/appointments/<%= it.appointment_id %>/status"><input type="hidden" name="status" value="missed"><input type="hidden" name="back" value="<%= backUrl %>"><button class="mini-btn bad">Missed</button></form>
+                    <form method="POST" action="/appointments/<%= it.appointment_id %><%- include("../partials/csrf") %>/status"><input type="hidden" name="status" value="completed"><input type="hidden" name="back" value="<%= backUrl %>"><button class="mini-btn ok">Done</button></form>
+                    <form method="POST" action="/appointments/<%= it.appointment_id %><%- include("../partials/csrf") %>/status"><input type="hidden" name="status" value="missed"><input type="hidden" name="back" value="<%= backUrl %>"><button class="mini-btn bad">Missed</button></form>
                     <a class="mini-btn" href="/appointments/<%= it.appointment_id %>/edit">Reschedule</a>
-                    <form method="POST" action="/appointments/<%= it.appointment_id %>/status"><input type="hidden" name="status" value="cancelled"><input type="hidden" name="back" value="<%= backUrl %>"><button class="mini-btn">Cancel</button></form>
+                    <form method="POST" action="/appointments/<%= it.appointment_id %><%- include("../partials/csrf") %>/status"><input type="hidden" name="status" value="cancelled"><input type="hidden" name="back" value="<%= backUrl %>"><button class="mini-btn">Cancel</button></form>
                   <% } else { %>
                     <%# Straight from "Done" into writing up what happened — the
                         moment staff are most likely to still remember it. %>
                     <% if (it.status === 'completed' && typeof user !== "undefined" && user && ["nurse","admin"].includes(user.role)) { %>
                       <a class="mini-btn ok" href="/patients/<%= it.patient_id %>/visits/new?appointment_id=<%= it.appointment_id %>">Record consultation</a>
                     <% } %>
-                    <form method="POST" action="/appointments/<%= it.appointment_id %>/status"><input type="hidden" name="status" value="scheduled"><input type="hidden" name="back" value="<%= backUrl %>"><button class="mini-btn">Undo</button></form>
+                    <form method="POST" action="/appointments/<%= it.appointment_id %><%- include("../partials/csrf") %>/status"><input type="hidden" name="status" value="scheduled"><input type="hidden" name="back" value="<%= backUrl %>"><button class="mini-btn">Undo</button></form>
                   <% } %>
                 </div>
               </td>

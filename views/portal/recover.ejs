@@ -65,7 +65,7 @@
           <div class="auth-error"><%= error %></div>
         <% } %>
 
-        <form method="POST" action="/portal/recover" class="auth-form">
+        <form method="POST" action="/portal/recover" class="auth-form"><%- include("../partials/csrf") %>
           <label class="field">
             <span>Email address</span>
             <input type="email" name="email" value="<%= emailValue %>" required autofocus

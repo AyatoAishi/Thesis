@@ -12,7 +12,7 @@
   </div>
 <% } %>
 
-<form method="POST" action="/patients/<%= patient.patient_id %>/immunization">
+<form method="POST" action="/patients/<%= patient.patient_id %><%- include("../partials/csrf") %>/immunization">
   <div class="card">
     <div class="panel-title" style="margin-bottom:14px"><%= patient.full_name %></div>
     <div class="form-grid">

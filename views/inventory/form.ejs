@@ -17,7 +17,7 @@
   </div>
 <% } %>
 
-<form method="POST" action="<%= action %>">
+<form method="POST" action="<%= action %><%- include("../partials/csrf") %>">
   <%# When this form was loaded, so the server can refuse to save on top of a
       change someone else made while it sat open — see routes/inventory.js. %>
   <% if (isEdit && m.updated_at) { %>

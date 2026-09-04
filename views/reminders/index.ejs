@@ -28,7 +28,7 @@
         <span class="badge warn">SIMULATION — no mail credentials</span>
       <% } %>
     </div>
-    <form method="POST" action="/reminders/test-email" style="margin:0">
+    <form method="POST" action="/reminders/test-email" style="margin:0"><%- include("../partials/csrf") %>
       <button class="logout-btn" type="submit" style="cursor:pointer">Test email now</button>
     </form>
   </div>
@@ -95,7 +95,7 @@
 
 <div class="card">
   <div class="panel-title" style="margin-bottom:12px">Send reminders</div>
-  <form method="POST" action="/reminders/run-now" class="daynav-left" style="gap:12px;flex-wrap:wrap;align-items:flex-end">
+  <form method="POST" action="/reminders/run-now" class="daynav-left" style="gap:12px;flex-wrap:wrap;align-items:flex-end"><%- include("../partials/csrf") %>
     <label class="field" style="gap:4px">
       <span>For appointments on</span>
       <input type="date" name="date" value="<%= date %>" />

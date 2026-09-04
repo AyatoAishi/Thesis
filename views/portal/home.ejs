@@ -213,7 +213,7 @@
     <div class="auth-error" style="margin-bottom:14px"><%= flash.pwErr %></div>
   <% } %>
 
-  <form method="POST" action="/portal/password" class="auth-form" style="gap:12px">
+  <form method="POST" action="/portal/password" class="auth-form" style="gap:12px"><%- include("../partials/csrf") %>
     <div class="form-grid">
       <label class="field" style="grid-column:1/-1">
         <span>Current password</span>

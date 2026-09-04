@@ -75,17 +75,17 @@
   </dl>
   <% if (r.status === "active") { %>
     <div style="display:flex;gap:8px;margin-top:16px">
-      <form method="POST" action="/patients/<%= patient.patient_id %>/prenatal/<%= r.prenatal_id %>/status">
+      <form method="POST" action="/patients/<%= patient.patient_id %><%- include("../partials/csrf") %>/prenatal/<%= r.prenatal_id %>/status">
         <input type="hidden" name="status" value="delivered" />
         <button type="submit" class="mini-btn ok">Mark delivered</button>
       </form>
-      <form method="POST" action="/patients/<%= patient.patient_id %>/prenatal/<%= r.prenatal_id %>/status">
+      <form method="POST" action="/patients/<%= patient.patient_id %><%- include("../partials/csrf") %>/prenatal/<%= r.prenatal_id %>/status">
         <input type="hidden" name="status" value="closed" />
         <button type="submit" class="mini-btn">Close record</button>
       </form>
     </div>
   <% } else { %>
-    <form method="POST" action="/patients/<%= patient.patient_id %>/prenatal/<%= r.prenatal_id %>/status" style="margin-top:16px">
+    <form method="POST" action="/patients/<%= patient.patient_id %><%- include("../partials/csrf") %>/prenatal/<%= r.prenatal_id %>/status" style="margin-top:16px">
       <input type="hidden" name="status" value="active" />
       <button type="submit" class="mini-btn">Reopen as active</button>
     </form>
@@ -112,7 +112,7 @@
             <td><%= c.attended_by_text || "—" %></td>
             <td><%= c.place_of_birth || "—" %></td>
             <td style="text-align:right">
-              <form method="POST" action="/patients/<%= patient.patient_id %>/prenatal/<%= r.prenatal_id %>/children/<%= c.child_id %>/delete"
+              <form method="POST" action="/patients/<%= patient.patient_id %><%- include("../partials/csrf") %>/prenatal/<%= r.prenatal_id %>/children/<%= c.child_id %>/delete"
                     onsubmit="return confirm('Remove this child record?');">
                 <button type="submit" class="mini-btn">Remove</button>
               </form>
@@ -146,7 +146,7 @@
             <td class="muted" style="font-size:12px"><%= symptomList(v) %></td>
             <td class="muted" style="font-size:12px"><%= v.notes || "—" %></td>
             <td style="text-align:right">
-              <form method="POST" action="/patients/<%= patient.patient_id %>/prenatal/<%= r.prenatal_id %>/visits/<%= v.visit_id %>/delete"
+              <form method="POST" action="/patients/<%= patient.patient_id %><%- include("../partials/csrf") %>/prenatal/<%= r.prenatal_id %>/visits/<%= v.visit_id %>/delete"
                     onsubmit="return confirm('Remove this visit record?');">
                 <button type="submit" class="mini-btn">Remove</button>
               </form>

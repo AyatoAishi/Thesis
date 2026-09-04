@@ -65,7 +65,7 @@
         <div class="user-menu-dropdown" data-user-menu-dropdown hidden>
           <a href="/account">Update profile</a>
           <a href="/account">Change password</a>
-          <form method="POST" action="/logout" style="margin:0">
+          <form method="POST" action="/logout" style="margin:0"><%- include("../partials/csrf") %>
             <button type="submit" class="user-menu-logout">Logout</button>
           </form>
         </div>

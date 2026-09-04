@@ -27,6 +27,8 @@ const prenatalRoutes = require("./routes/prenatal");
 const visitRoutes = require("./routes/visits");
 const formRoutes = require("./routes/forms");
 const reminders = require("./services/reminders");
+const immSchedule = require("./services/immunizationSchedule");
+const imm = require("./lib/immunizationCard");
 const { requireLogin } = require("./middleware/auth");
 const F = require("./lib/format");
 
@@ -114,13 +116,26 @@ app.get("/health", async (req, res) => {
 // so waiting for the full job to finish before replying risks a false
 // "timeout" every single morning. The actual outcome is still logged to the
 // notifications table and viewable on /reminders regardless.
+// The whole daily pass. The order is not arbitrary: the immunization sweep has
+// to mark yesterday's no-shows and book the coming doses BEFORE the reminder
+// run goes looking for scheduled appointments, or a dose booked this morning
+// waits an extra day for its reminder and a parent gets a reminder for a
+// session that has already been and gone.
+async function runDailyJobs() {
+  const immResult = await immSchedule.runDaily();
+  const remResult = await reminders.processReminders({});
+  return { immunization: immResult, reminders: remResult };
+}
+
 app.all("/tasks/run-reminders", (req, res) => {
   const token = req.query.token || req.get("x-cron-token");
   if (!process.env.CRON_SECRET || token !== process.env.CRON_SECRET) {
     return res.status(403).json({ ok: false, error: "forbidden" });
   }
   res.json({ ok: true, status: "started" });
-  reminders.processReminders({}).catch((e) => console.error("[tasks/run-reminders]", e.message));
+  // The URL keeps its name: it is already registered at cron-job.org, and a
+  // renamed endpoint would mean a silently dead schedule until someone noticed.
+  runDailyJobs().catch((e) => console.error("[tasks/run-reminders]", e.message));
 });
 
 // Auth (login / logout) — public
@@ -182,10 +197,12 @@ app.use(async (req, res, next) => {
          (SELECT count(*)::int FROM appointments WHERE appointment_date=$1) AS today_appts,
          (SELECT count(*)::int FROM appointments WHERE appointment_date=$1 AND status='scheduled') AS today_waiting,
          (SELECT count(*)::int FROM medicines WHERE stock_quantity < low_stock_threshold) AS low_stock,
+         ${imm.overdueChildrenSql({ names: "$3", doses: "$4", weeks: "$5", today: "$1", maxAge: "$6" })} AS imm_overdue,
          (SELECT role   FROM users WHERE user_id=$2) AS live_role,
          (SELECT status FROM users WHERE user_id=$2) AS live_status,
          (SELECT full_name FROM users WHERE user_id=$2) AS live_name`,
-      [F.manilaToday(), req.session.user.user_id]
+      [F.manilaToday(), req.session.user.user_id,
+       imm.DUE_ARRAYS.names, imm.DUE_ARRAYS.doses, imm.DUE_ARRAYS.weeks, imm.EPI_MAX_AGE_YEARS]
     );
     const c = rows[0];
 
@@ -209,7 +226,10 @@ app.use(async (req, res, next) => {
     const all = [
       { key: "today_waiting", n: c.today_waiting, href: "/appointments",
         label: `${c.today_waiting} patient${c.today_waiting === 1 ? "" : "s"} still expected today`,
-        roles: ["nurse", "facilitator", "recorder", "doctor", "admin"] },
+        roles: ["nurse", "facilitator", "recorder", "admin"] },
+      { key: "imm_overdue", n: c.imm_overdue, href: "/patients",
+        label: `${c.imm_overdue} child${c.imm_overdue === 1 ? "" : "ren"} overdue for immunization`,
+        roles: ["nurse", "facilitator", "recorder", "admin"] },
       { key: "low_stock", n: c.low_stock, href: "/inventory?low=1",
         label: `${c.low_stock} medicine${c.low_stock === 1 ? "" : "s"} low on stock`,
         roles: ["nurse", "admin"] },
@@ -307,10 +327,15 @@ if (cron.validate(reminderCron)) {
     reminderCron,
     async () => {
       try {
-        const s = await reminders.processReminders({});
+        const { immunization: i, reminders: s } = await runDailyJobs();
+        console.log(
+          `[cron] immunization ${i.date}: ${i.scheduled.booked} dose(s) booked for ` +
+            `${i.scheduled.patients} patient(s), ${i.missed.doses} dose(s) and ` +
+            `${i.missed.appointments} appointment(s) marked missed`
+        );
         console.log(`[cron] reminders ${s.date}: ${s.sent} sent, ${s.failed} failed, ${s.skipped} skipped`);
       } catch (e) {
-        console.error("[cron] reminder error:", e.message);
+        console.error("[cron] daily job error:", e.message);
       }
     },
     { timezone: F.TZ }

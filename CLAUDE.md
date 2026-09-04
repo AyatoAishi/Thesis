@@ -9,13 +9,18 @@
 A **Web-Based Electronic Medical Record (EMR) + Appointment Management System** for
 **Barangay Sampaguita Health Clinic** (a small community health clinic in the Philippines).
 It is an undergraduate thesis project (BS Information Technology). End users are
-**non-technical** clinic staff (a nurse, facilitators, a recorder, and a visiting doctor)
+**non-technical** clinic staff (a nurse, facilitators, a recorder and an admin)
 plus **patients** who use a limited self-service portal.
+
+**There is no doctor at this clinic.** The original brief assumed a visiting one; the
+staff confirmed otherwise. The approval workflow went on 2026-08-20 and the role
+itself on 2026-09-04. Do not reintroduce either.
 
 The system must: centralize patient records, track appointments and auto-generate a daily
 list of expected patients, send SMS/email reminders (with a family-contact fallback),
-manage a medicine inventory (with doctor approval on dispensing), provide a patient portal,
-and produce reports (attendance, no-shows, seasonal cases). It runs **fully online**.
+manage a medicine inventory, provide a patient portal, schedule the childhood immunization
+series automatically from each child's birthday, and produce reports (attendance, no-shows,
+seasonal cases by service and by illness). It runs **fully online**.
 
 ## Tech stack (LOCKED — do not substitute without asking)
 - **Runtime/Backend:** Node.js (v18+) + **Express**
@@ -64,11 +69,13 @@ npm run dev               # start the server (nodemon)
 ## Non-negotiable rules
 1. **Security/Data Privacy Act (RA 10173):** never store plaintext passwords (bcrypt only);
    never log full patient records; restrict every route with role checks.
-2. **Roles:** `nurse`, `facilitator`, `recorder`, `doctor`, `admin` (staff) + `patient` (portal,
+2. **Roles:** `nurse`, `facilitator`, `recorder`, `admin` (staff) + `patient` (portal,
    view-only of their own permitted records). Enforce via `middleware/auth.js`.
+   There is no `doctor` role — the database CHECK constraint refuses it.
 3. **Minors:** patient records flagged `is_minor` require `guardian_consent`; treat with extra care.
-4. **Medicine dispensing:** if `requires_doctor_approval` is true, a dispense is not final until a
-   `doctor` user approves it (sets `approved_by`/`approved_at`).
+4. **Medicine dispensing:** dispensing is immediate. The `requires_doctor_approval`,
+   `approved_by` and `approved_at` columns are frozen history of how old dispenses were
+   handled — read them, never write them.
 5. **SMS gotcha:** never send a message that starts with the word "TEST" — Semaphore silently drops it.
 6. **Secrets:** only via `.env`; never hardcode API keys; never commit `.env`.
 7. **Build incrementally:** follow `docs/BUILD-PLAN.md` milestone by milestone. After each ticket,

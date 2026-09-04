@@ -14,10 +14,11 @@ system. No computer background needed — if you can use Facebook or GCash, you 
    "forgot password" for staff accounts (patients have their own separate portal with that option —
    see section 6).
 
-Your account has a **role** (nurse, facilitator, recorder, doctor, or admin), shown next to your name
-top-right. Most of this system works the same for every role — the two exceptions are:
+Your account has a **role** (nurse, facilitator, recorder, or admin), shown next to your name
+top-right. Most of this system works the same for every role — the exceptions are:
 - **Reports** (attendance, no-shows, trends, inventory numbers) — visible to nurse, recorder, and admin.
-- **Approving a medicine request that needs a doctor's sign-off** — only the doctor account can do this.
+- **Recording a consultation** (vital signs, diagnosis) — nurse and admin.
+- **Adding or editing staff accounts** — admin only.
 
 ---
 
@@ -42,11 +43,36 @@ top-right. Most of this system works the same for every role — the two excepti
    right away. The day before the appointment, they (or their family contact, if they have no
    email/phone of their own) get an automatic reminder too — you don't need to do anything for that.
 
+### Appointments the system books by itself
+Every child under five is on the DOH immunization schedule, and that schedule is written as an
+age — BCG at birth, Pentavalent at 1½, 2½ and 3½ months, and so on. Because the system knows
+each child's birthday, it works out the date each dose comes due and **books it into the next
+Tuesday session by itself**, about three weeks ahead. You will see these on the daily list with a
+note beginning **"Automatic:"** and the vaccines named. The parent gets the same reminder email
+the day before as any other appointment.
+
+Two things it deliberately does *not* do:
+- **It will not book a catch-up.** If a dose is more than three months late — a two-year-old who
+  has never been here, say — it leaves that to you. It shows up as overdue on the child's page,
+  and you decide what to give and when.
+- **It stops at five years old.** The school-age and senior vaccines on the card are still
+  recorded by hand, because "Grade 1" and "annual" are not ages the system can calculate.
+
+### Seeing who is behind
+A red **"3 overdue"** badge next to a name on the Patients list means that child has doses past
+due; click it to open their immunization card. The same thing appears in a red band at the top of
+their page, with how many days late the oldest one is, and the bell at the top of every screen
+counts how many children are behind in total.
+
 ### On the day of the clinic (marking attendance)
 1. Open the **calendar icon** — this shows today's expected patients, grouped by service.
 2. As each patient arrives and is seen, click **Done** next to their name. If someone doesn't show
    up, click **Missed** instead. Made a mistake? Click **Undo** to put it back to "Scheduled".
 3. Need to move someone to a different day? Click **Reschedule**.
+4. You don't have to catch everyone. Any appointment still sitting on "Scheduled" **after its day
+   has passed** is marked **Missed** automatically overnight, so the no-shows report is right even
+   on a day nobody had time to tidy up the list. Marking it yourself while the patient is in front
+   of you is still better — the automatic sweep cannot tell a no-show from a busy afternoon.
 
 ### Dispensing medicine
 1. Open the **archive/box icon** (Inventory) and find the medicine, or go to the patient's page and

@@ -98,6 +98,7 @@
                 <td>
                   <a href="/patients/<%= p.patient_id %>"><%= p.full_name %></a>
                   <% if (p.is_minor) { %><span class="badge info" style="margin-left:6px">Minor</span><% } %>
+                  <% const od = overdue.get(p.patient_id); %><% if (od) { %><a href="/patients/<%= p.patient_id %>/immunization" class="badge bad" style="margin-left:6px;text-decoration:none" title="Oldest dose is <%= od.worstDays %> days late"><%= od.overdue %> overdue</a><% } %>
                 </td>
                 <td style="width:70px"><%= age(p.birthdate) %></td>
                 <td><%= p.contact_number || "—" %></td>
@@ -122,6 +123,7 @@
                 <td>
                   <a href="/patients/<%= p.patient_id %>"><%= p.full_name %></a>
                   <% if (p.is_minor) { %><span class="badge info" style="margin-left:6px">Minor</span><% } %>
+                  <% const od = overdue.get(p.patient_id); %><% if (od) { %><a href="/patients/<%= p.patient_id %>/immunization" class="badge bad" style="margin-left:6px;text-decoration:none" title="Oldest dose is <%= od.worstDays %> days late"><%= od.overdue %> overdue</a><% } %>
                 </td>
                 <td style="width:70px"><%= age(p.birthdate) %></td>
                 <td><%= p.contact_number || "—" %></td>
@@ -134,7 +136,7 @@
   <% } else { %>
     <table class="tbl">
       <thead>
-        <tr><th>Patient #</th><th>Name</th><th>Sex</th><th>Age</th><th>Contact</th><th></th></tr>
+        <tr><th>Patient #</th><th>Name</th><th>Sex</th><th>Age</th><th>Mobile #</th><th></th></tr>
       </thead>
       <tbody>
         <% patients.forEach(p => { %>
@@ -143,6 +145,7 @@
             <td>
               <a href="/patients/<%= p.patient_id %>"><%= p.full_name %></a>
               <% if (p.is_minor) { %><span class="badge info" style="margin-left:6px">Minor</span><% } %>
+              <% const od = overdue.get(p.patient_id); %><% if (od) { %><a href="/patients/<%= p.patient_id %>/immunization" class="badge bad" style="margin-left:6px;text-decoration:none" title="Oldest dose is <%= od.worstDays %> days late"><%= od.overdue %> overdue</a><% } %>
             </td>
             <td><%= p.sex || "—" %></td>
             <td><%= age(p.birthdate) %></td>

@@ -59,6 +59,60 @@
   </div>
 </div>
 
+<%
+  // Overdue, stated in days, at the top of the page. It used to be knowable
+  // only by opening the immunization tab and reading fourteen empty boxes
+  // against a schedule printed on a card — which is to say it was knowable by
+  // whoever already knew. `immOverdue` comes from lib/immunizationCard.js and
+  // is already sorted worst-first.
+  const overdueList = typeof immOverdue !== "undefined" && immOverdue ? immOverdue : [];
+  const nextDose = typeof immNext !== "undefined" ? immNext : null;
+  const noShows = typeof missedAppointments !== "undefined" ? missedAppointments : 0;
+  function days(n) { return n === 1 ? "1 day" : `${n} days`; }
+%>
+<% if (overdueList.length || noShows) { %>
+  <div class="card" style="border-color:var(--bad-bg);background:var(--bad-bg);margin-bottom:14px">
+    <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+      <b style="color:var(--bad-ink)">Overdue</b>
+      <% if (overdueList.length) { %>
+        <span style="color:var(--bad-ink);font-size:13px">
+          <%= overdueList.length %> immunization dose<%= overdueList.length === 1 ? "" : "s" %>,
+          the oldest by <%= days(overdueList[0].daysOverdue) %>
+        </span>
+      <% } %>
+      <% if (noShows) { %>
+        <span style="color:var(--bad-ink);font-size:13px">
+          <%= overdueList.length ? "· " : "" %><%= noShows %> missed appointment<%= noShows === 1 ? "" : "s" %>
+        </span>
+      <% } %>
+    </div>
+    <% if (overdueList.length) { %>
+      <ul style="margin:10px 0 0;padding-left:18px;color:var(--bad-ink);font-size:13px">
+        <% overdueList.slice(0, 5).forEach(d => { %>
+          <li>
+            <%= d.vaccine %> — dose <%= d.doseNumber %>,
+            due <%= longDate(d.dueDate) %> (<%= days(d.daysOverdue) %> late)<%
+            %><% if (d.bookedFor) { %>, booked for <%= longDate(d.bookedFor) %><% } %>
+          </li>
+        <% }) %>
+        <% if (overdueList.length > 5) { %>
+          <li><%= overdueList.length - 5 %> more — see the immunization card.</li>
+        <% } %>
+      </ul>
+      <a class="mini-btn" style="margin-top:12px" href="/patients/<%= p.patient_id %>/immunization">Open immunization card</a>
+    <% } %>
+  </div>
+<% } else if (nextDose) { %>
+  <div class="card" style="margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+    <div style="font-size:13px">
+      <b>Next dose due</b> — <%= nextDose.vaccine %> dose <%= nextDose.doseNumber %>
+      on <%= longDate(nextDose.dueDate) %><% if (nextDose.bookedFor) { %>,
+      booked for <%= longDate(nextDose.bookedFor) %><% } %>.
+    </div>
+    <a class="mini-btn" href="/patients/<%= p.patient_id %>/immunization">Immunization card</a>
+  </div>
+<% } %>
+
 <% if (typeof nextStep !== "undefined" && nextStep === "book") { %>
   <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;background:var(--accent-softer);border-color:var(--accent-soft)">
     <div>
@@ -74,7 +128,7 @@
   <dl class="kv">
     <div><dt>Sex</dt><dd><%= p.sex || "—" %></dd></div>
     <div><dt>Birthdate</dt><dd><%= fmt(p.birthdate) %><%= a !== null ? ` (${a} yrs)` : "" %></dd></div>
-    <div><dt>Patient contact</dt><dd><%= p.contact_number || "—" %></dd></div>
+    <div><dt>Mobile contact</dt><dd><%= p.contact_number || "—" %></dd></div>
     <div><dt>Email</dt><dd>
       <%= p.email || "—" %>
       <% if (emailSharedWith && emailSharedWith.length) { %>
@@ -288,11 +342,31 @@
       </div>
     <% } %>
     <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
-      <% if (!account.is_verified) { %>
+      <% if (!account.is_verified && account.valid_id_type) { %>
+        <%# An ID is already on record — verifying only confirms a person held it. %>
         <form method="POST" action="/portal-accounts/<%= account.account_id %>/verify" style="margin:0"
               onsubmit="return confirm('Confirm you checked the physical valid ID?')">
           <input type="hidden" name="back" value="/patients/<%= p.patient_id %>" />
           <button type="submit" class="mini-btn ok">Verify (ID checked)</button>
+        </form>
+      <% } else if (!account.is_verified) { %>
+        <%# Created with no ID on hand. Verifying has to say which ID was checked,
+            or the badge ends up meaning nothing. %>
+        <form method="POST" action="/portal-accounts/<%= account.account_id %>/verify"
+              style="margin:0;width:100%" data-id-form>
+          <input type="hidden" name="back" value="/patients/<%= p.patient_id %>" />
+          <div class="form-grid">
+            <label class="field"><span>Valid ID presented now</span>
+              <select name="valid_id_type" required data-id-type>
+                <option value="">— choose an ID —</option>
+                <% idTypes.forEach(t => { %><option value="<%= t %>"><%= t %></option><% }) %>
+              </select>
+            </label>
+            <label class="field" data-id-number-field><span>Valid ID number</span>
+              <input type="text" name="valid_id_number" required data-id-number />
+            </label>
+          </div>
+          <button type="submit" class="mini-btn ok" style="margin-top:10px">Verify (ID checked)</button>
         </form>
       <% } %>
       <form method="POST" action="/portal-accounts/<%= account.account_id %>/reset" style="margin:0"
@@ -304,24 +378,53 @@
     <p class="muted" style="font-size:13px;margin:0 0 12px">
       No portal account. Create one here after checking the patient's valid ID.
     </p>
-    <form method="POST" action="/patients/<%= p.patient_id %>/portal-account">
+    <form method="POST" action="/patients/<%= p.patient_id %>/portal-account" data-id-form>
       <div class="form-grid">
         <label class="field"><span>Username</span>
           <input type="text" name="username" placeholder="e.g. juan.dela.cruz" required autocapitalize="none" spellcheck="false" />
         </label>
         <label class="field"><span>Valid ID presented</span>
-          <select name="valid_id_type" required>
+          <select name="valid_id_type" required data-id-type>
             <option value="">— choose an ID —</option>
             <% idTypes.forEach(t => { %><option value="<%= t %>"><%= t %></option><% }) %>
+            <option value="<%= noIdValue %>">No ID on hand — create unverified</option>
           </select>
         </label>
-        <label class="field"><span>Valid ID number</span>
-          <input type="text" name="valid_id_number" required />
+        <label class="field" data-id-number-field><span>Valid ID number</span>
+          <input type="text" name="valid_id_number" required data-id-number />
         </label>
       </div>
-      <button type="submit" class="btn" style="margin-top:12px">Create account (verified)</button>
+      <div class="muted" style="font-size:11.5px;font-weight:500;margin-top:8px" data-id-note></div>
+      <button type="submit" class="btn" style="margin-top:12px">Create account</button>
     </form>
   <% } %>
 </div>
 
 <p class="muted" style="font-size:12px">Added <%= fmt(p.created_at) %><%= p.created_by_name ? ` by ${p.created_by_name}` : "" %>.</p>
+
+<script>
+  // The ID number is evidence for the ID type beside it. Choosing "No ID on
+  // hand" means there is nothing to write down, so the field stops being
+  // required and gets out of the way instead of blocking the save.
+  (function () {
+    document.querySelectorAll("[data-id-form]").forEach(function (form) {
+      var type = form.querySelector("[data-id-type]");
+      var num = form.querySelector("[data-id-number]");
+      var wrap = form.querySelector("[data-id-number-field]");
+      var note = form.querySelector("[data-id-note]");
+      if (!type || !num) return;
+      function sync() {
+        var none = type.value === "__no_id__";
+        num.required = !none;
+        num.disabled = none;
+        if (none) num.value = "";
+        if (wrap) wrap.style.opacity = none ? "0.45" : "";
+        if (note) note.textContent = none
+          ? "The account is created unverified: they can sign in and see their appointments, but no health records until an ID is checked here."
+          : "";
+      }
+      type.addEventListener("change", sync);
+      sync();
+    });
+  })();
+</script>

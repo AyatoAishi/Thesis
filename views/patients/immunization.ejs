@@ -5,6 +5,22 @@
     ["school", "School-aged children"],
     ["senior", "Senior citizen"],
   ];
+  // An empty slot used to look the same whether the dose was due at birth and
+  // never given, or due next March. These are the words for the difference.
+  // The state itself is worked out in lib/immunizationCard.js.
+  const SLOT = {
+    overdue:  { cls: "bad",  word: "overdue" },
+    due:      { cls: "warn", word: "due now" },
+    upcoming: { cls: "info", word: "upcoming" },
+  };
+  function slotLabel(slot) {
+    if (slot.state === "overdue") {
+      return `${slot.daysOverdue} day${slot.daysOverdue === 1 ? "" : "s"} overdue`;
+    }
+    if (slot.state === "due") return "due today";
+    if (slot.state === "upcoming") return `due ${fmtDate(slot.dueDate)}`;
+    return "";
+  }
 %>
 <div class="page-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
   <div>
@@ -20,6 +36,28 @@
 
 <% if (flash) { %>
   <div class="card" style="background:var(--accent-softer);border-color:var(--accent-soft)"><%= flash %></div>
+<% } %>
+
+<% if (overdue.length) { %>
+  <div class="card" style="border-color:var(--bad-bg);background:var(--bad-bg)">
+    <b style="color:var(--bad-ink)"><%= overdue.length %> dose<%= overdue.length === 1 ? "" : "s" %> overdue</b>
+    <span style="color:var(--bad-ink);font-size:13px">
+      — the oldest by <%= overdue[0].daysOverdue %> day<%= overdue[0].daysOverdue === 1 ? "" : "s" %>.
+      <% if (overdue.some(d => d.bookedFor)) { %>
+        The ones with a date beside them are already booked into a session.
+      <% } else { %>
+        None of them are booked yet.
+      <% } %>
+    </span>
+  </div>
+<% } else if (upcoming.length) { %>
+  <div class="card">
+    <b>Next due</b>
+    <span class="muted" style="font-size:13px">
+      — <%= upcoming[0].vaccine %> dose <%= upcoming[0].doseNumber %> on <%= fmtDate(upcoming[0].dueDate) %><%
+      %><% if (upcoming[0].bookedFor) { %>, booked for <%= fmtDate(upcoming[0].bookedFor) %><% } %>.
+    </span>
+  </div>
 <% } %>
 
 <% CATS.forEach(([catKey, catLabel]) => { %>
@@ -46,10 +84,19 @@
                         <button type="submit" class="mini-btn" style="padding:2px 8px;font-size:11px">Undo</button>
                       </form>
                     <% } else { %>
-                      <a class="mini-btn" style="padding:2px 8px;font-size:11px"
-                         href="/patients/<%= patient.patient_id %>/immunization/new?vaccine=<%= encodeURIComponent(v.name) %>&dose=<%= slot.doseNumber %>">
-                        Dose <%= slot.doseNumber %>: Record
-                      </a>
+                      <span style="display:inline-flex;align-items:center;gap:6px">
+                        <a class="mini-btn" style="padding:2px 8px;font-size:11px"
+                           href="/patients/<%= patient.patient_id %>/immunization/new?vaccine=<%= encodeURIComponent(v.name) %>&dose=<%= slot.doseNumber %>">
+                          Dose <%= slot.doseNumber %>: Record
+                        </a>
+                        <% if (SLOT[slot.state]) { %>
+                          <span class="badge <%= SLOT[slot.state].cls %>" style="font-size:11px;padding:2px 8px"
+                                title="Due <%= fmtDate(slot.dueDate) %>"><%= slotLabel(slot) %></span>
+                        <% } %>
+                        <% if (slot.bookedFor) { %>
+                          <span class="muted" style="font-size:11px">booked <%= fmtDate(slot.bookedFor) %></span>
+                        <% } %>
+                      </span>
                     <% } %>
                   <% }) %>
                 </div>

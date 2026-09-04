@@ -10,9 +10,11 @@
 // scheduled one, no separate handling needed.
 //
 // Scope: recording doses actually given, matching what the physical card
-// tracks. `status`/`scheduled_date` exist on the table for a future
-// scheduling/reminder feature, but nothing here builds that — every insert
-// here is status='given' with a given_date.
+// tracks. Every insert made HERE is status='given' with a given_date — the
+// 'scheduled' and 'missed' rows on the same table are written by
+// services/immunizationSchedule.js, which books each dose into a session as
+// its due age comes round and marks it missed if the session passes without
+// it. This file renders those alongside the doses it records itself.
 // ============================================================================
 const express = require("express");
 const PDFDocument = require("pdfkit");
@@ -57,7 +59,9 @@ router.get("/patients/:id/immunization", async (req, res, next) => {
   try {
     const patient = await loadPatient(req.params.id);
     if (!patient) return next();
-    const { schedule, other } = await buildCard(patient.patient_id);
+    const { schedule, other, overdue, upcoming } = await buildCard(
+      patient.patient_id, patient.birthdate
+    );
 
     res.render("patients/immunization", {
       title: `${patient.full_name} — Immunization · Sampaguita HC`,
@@ -65,6 +69,8 @@ router.get("/patients/:id/immunization", async (req, res, next) => {
       patient,
       schedule,
       other,
+      overdue,
+      upcoming,
       flash: req.query.flash || null,
     });
   } catch (e) {

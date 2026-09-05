@@ -243,21 +243,30 @@ router.get("/patients", async (req, res, next) => {
         ? "family_number NULLS LAST, birthdate ASC NULLS LAST, lower(full_name)"
         : SORTS[sort].sql;
 
-    const { rows } = await db.query(
-      `SELECT patient_id, patient_number, full_name, sex, birthdate,
-              contact_number, is_minor, family_number
-         FROM patients
-        ${q ? "WHERE full_name ILIKE $1 OR patient_number ILIKE $1 OR contact_number ILIKE $1" : ""}
-        ORDER BY ${order}
-        LIMIT 200`,
-      q ? [`%${q}%`] : []
-    );
     // Deliberately one query for the whole page rather than buildCard() per
     // row — this list is 200 rows and the database is a free-tier instance an
     // ocean away. See lib/immunizationCard.js: overdueCounts() answers the same
     // question as buildCard() in SQL, and the two are kept side by side there
     // so they cannot drift on what "overdue" means.
-    const overdue = await overdueCounts(rows.map((r) => r.patient_id));
+    //
+    // Fired TOGETHER with the list rather than after it. Passing the ids from
+    // the list would have made the second query wait for the first, and the
+    // wait here is the round trip, not the work: two trips one after another
+    // was most of what made this page feel slow to open. null asks for every
+    // child still in the programme, which is a superset of this page and a
+    // small one.
+    const [{ rows }, overdue] = await Promise.all([
+      db.query(
+        `SELECT patient_id, patient_number, full_name, sex, birthdate,
+                contact_number, is_minor, family_number
+           FROM patients
+          ${q ? "WHERE full_name ILIKE $1 OR patient_number ILIKE $1 OR contact_number ILIKE $1" : ""}
+          ORDER BY ${order}
+          LIMIT 200`,
+        q ? [`%${q}%`] : []
+      ),
+      overdueCounts(null),
+    ]);
     res.render("patients/list", {
       title: "Patients · Sampaguita HC",
       active: "patients",

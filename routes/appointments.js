@@ -42,10 +42,28 @@ function confirmationFlash(r, name) {
   return { kind: "warn", text: `Hindi naipadala ang kumpirmasyon kay ${name}. ${r.reason || ""}`.trim() };
 }
 
+// The three services — Immunization, Pre-natal, Family planning — are read on
+// eight different routes and were fetched fresh every single time. Three rows
+// of reference data, and a full round trip to a database on another continent
+// to get them, on page after page.
+//
+// Nothing in the application ever writes to this table; the rows come from
+// db/schema.sql. So they are held in memory. The TTL is there only so that a
+// row changed by hand in the database shows up on its own within the minute
+// rather than needing a restart — not because the table is expected to move.
+let servicesCache = null;
+let servicesCachedAt = 0;
+const SERVICES_TTL_MS = 60 * 1000;
+
 async function loadServices() {
+  if (servicesCache && Date.now() - servicesCachedAt < SERVICES_TTL_MS) {
+    return servicesCache;
+  }
   const { rows } = await db.query(
     "SELECT service_id, name, schedule_day, description FROM services ORDER BY service_id"
   );
+  servicesCache = rows;
+  servicesCachedAt = Date.now();
   return rows;
 }
 
@@ -106,20 +124,25 @@ async function rerenderForm(res, { mode, body, services, errors, appointment_id 
 router.get("/appointments", async (req, res, next) => {
   try {
     const date = isDate(req.query.date) ? req.query.date : F.manilaToday();
-    const services = await loadServices();
 
-    const { rows } = await db.query(
-      `SELECT a.appointment_id, a.appointment_time, a.status, a.notes, a.service_id,
-              s.name AS service_name, s.schedule_day,
-              p.patient_id, p.patient_number, p.full_name,
-              p.contact_number, p.family_contact_number
-         FROM appointments a
-         JOIN services s ON s.service_id = a.service_id
-         JOIN patients p ON p.patient_id = a.patient_id
-        WHERE a.appointment_date = $1
-        ORDER BY a.service_id, a.appointment_time NULLS LAST, p.full_name`,
-      [date]
-    );
+    // The services list and the day's bookings have nothing to do with each
+    // other, but they were awaited one after the other — so the page paid two
+    // round trips where one would do. Now they leave together.
+    const [services, { rows }] = await Promise.all([
+      loadServices(),
+      db.query(
+        `SELECT a.appointment_id, a.appointment_time, a.status, a.notes, a.service_id,
+                s.name AS service_name, s.schedule_day,
+                p.patient_id, p.patient_number, p.full_name,
+                p.contact_number, p.family_contact_number
+           FROM appointments a
+           JOIN services s ON s.service_id = a.service_id
+           JOIN patients p ON p.patient_id = a.patient_id
+          WHERE a.appointment_date = $1
+          ORDER BY a.service_id, a.appointment_time NULLS LAST, p.full_name`,
+        [date]
+      ),
+    ]);
 
     // Build sections: one per service that actually has a booking on this date
     // (services no longer map to a fixed weekday — v1 update).

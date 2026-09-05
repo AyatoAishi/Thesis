@@ -1,17 +1,37 @@
-<!DOCTYPE html>
-<html lang="en">
+<%
+  // Appearance comes from the signed-in account (lib/theme.js), never from the
+  // browser. Sign in at the desk or on the tablet and it follows you.
+  //
+  // All of it is decided on the server and written into the first bytes of the
+  // page. A stylesheet or a script would arrive after the first paint and the
+  // screen would flash the default look before correcting itself — which on a
+  // dark theme is a white flash in a dim room, every single page load.
+  const appearance = typeof theme !== "undefined" && theme
+    ? theme
+    : { mode: "light", css: "", fontHref: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap", animations: true };
+
+  // Built here rather than inline in the tag, and printed unescaped, because it
+  // is a whole ATTRIBUTE — quote marks included. Printed with the escaping tag
+  // it became data-anim=&#34;off&#34;, which the browser reads as part of the
+  // tag name, and the animations switch silently did nothing. The value is a
+  // fixed string from this file and never contains anything a user typed.
+  const animAttr = appearance.animations ? "" : ' data-anim="off"';
+%><!DOCTYPE html>
+<html lang="en" data-theme="<%= appearance.mode %>"<%- animAttr %>>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title><%= typeof title !== "undefined" ? title : "Sampaguita Health Clinic" %></title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
-    rel="stylesheet"
-  />
+  <link href="<%= appearance.fontHref %>" rel="stylesheet" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/css/app.css" />
+  <%# After app.css on purpose: same specificity, later wins. See lib/theme.js. %>
+  <style><%- appearance.css %></style>
+  <%# One page needs more in the head than the rest: /account previews every
+      font, and a preview set in a face the browser never loaded is a lie. %>
+  <%- typeof extraHead !== "undefined" && extraHead ? extraHead : "" %>
 </head>
 <body>
   <div class="layout">

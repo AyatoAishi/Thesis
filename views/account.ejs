@@ -1,13 +1,20 @@
+<%
+  // Preview swatches are drawn from the SAME function that builds the live
+  // theme (lib/theme.js accentRamp), not from the raw hex in the preset list.
+  // Otherwise the dot on this page would be the colour somebody typed and the
+  // app would be the colour we computed, and they would not match.
+  const darkNow = prefs.mode === "dark";
+%>
 <div class="page-head">
   <h1>My account</h1>
   <div class="sub"><%= user.username %> · <%= user.role %></div>
 </div>
 
 <% if (notice) { %>
-  <div class="card" style="border-color:#bfe3c9;background:var(--ok-bg,#eefbf2)"><%= notice %></div>
+  <div class="card" style="border-color:var(--ok);background:var(--ok-bg)"><%= notice %></div>
 <% } %>
 <% if (errors && errors.length) { %>
-  <div class="card" style="border-color:#f3c9cb;background:var(--bad-bg)">
+  <div class="card" style="border-color:var(--bad);background:var(--bad-bg)">
     <ul style="margin:0;color:var(--bad-ink);font-size:13px">
       <% errors.forEach(e => { %><li><%= e %></li><% }) %>
     </ul>
@@ -23,6 +30,125 @@
     <button type="submit" class="btn" style="align-self:flex-end">Save</button>
   </form>
 </div>
+
+<!-- ===================== Appearance ===================== -->
+<section class="card" id="appearance">
+  <div class="panel-head" style="margin-bottom:4px">
+    <div>
+      <div class="panel-title">Appearance</div>
+      <div class="muted" style="font-size:12.5px;margin-top:3px">
+        Sa iyong account lang ito. Walang ibang makakakita ng pagbabago,
+        at susunod ito sa'yo kahit saang computer ka mag-sign in.
+      </div>
+    </div>
+  </div>
+
+  <form method="POST" action="/account/preferences" class="prefs"><%- include("partials/csrf") %>
+
+    <!-- Mode -->
+    <div class="pref-block">
+      <div class="pref-label">Theme</div>
+      <div class="pref-choices">
+        <% [
+             ["light", "Maliwanag", "M12 3v2M12 19v2M5 5l1.5 1.5M17.5 17.5 19 19M3 12h2M19 12h2M5 19l1.5-1.5M17.5 6.5 19 5", true],
+             ["dark",  "Madilim",   "M20 14.5A8 8 0 0 1 9.5 4a8.2 8.2 0 1 0 10.5 10.5z", false],
+             ["auto",  "Auto",      "M12 3a9 9 0 0 0 0 18z", false]
+           ].forEach(function (m) { %>
+          <label class="pref-opt <%= prefs.mode === m[0] ? 'is-on' : '' %>">
+            <input type="radio" name="mode" value="<%= m[0] %>" <%= prefs.mode === m[0] ? "checked" : "" %> />
+            <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
+                 stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <% if (m[4]) { %><circle cx="12" cy="12" r="4"/><% } %>
+              <path d="<%= m[2] %>"/>
+            </svg>
+            <span><%= m[1] %></span>
+          </label>
+        <% }) %>
+      </div>
+      <div class="pref-note">
+        <b>Auto</b> ay susunod sa setting ng computer o telepono mo — maliwanag sa umaga,
+        madilim sa gabi, kusa.
+      </div>
+    </div>
+
+    <!-- Accent -->
+    <div class="pref-block">
+      <div class="pref-label">Kulay</div>
+      <div class="swatches">
+        <% presets.forEach(function (p) {
+             const r = ramp(p.hex, darkNow); %>
+          <label class="swatch <%= prefs.preset === p.id ? 'is-on' : '' %>" title="<%= p.label %>">
+            <input type="radio" name="preset" value="<%= p.id %>" <%= prefs.preset === p.id ? "checked" : "" %> />
+            <span class="swatch-dot" style="background:<%= r['--accent'] %>"></span>
+            <span class="swatch-name"><%= p.label %></span>
+          </label>
+        <% }) %>
+
+        <label class="swatch <%= prefs.preset === 'custom' ? 'is-on' : '' %>" title="Sarili mong kulay">
+          <input type="radio" name="preset" value="custom" <%= prefs.preset === "custom" ? "checked" : "" %> />
+          <span class="swatch-dot swatch-custom"
+                style="background:<%= prefs.preset === 'custom' ? ramp(prefs.accent, darkNow)['--accent'] : 'conic-gradient(#e1474d,#d99411,#18a571,#2c8fb8,#7b5cf0,#e1474d)' %>"></span>
+          <span class="swatch-name">Sarili ko</span>
+        </label>
+      </div>
+
+      <div class="pref-custom">
+        <label class="field" style="max-width:200px">
+          <span>Pumili ng kulay</span>
+          <%# Seeded with whatever colour is in force, not with the default.
+              Opening the picker on blue while the app is green reads as a bug,
+              and it makes "nudge the current colour a little" impossible. %>
+          <input type="color" name="accent" value="<%= prefs.accent %>" />
+        </label>
+        <div class="pref-note" style="margin:0">
+          Piliin mo ang kulay; ako na ang bahala sa liwanag at dilim nito para
+          laging mabasa ang nakasulat. <b>Hindi mo siya kayang sirain.</b>
+          Piliin mo ang <b>Sarili ko</b> sa taas para gamitin ito.
+        </div>
+      </div>
+    </div>
+
+    <!-- Font -->
+    <div class="pref-block">
+      <div class="pref-label">Font</div>
+      <div class="fontlist">
+        <% fonts.forEach(function (f) { %>
+          <label class="fontopt <%= prefs.font === f.id ? 'is-on' : '' %>">
+            <input type="radio" name="font" value="<%= f.id %>" <%= prefs.font === f.id ? "checked" : "" %> />
+            <span class="fontopt-sample" style="font-family:<%= f.stack.replace(/"/g, "&quot;") %>">Aa</span>
+            <span class="fontopt-meta">
+              <b style="font-family:<%= f.stack.replace(/"/g, "&quot;") %>"><%= f.label %></b>
+              <small><%= f.note %></small>
+            </span>
+          </label>
+        <% }) %>
+      </div>
+      <div class="pref-note">
+        Ang <b>Atkinson Hyperlegible</b> ay ginawa ng Braille Institute para sa
+        mahina ang paningin — magkakaiba talaga ang hugis ng bawat letra.
+      </div>
+    </div>
+
+    <!-- Animations -->
+    <div class="pref-block">
+      <div class="pref-label">Galaw</div>
+      <label class="toggle">
+        <input type="checkbox" name="animations" value="on" <%= prefs.animations ? "checked" : "" %> />
+        <span class="toggle-track"><span class="toggle-knob"></span></span>
+        <span class="toggle-text">
+          <b>Buksan ang mga animation</b>
+          <small>Ang pag-slide ng kaliwang panel at ni Ate Sam, at ang paglutang ng bilog na pindutan.</small>
+        </span>
+      </label>
+      <div class="pref-note">
+        Patayin mo ito kung nakakahilo o mabagal sa lumang tablet. Gumagana pa
+        rin ang lahat — dumarating na lang agad sa halip na dumausdos.
+      </div>
+    </div>
+
+    <button type="submit" class="btn" style="align-self:flex-start">I-save ang hitsura</button>
+  </form>
+</section>
 
 <div class="card">
   <div class="panel-title" style="margin-bottom:14px">Change password</div>

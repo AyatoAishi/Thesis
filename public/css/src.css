@@ -14,6 +14,9 @@
   --bad: #e1474d; --bad-bg: #fce7e8; --bad-ink: #b22b30;
   --info: #2c8fb8; --info-bg: #e2f3fa; --info-ink: #1d6f90;
   --violet: #7b5cf0;
+  /* The colour of text that sits ON the accent. A token because dark mode
+     flips the accent light and this to dark. See lib/theme.js. */
+  --on-accent: #ffffff;
   --r-sm: 10px; --r-md: 14px; --r-lg: 18px; --r-xl: 24px;
   --shadow-sm: 0 1px 3px rgba(24,35,56,.04);
   --shadow-md: 0 4px 14px rgba(24,35,56,.06);
@@ -24,7 +27,7 @@
 html, body { height: 100%; }
 body {
   margin: 0;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: var(--font-app, "Plus Jakarta Sans", system-ui, sans-serif);
   background: var(--bg);
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
@@ -50,7 +53,7 @@ body {
 .rail-logo {
   width: 38px; height: 38px; border-radius: 12px;
   background: linear-gradient(140deg, var(--accent), var(--violet));
-  color: #fff; font-weight: 800; font-size: 16px;
+  color: var(--on-accent); font-weight: 800; font-size: 16px;
   display: grid; place-items: center; margin-bottom: 10px;
 }
 .rail-item {
@@ -77,7 +80,7 @@ body {
 }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; }
 .brand-badge {
-  width: 30px; height: 30px; border-radius: 9px; color: #fff;
+  width: 30px; height: 30px; border-radius: 9px; color: var(--on-accent);
   background: linear-gradient(140deg, var(--accent), var(--violet));
   display: grid; place-items: center; font-size: 14px; font-weight: 800;
 }
@@ -124,7 +127,7 @@ body {
 .user-chip { display: flex; align-items: center; gap: 8px; padding-left: 4px; }
 .user-avatar {
   width: 32px; height: 32px; border-radius: 50%;
-  background: var(--accent); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 13px;
+  background: var(--accent); color: var(--on-accent); display: grid; place-items: center; font-weight: 700; font-size: 13px;
 }
 .user-meta { line-height: 1.15; text-align: left; }
 .user-meta b { font-size: 13px; }
@@ -142,7 +145,7 @@ body {
   border: 0; background: none; color: var(--ink); font-size: 13px; text-decoration: none; cursor: pointer;
 }
 .user-menu-dropdown a:hover, .user-menu-dropdown button:hover { background: var(--surface-2); }
-.user-menu-logout { color: #d33 !important; font-weight: 600; }
+.user-menu-logout { color: var(--bad-ink) !important; font-weight: 600; }
 
 .patient-picker { position: relative; }
 .family-link [data-family-link-search-wrap] { position: relative; }
@@ -227,7 +230,7 @@ body {
 .error-code { font-size: 56px; font-weight: 800; color: var(--accent); }
 .error-msg { color: var(--ink-2); margin: 8px 0 18px; }
 .btn {
-  display: inline-block; background: var(--accent); color: #fff; text-decoration: none;
+  display: inline-block; background: var(--accent); color: var(--on-accent); text-decoration: none;
   padding: 10px 18px; border-radius: 10px; font-weight: 600; font-size: 14px;
 }
 
@@ -375,7 +378,7 @@ body {
   background: var(--border); color: var(--ink-2);
 }
 .flow-step.now { background: var(--accent-softer); border-color: var(--accent-soft); color: var(--accent-strong); }
-.flow-step.now .flow-step-num { background: var(--accent); color: #fff; }
+.flow-step.now .flow-step-num { background: var(--accent); color: var(--on-accent); }
 .flow-step.done { color: var(--ok-ink); background: var(--ok-bg); border-color: transparent; }
 .flow-step.done .flow-step-num { background: var(--ok-ink); color: #fff; }
 
@@ -709,8 +712,8 @@ body {
   position: fixed; right: 22px; bottom: 22px; z-index: 60;
   width: 56px; height: 56px; border-radius: 50%;
   border: none; cursor: pointer;
-  background: var(--accent); color: #fff;
-  box-shadow: 0 8px 24px rgba(59,108,245,.38);
+  background: var(--accent); color: var(--on-accent);
+  box-shadow: 0 8px 24px rgba(24,35,56,.28);
   display: grid; place-items: center;
   /* Drifts a few pixels, forever. On a screen this busy a motionless circle in
      the corner reads as decoration; the movement is what makes someone who is
@@ -719,7 +722,7 @@ body {
   transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
 }
 .sam-bubble svg { width: 26px; height: 26px; }
-.sam-bubble:hover { background: var(--accent-strong); transform: scale(1.07); box-shadow: 0 12px 30px rgba(59,108,245,.46); }
+.sam-bubble:hover { background: var(--accent-strong); transform: scale(1.07); box-shadow: 0 12px 30px rgba(24,35,56,.34); }
 .sam-bubble:active { transform: scale(.96); }
 .sam-bubble:focus-visible { outline: 3px solid var(--accent-soft); outline-offset: 3px; }
 .sam-bubble[hidden] { display: none; }
@@ -844,7 +847,7 @@ body {
 .sam-go {
   display: inline-flex; align-items: center; gap: 7px; margin-top: 13px;
   padding: 9px 14px; border-radius: var(--r-sm);
-  background: var(--accent); color: #fff; text-decoration: none;
+  background: var(--accent); color: var(--on-accent); text-decoration: none;
   font-size: 13px; font-weight: 700;
   transition: background .15s ease;
 }
@@ -860,7 +863,7 @@ body {
    warm colour and it always carries suggestions, because a dead end is what
    sends someone to the phone. */
 .sam-none {
-  border: 1px solid #f0dcb4; background: var(--warn-bg);
+  border: 1px solid var(--warn); background: var(--warn-bg);
   border-radius: var(--r-md); padding: 14px; margin-bottom: 4px;
 }
 .sam-none-t { font-weight: 700; font-size: 13.5px; color: var(--warn-ink); }
@@ -1033,3 +1036,220 @@ body {
   .rail, .main-col::before, .rail-label, .rail-item svg { transition: none; }
   .rail:hover .rail-item svg, .rail:focus-within .rail-item svg { transform: none; }
 }
+
+/* ===========================================================================
+   Dark mode, and the two preferences that are not colours.
+
+   The palette below is only the NEUTRALS and the semantic colours. The accent
+   ramp is not here — it is computed per account in lib/theme.js and arrives as
+   an inline <style> in the head, because the accent depends on a hex the staff
+   member chose and this file is the same for everyone.
+
+   Specificity is load-bearing. Both this block and that inline style are
+   written as :root[data-theme="…"], so they weigh the same, and the inline one
+   wins simply by coming later in the head. Write these as a bare :root and the
+   attribute selector here would beat the account's own accent.
+
+   The dark values are duplicated for [data-theme="dark"] and for
+   [data-theme="auto"] inside prefers-color-scheme. That is unavoidable without
+   a preprocessor: one is a choice the person made, the other is a choice their
+   operating system made, and a media query cannot be added to a selector list.
+   =========================================================================== */
+
+:root[data-theme="dark"] {
+  --bg: #0e131f; --surface: #1a2030; --surface-2: #232b3d;
+  --border: #2e3750; --border-strong: #3d4763;
+  /* Not pure white. #fff on a dark ground haloes and is tiring to read for
+     long stretches, which is what a records desk does all day. */
+  --ink: #e6ebf6; --ink-2: #b6c0d4; --ink-3: #8590a8; --ink-4: #646e88;
+
+  /* The -bg tints go dark and the -ink text goes light, so a warning still
+     reads as a warning. The base --bad stays mid-toned because two rules use
+     it as a background under white text. */
+  --ok: #16a06d; --ok-bg: #10281f; --ok-ink: #5fd3a3;
+  --warn: #d99411; --warn-bg: #2b2210; --warn-ink: #f0c05a;
+  --bad: #cf3b41; --bad-bg: #2c1618; --bad-ink: #f08f93;
+  --info: #2c8fb8; --info-bg: #0f2632; --info-ink: #6fc7e8;
+  --violet: #9b83f5;
+
+  /* Shadows do almost nothing on a dark ground — depth has to come from the
+     surface steps above. Kept deep and soft rather than removed so raised
+     things still separate from the page. */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.4);
+  --shadow-md: 0 4px 14px rgba(0,0,0,.45);
+  --shadow-lg: 0 18px 50px rgba(0,0,0,.6);
+
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="auto"] {
+    --bg: #0e131f; --surface: #1a2030; --surface-2: #232b3d;
+    --border: #2e3750; --border-strong: #3d4763;
+    --ink: #e6ebf6; --ink-2: #b6c0d4; --ink-3: #8590a8; --ink-4: #646e88;
+    --ok: #16a06d; --ok-bg: #10281f; --ok-ink: #5fd3a3;
+    --warn: #d99411; --warn-bg: #2b2210; --warn-ink: #f0c05a;
+    --bad: #cf3b41; --bad-bg: #2c1618; --bad-ink: #f08f93;
+    --info: #2c8fb8; --info-bg: #0f2632; --info-ink: #6fc7e8;
+    --violet: #9b83f5;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,.4);
+    --shadow-md: 0 4px 14px rgba(0,0,0,.45);
+    --shadow-lg: 0 18px 50px rgba(0,0,0,.6);
+    color-scheme: dark;
+  }
+}
+
+/* A handful of places still name a colour outright, because at the time there
+   was no token that meant what they needed. In dark mode they would each be a
+   bright patch on a dark page. */
+:root[data-theme="dark"] .card[style*="#f3c9cb"],
+:root[data-theme="dark"] .card[style*="#bfe3c9"] { border-color: var(--border-strong) !important; }
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="auto"] .card[style*="#f3c9cb"],
+  :root[data-theme="auto"] .card[style*="#bfe3c9"] { border-color: var(--border-strong) !important; }
+}
+
+/* ---------------------------------------------------------------------------
+   Animations off.
+
+   Set on <html> from the account's own preference, and written to sit beside
+   prefers-reduced-motion rather than replace it: the operating system setting
+   is somebody telling every site at once, and it still wins on its own.
+
+   Deliberately not `* { transition: none }` alone — an element mid-transition
+   when the class appears would freeze part-way. The `!important` and the
+   animation reset together make sure everything lands on its end state.
+   --------------------------------------------------------------------------- */
+:root[data-anim="off"] *,
+:root[data-anim="off"] *::before,
+:root[data-anim="off"] *::after {
+  transition: none !important;
+  animation: none !important;
+  scroll-behavior: auto !important;
+}
+/* The drawer and the panel still work with motion off — they just arrive
+   instead of sliding. Nothing becomes unreachable. */
+
+/* ===========================================================================
+   Appearance settings (views/account.ejs).
+
+   Every control here is a real radio or checkbox with a <label> around it. The
+   input is visually hidden but present and focusable, so the whole thing works
+   from the keyboard and a screen reader announces it correctly — which a div
+   with a click handler would not. :has() draws the selected state from the
+   input itself rather than from a class the server has to remember to set.
+   =========================================================================== */
+
+.prefs { display: grid; gap: 26px; margin-top: 18px; }
+
+.pref-block { display: grid; gap: 10px; }
+.pref-label {
+  font-size: 11px; font-weight: 700; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+.pref-note { font-size: 12px; color: var(--ink-3); line-height: 1.55; max-width: 62ch; }
+.pref-note b { color: var(--ink-2); }
+
+.prefs input[type="radio"],
+.prefs input[type="checkbox"] {
+  position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0;
+}
+
+/* ---- light / dark / auto ---- */
+.pref-choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.pref-opt {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 16px; border-radius: var(--r-md);
+  border: 1px solid var(--border-strong); background: var(--surface);
+  color: var(--ink-2); font-size: 13.5px; font-weight: 600; cursor: pointer;
+  transition: border-color .15s ease, background .15s ease, color .15s ease;
+}
+.pref-opt:hover { background: var(--surface-2); }
+.pref-opt.is-on, .pref-opt:has(input:checked) {
+  border-color: var(--accent); background: var(--accent-softer); color: var(--accent-strong);
+}
+.pref-opt:has(input:focus-visible) { outline: 3px solid var(--accent-soft); outline-offset: 2px; }
+
+/* ---- colour swatches ---- */
+.swatches {
+  display: grid; gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+}
+.swatch {
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 11px; border-radius: var(--r-md);
+  border: 1px solid var(--border); background: var(--surface);
+  cursor: pointer; font-size: 12.5px; color: var(--ink-2);
+  transition: border-color .15s ease, background .15s ease;
+}
+.swatch:hover { background: var(--surface-2); }
+.swatch.is-on, .swatch:has(input:checked) {
+  border-color: var(--accent); background: var(--accent-softer); color: var(--ink);
+}
+.swatch:has(input:focus-visible) { outline: 3px solid var(--accent-soft); outline-offset: 2px; }
+.swatch-dot {
+  width: 20px; height: 20px; border-radius: 50%; flex: none;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.14);
+}
+.swatch-custom { background-size: cover; }
+.swatch-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.pref-custom {
+  display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start;
+  padding: 13px; border-radius: var(--r-md);
+  background: var(--surface-2); border: 1px solid var(--border);
+}
+.pref-custom input[type="color"] {
+  width: 100%; height: 42px; padding: 3px; cursor: pointer;
+  border: 1px solid var(--border-strong); border-radius: var(--r-sm);
+  background: var(--surface);
+}
+
+/* ---- fonts ---- */
+/* Each row is set in the face it offers, which is the only honest way to show
+   a font: a list of names in one typeface tells you nothing about any of them. */
+.fontlist {
+  display: grid; gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+}
+.fontopt {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 13px; border-radius: var(--r-md);
+  border: 1px solid var(--border); background: var(--surface);
+  cursor: pointer; transition: border-color .15s ease, background .15s ease;
+}
+.fontopt:hover { background: var(--surface-2); }
+.fontopt.is-on, .fontopt:has(input:checked) {
+  border-color: var(--accent); background: var(--accent-softer);
+}
+.fontopt:has(input:focus-visible) { outline: 3px solid var(--accent-soft); outline-offset: 2px; }
+.fontopt-sample {
+  width: 40px; height: 40px; flex: none; border-radius: var(--r-sm);
+  display: grid; place-items: center;
+  background: var(--surface-2); border: 1px solid var(--border);
+  font-size: 17px; font-weight: 700; color: var(--ink);
+}
+.fontopt:has(input:checked) .fontopt-sample { background: var(--surface); }
+.fontopt-meta { display: grid; gap: 1px; min-width: 0; }
+.fontopt-meta b { font-size: 13.5px; color: var(--ink); }
+.fontopt-meta small { font-size: 11.5px; color: var(--ink-3); }
+
+/* ---- animations toggle ---- */
+.toggle { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; max-width: 62ch; }
+.toggle-track {
+  width: 44px; height: 26px; border-radius: 999px; flex: none; margin-top: 1px;
+  background: var(--border-strong); position: relative;
+  transition: background .18s ease;
+}
+.toggle-knob {
+  position: absolute; top: 3px; left: 3px;
+  width: 20px; height: 20px; border-radius: 50%; background: var(--surface);
+  box-shadow: 0 1px 3px rgba(0,0,0,.3);
+  transition: transform .18s ease;
+}
+.toggle:has(input:checked) .toggle-track { background: var(--accent); }
+.toggle:has(input:checked) .toggle-knob { transform: translateX(18px); }
+.toggle:has(input:focus-visible) .toggle-track { outline: 3px solid var(--accent-soft); outline-offset: 2px; }
+.toggle-text { display: grid; gap: 2px; }
+.toggle-text b { font-size: 13.5px; color: var(--ink); }
+.toggle-text small { font-size: 12px; color: var(--ink-3); line-height: 1.5; }

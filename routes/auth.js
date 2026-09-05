@@ -95,7 +95,7 @@ router.post("/login", async (req, res) => {
     // username is issued by an admin and typed as issued — the client's call,
     // and it keeps the login a strict comparison with nothing inferred.
     const { rows } = await db.query(
-      `SELECT user_id, full_name, username, role, status, password_hash
+      `SELECT user_id, full_name, username, role, status, password_hash, preferences
          FROM users WHERE username = $1`,
       [username]
     );
@@ -155,6 +155,10 @@ router.post("/login", async (req, res) => {
         full_name: u.full_name,
         username: u.username,
         role: u.role,
+        // Appearance travels in the session so no page has to fetch it. It is
+        // read on every render and changes only when its owner changes it,
+        // which /account/preferences writes back here as well as to the row.
+        preferences: u.preferences || {},
       };
 
       // Wait for the session to actually reach Postgres before redirecting.

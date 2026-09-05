@@ -33,6 +33,7 @@ const imm = require("./lib/immunizationCard");
 const { requireLogin } = require("./middleware/auth");
 const { csrf } = require("./middleware/csrf");
 const F = require("./lib/format");
+const theme = require("./lib/theme");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -89,6 +90,10 @@ app.use(csrf);
 app.use((req, res, next) => {
   res.locals.appName = "Sampaguita Health Clinic";
   res.locals.user = req.session.user || null; // set at login in M1
+  // The signed-in account's own appearance, resolved and memoised in
+  // lib/theme.js. Signed-out pages get the defaults from the same code path,
+  // so the login screen and the portal never depend on somebody's settings.
+  res.locals.theme = theme.forUser(req.session.user && req.session.user.preferences);
   next();
 });
 

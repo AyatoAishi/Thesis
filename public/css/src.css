@@ -692,3 +692,237 @@ body {
   .user-meta { display: none; }
   .user-chip { padding-left: 0; }
 }
+
+/* ===========================================================================
+   Ate Sam — the in-app guide (views/partials/help.ejs, public/js/help.js)
+
+   The container is deliberately chat-shaped: a bubble bottom-right, a panel
+   that slides in from the right, the page dimmed behind it. The CONTENTS are
+   deliberately not chat-shaped — they are cards with numbered steps and a
+   button that navigates. That split is the whole design. Chat styling invites
+   people to type "kamusta" and ask what to take for a cough; a card that looks
+   like a search result sets the expectation that this finds pages, which is
+   the only thing it can actually do.
+   =========================================================================== */
+
+.sam-bubble {
+  position: fixed; right: 22px; bottom: 22px; z-index: 60;
+  width: 56px; height: 56px; border-radius: 50%;
+  border: none; cursor: pointer;
+  background: var(--accent); color: #fff;
+  box-shadow: 0 8px 24px rgba(59,108,245,.38);
+  display: grid; place-items: center;
+  /* Drifts a few pixels, forever. On a screen this busy a motionless circle in
+     the corner reads as decoration; the movement is what makes someone who is
+     stuck actually notice there is help. */
+  animation: sam-hover 3.2s ease-in-out infinite;
+  transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+}
+.sam-bubble svg { width: 26px; height: 26px; }
+.sam-bubble:hover { background: var(--accent-strong); transform: scale(1.07); box-shadow: 0 12px 30px rgba(59,108,245,.46); }
+.sam-bubble:active { transform: scale(.96); }
+.sam-bubble:focus-visible { outline: 3px solid var(--accent-soft); outline-offset: 3px; }
+.sam-bubble[hidden] { display: none; }
+
+@keyframes sam-hover {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-7px); }
+}
+
+/* The dimmer. Darkening the page is what makes the panel feel like the only
+   thing that matters for a moment — and clicking it is the escape hatch that
+   people reach for before they look for a close button. */
+.sam-scrim {
+  position: fixed; inset: 0; z-index: 70;
+  background: rgba(24,35,56,.42);
+  opacity: 0; transition: opacity .28s ease;
+}
+.sam-scrim.is-open { opacity: 1; }
+
+.sam-panel {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 71;
+  width: min(420px, 100vw);
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  display: flex; flex-direction: column;
+  transform: translateX(100%);
+  /* ease-out, so it arrives fast and settles gently rather than crawling in. */
+  transition: transform .34s cubic-bezier(.22,.9,.28,1);
+}
+.sam-panel.is-open { transform: translateX(0); }
+
+.sam-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 16px 16px 12px; border-bottom: 1px solid var(--border);
+}
+.sam-id { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.sam-avatar {
+  width: 38px; height: 38px; border-radius: 50%; flex: none;
+  background: var(--accent-soft); color: var(--accent-strong);
+  display: grid; place-items: center; font-weight: 800; font-size: 16px;
+}
+.sam-name { font-weight: 700; font-size: 15px; color: var(--ink); line-height: 1.2; }
+.sam-sub  { font-size: 12px; color: var(--ink-3); }
+.sam-head-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+
+.sam-ghost {
+  border: 1px solid var(--border-strong); background: var(--surface);
+  color: var(--ink-2); border-radius: var(--r-sm);
+  font-size: 12px; font-weight: 600; padding: 6px 10px; cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+.sam-ghost:hover { background: var(--surface-2); color: var(--ink); }
+.sam-ghost.is-on { background: var(--accent-soft); border-color: var(--accent-soft); color: var(--accent-strong); }
+.sam-x { padding: 6px; display: grid; place-items: center; }
+
+.sam-searchwrap { position: relative; padding: 12px 16px 10px; }
+.sam-searchicon {
+  position: absolute; left: 27px; top: 50%; transform: translateY(-50%);
+  width: 17px; height: 17px; color: var(--ink-4); pointer-events: none;
+}
+.sam-search {
+  width: 100%; padding: 11px 34px 11px 38px;
+  border: 1px solid var(--border-strong); border-radius: var(--r-md);
+  background: var(--surface-2); color: var(--ink);
+  font: inherit; font-size: 14px;
+}
+.sam-search:focus { outline: none; border-color: var(--accent); background: var(--surface); box-shadow: 0 0 0 3px var(--accent-softer); }
+.sam-search::-webkit-search-cancel-button { display: none; }
+.sam-clear {
+  position: absolute; right: 26px; top: 50%; transform: translateY(-50%);
+  border: none; background: none; cursor: pointer; color: var(--ink-4);
+  padding: 4px; display: grid; place-items: center; border-radius: 50%;
+}
+.sam-clear:hover { color: var(--ink-2); background: var(--surface-2); }
+
+.sam-body { flex: 1; overflow-y: auto; padding: 4px 16px 16px; }
+
+.sam-label {
+  font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--ink-4); margin: 12px 0 8px;
+}
+
+/* A question you can tap. This is what most people will ever use — the search
+   box is for the minority who already know the words to type. */
+.sam-q {
+  display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
+  padding: 11px 12px; margin-bottom: 6px;
+  border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--surface); color: var(--ink-2);
+  font: inherit; font-size: 13.5px; cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.sam-q:hover { background: var(--accent-softer); border-color: var(--accent-soft); color: var(--ink); }
+.sam-q::before { content: "\25B8"; color: var(--accent); font-size: 12px; flex: none; }
+
+/* The answer. Summary, then numbered steps, then a button that goes there —
+   the button being the part that actually helps, because it means they never
+   have to find it themselves. */
+.sam-card {
+  border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--surface); overflow: hidden; margin-bottom: 10px;
+}
+.sam-card-head {
+  padding: 12px 14px 10px; border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.sam-card-q { font-weight: 700; font-size: 14px; color: var(--ink); line-height: 1.35; }
+.sam-card-short { font-size: 12.5px; color: var(--ink-2); margin-top: 5px; line-height: 1.5; }
+.sam-card-body { padding: 12px 14px 14px; }
+/* list-style has to be stated. Tailwind's preflight strips list markers from
+   every ol/ul, so the steps rendered as four unnumbered lines — and "do this,
+   then this, then this" with no numbers is most of what makes an answer
+   followable by somebody who is lost. */
+.sam-steps {
+  margin: 0; padding-left: 20px; display: grid; gap: 7px;
+  list-style: decimal outside;
+}
+.sam-steps li { font-size: 13px; color: var(--ink-2); line-height: 1.55; padding-left: 2px; }
+.sam-steps li::marker { color: var(--accent); font-weight: 700; font-size: 12px; }
+.sam-steps li b { color: var(--ink); font-weight: 700; }
+.sam-go {
+  display: inline-flex; align-items: center; gap: 7px; margin-top: 13px;
+  padding: 9px 14px; border-radius: var(--r-sm);
+  background: var(--accent); color: #fff; text-decoration: none;
+  font-size: 13px; font-weight: 700;
+  transition: background .15s ease;
+}
+.sam-go:hover { background: var(--accent-strong); }
+
+.sam-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+.sam-tag {
+  font-size: 10.5px; font-weight: 600; padding: 3px 8px; border-radius: 999px;
+  background: var(--accent-softer); color: var(--accent-strong);
+}
+
+/* Saying "I don't know" is a first-class state here, not an error. It gets a
+   warm colour and it always carries suggestions, because a dead end is what
+   sends someone to the phone. */
+.sam-none {
+  border: 1px solid #f0dcb4; background: var(--warn-bg);
+  border-radius: var(--r-md); padding: 14px; margin-bottom: 4px;
+}
+.sam-none-t { font-weight: 700; font-size: 13.5px; color: var(--warn-ink); }
+.sam-none-p { font-size: 12.5px; color: var(--ink-2); margin-top: 6px; line-height: 1.55; }
+
+.sam-empty { text-align: center; padding: 26px 10px; color: var(--ink-3); font-size: 13px; }
+
+/* The standing note at the bottom. It is there so that the one honest claim
+   this feature makes — the answers are written down, so it cannot invent one —
+   is visible without anyone having to be told. */
+.sam-foot {
+  flex: none;
+  padding: 11px 16px 13px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 11px; line-height: 1.5; color: var(--ink-4);
+}
+
+@media (max-width: 520px) {
+  .sam-panel { width: 100vw; border-left: none; }
+  .sam-bubble { right: 16px; bottom: 16px; width: 52px; height: 52px; }
+}
+
+/* Somebody who has asked not to see motion has asked for a reason — vestibular
+   disorders, migraine. The panel still opens; it just stops moving. */
+@media (prefers-reduced-motion: reduce) {
+  .sam-bubble { animation: none; }
+  .sam-panel, .sam-scrim, .sam-bubble { transition: none; }
+}
+
+/* ===========================================================================
+   Rail labels.
+
+   The rail was icons only, each carrying title="Patients" — which is a HOVER
+   tooltip. The people this system is being handed to are elderly and will be
+   on a tablet, where there is no hover, only tap. So the navigation was, quite
+   literally, unreadable to them: seven identical grey squares. This is likely
+   the real reason they could not find things, and no amount of in-app help
+   fixes a nav you cannot read.
+   =========================================================================== */
+/* flex-basis has to be overridden too, not just width — the original sets
+   `flex: 0 0 66px`, which would have pinned the rail at its old size and
+   quietly clipped every label. */
+/* 96px, sized off the longest label. "Appointments" measures 68px at 10px, and
+   at the first attempt (88px rail / 72px item) it had two pixels of clearance
+   each side and read as though it were about to be clipped. The rail is the
+   one element on screen whose whole job is to be read at a glance. */
+.rail { width: 96px; flex: 0 0 96px; }
+.rail-item {
+  display: flex; flex-direction: column; gap: 4px;
+  width: 80px; height: auto; padding: 9px 5px 7px;
+}
+.rail-label {
+  font-size: 10px; font-weight: 600; line-height: 1.15; text-align: center;
+  letter-spacing: -.01em;
+}
+.rail-logo { margin-bottom: 2px; }
+
+@media (max-width: 640px) {
+  /* On a phone the rail is already fighting the topbar for room; the labels
+     are the first thing to go, and hover works on a mouse anyway. */
+  .rail { width: 62px; flex: 0 0 62px; }
+  .rail-label { display: none; }
+  .rail-item { width: 44px; height: 44px; padding: 0; }
+}

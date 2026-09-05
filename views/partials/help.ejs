@@ -1,0 +1,63 @@
+<%
+  // Ate Sam — the in-app guide. Included once, from layout.ejs, so she is on
+  // every staff page without any page having to know about her.
+  //
+  // The markup is here and empty on purpose: nothing inside the panel is
+  // rendered by the server, because the panel's contents depend entirely on
+  // what gets typed. The one thing that MUST come from the server is the CSRF
+  // token, since logging an unanswered question is a write — it rides on the
+  // panel as data-csrf and goes back up as the x-csrf-token header, which
+  // middleware/csrf.js accepts alongside the hidden form input.
+%>
+<button type="button" class="sam-bubble" data-sam-open
+        aria-label="Buksan si Ate Sam — tulong at gabay" title="Tulong">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M9.1 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+    <path d="M12 17h.01"/>
+  </svg>
+</button>
+
+<div class="sam-scrim" data-sam-scrim hidden></div>
+
+<aside class="sam-panel" data-sam-panel hidden
+       data-csrf="<%= typeof csrfToken !== 'undefined' && csrfToken ? csrfToken : '' %>"
+       role="dialog" aria-modal="true" aria-labelledby="sam-title">
+  <header class="sam-head">
+    <div class="sam-id">
+      <div class="sam-avatar" aria-hidden="true">S</div>
+      <div>
+        <div class="sam-name" id="sam-title">Ate Sam</div>
+        <div class="sam-sub">Nandito ako para tumulong</div>
+      </div>
+    </div>
+    <div class="sam-head-actions">
+      <button type="button" class="sam-ghost" data-sam-all>Lahat ng tanong</button>
+      <button type="button" class="sam-ghost sam-x" data-sam-close aria-label="Isara">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="sam-searchwrap">
+    <svg class="sam-searchicon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" aria-hidden="true">
+      <circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/>
+    </svg>
+    <input type="search" class="sam-search" data-sam-input autocomplete="off"
+           placeholder="Magtanong… hal. paano mag add ng pasyente"
+           aria-label="Itanong mo kung ano ang hinahanap mo" />
+    <button type="button" class="sam-clear" data-sam-clear hidden aria-label="Burahin">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+
+  <div class="sam-body" data-sam-body aria-live="polite"></div>
+
+  <footer class="sam-foot">
+    Tumatakbo ito sa loob mismo ng sistema. Walang internet na kailangan, at
+    nakasulat na ang lahat ng sagot dito — kaya hindi siya makakapagsinungaling.
+  </footer>
+</aside>

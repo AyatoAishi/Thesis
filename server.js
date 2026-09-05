@@ -181,6 +181,21 @@ app.get("/favicon.ico", (req, res) => res.status(204).end());
 // Everything below here requires a signed-in staff user.
 app.use(requireLogin);
 
+// Mounted ABOVE the topbar middleware below, and that placement is the whole
+// point. These are JSON endpoints for Ate Sam; they render no shell, so the
+// topbar counts are of no use to them — but the middleware runs on every
+// authenticated request, and its one query is a full round trip to a database
+// on another continent. The search box asks on every keystroke, so leaving the
+// help routes underneath it meant every letter typed cost a needless trip to
+// Neon: measured at 226ms each from here, against 0.44ms for the search
+// itself. Practically all of the wait was work nobody had asked for.
+//
+// The trade is that a staff account deactivated mid-session can still read
+// help text until their next page load. Help contains no patient data and no
+// actions, so that costs nothing; anything that touches a record still goes
+// through the check below.
+app.use("/", helpRoutes);
+
 // Two jobs, one round trip: re-check that the signed-in user is still who the
 // database says they are, and fetch the numbers the topbar shows.
 //
@@ -276,7 +291,6 @@ app.use("/", immunizationRoutes);
 app.use("/", prenatalRoutes);
 app.use("/", visitRoutes);
 app.use("/", formRoutes);
-app.use("/", helpRoutes);
 
 // Dashboard — the clinic's numbers for today.
 //

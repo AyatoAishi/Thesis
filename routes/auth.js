@@ -22,6 +22,27 @@ const ENDED = {
   inactive: "Your session ended because this account is no longer active. Ask an admin.",
 };
 
+// Where to send someone after they sign in. middleware/auth.js only remembers
+// real page navigations now, but this is the last gate before we hand a URL
+// straight to res.redirect(), so it re-checks rather than trusts:
+//
+//   - it must be a path on this site. A value starting "//" or "http:" would
+//     be an open redirect — sign in here, land on somebody else's copy of this
+//     login page, type the password again.
+//   - it must not point at a file. A stale returnTo of "/favicon.ico" is the
+//     404 people were actually seeing.
+//   - "/" is the public landing page, which just bounces back here.
+//
+// Anything that fails goes to the dashboard, which is never wrong.
+function safeReturnTo(returnTo) {
+  const fallback = "/dashboard";
+  if (typeof returnTo !== "string" || !returnTo) return fallback;
+  if (!returnTo.startsWith("/") || returnTo.startsWith("//")) return fallback;
+  if (returnTo === "/" || returnTo === "/login") return fallback;
+  if (/\.[a-z0-9]{2,5}(\?|$)/i.test(returnTo)) return fallback;
+  return returnTo;
+}
+
 // ---- GET /login : show the form (skip the app shell) -----------------------
 // This used to redirect straight to the dashboard whenever a session already
 // existed. On a shared clinic desk that is a hole, not a convenience: if the
@@ -119,8 +140,7 @@ router.post("/login", async (req, res) => {
     // the one carrying an admin. The portal half is carried across on purpose
     // so staff testing the patient side aren't signed out of it.
     const patientHalf = req.session.patient;
-    const returnTo = req.session.returnTo;
-    const dest = returnTo && returnTo !== "/" ? returnTo : "/dashboard";
+    const dest = safeReturnTo(req.session.returnTo);
 
     req.session.regenerate((regenErr) => {
       if (regenErr) {

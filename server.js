@@ -26,6 +26,7 @@ const immunizationRoutes = require("./routes/immunization");
 const prenatalRoutes = require("./routes/prenatal");
 const visitRoutes = require("./routes/visits");
 const formRoutes = require("./routes/forms");
+const helpRoutes = require("./routes/help");
 const reminders = require("./services/reminders");
 const immSchedule = require("./services/immunizationSchedule");
 const imm = require("./lib/immunizationCard");
@@ -169,6 +170,14 @@ app.get("/", (req, res) => {
   res.render("landing", { title: "Sampaguita Health Clinic", layout: false });
 });
 
+// The icon lives at /favicon.svg and every page links to it, but a browser
+// that ignores the link asks for /favicon.ico anyway. Answered here, above the
+// login gate, so that automatic request never becomes a redirect to the sign-in
+// page — which is how it used to end up remembered as "where they were headed"
+// and hand somebody a 404 straight after signing in. 204: nothing to send, and
+// nothing is wrong.
+app.get("/favicon.ico", (req, res) => res.status(204).end());
+
 // Everything below here requires a signed-in staff user.
 app.use(requireLogin);
 
@@ -267,33 +276,32 @@ app.use("/", immunizationRoutes);
 app.use("/", prenatalRoutes);
 app.use("/", visitRoutes);
 app.use("/", formRoutes);
+app.use("/", helpRoutes);
 
-// Dashboard — live setup checklist + real stats (best-effort if DB is up)
+// Dashboard — the clinic's numbers for today.
+//
+// This used to open with a setup checklist reading environment variables back
+// to whoever was signed in. It was for us during the build and it never got
+// taken down: the people who actually open this screen every morning cannot
+// act on a missing DATABASE_URL, and it described our infrastructure to
+// anyone standing at the desk. Removed; the checklist is on Trello now.
+//
+// db.ping() went with it. The page's own queries fail loudly enough if the
+// database is unreachable, and a "connected" badge was one more round trip to
+// a free instance an ocean away, on the busiest page in the system.
 app.get("/dashboard", async (req, res) => {
-  const dbStatus = await db.ping();
-  const setup = {
-    database: Boolean(process.env.DATABASE_URL),
-    semaphore: Boolean(process.env.SEMAPHORE_API_KEY),
-    smtp: Boolean(process.env.SMTP_USER && process.env.SMTP_PASS),
-    session:
-      Boolean(process.env.SESSION_SECRET) &&
-      process.env.SESSION_SECRET !== "change_this_to_a_long_random_string",
-  };
-
   const todayISO = F.manilaToday();
   let stats = null;
-  if (dbStatus.ok) {
-    try {
-      const [p, t, done, missed] = await Promise.all([
-        db.query("SELECT count(*)::int n FROM patients"),
-        db.query("SELECT count(*)::int n FROM appointments WHERE appointment_date=$1", [todayISO]),
-        db.query("SELECT count(*)::int n FROM appointments WHERE appointment_date=$1 AND status='completed'", [todayISO]),
-        db.query("SELECT count(*)::int n FROM appointments WHERE appointment_date=$1 AND status='missed'", [todayISO]),
-      ]);
-      stats = { patients: p.rows[0].n, today: t.rows[0].n, done: done.rows[0].n, missed: missed.rows[0].n };
-    } catch (_) {
-      stats = null; // tables not created yet — dashboard still renders
-    }
+  try {
+    const [p, t, done, missed] = await Promise.all([
+      db.query("SELECT count(*)::int n FROM patients"),
+      db.query("SELECT count(*)::int n FROM appointments WHERE appointment_date=$1", [todayISO]),
+      db.query("SELECT count(*)::int n FROM appointments WHERE appointment_date=$1 AND status='completed'", [todayISO]),
+      db.query("SELECT count(*)::int n FROM appointments WHERE appointment_date=$1 AND status='missed'", [todayISO]),
+    ]);
+    stats = { patients: p.rows[0].n, today: t.rows[0].n, done: done.rows[0].n, missed: missed.rows[0].n };
+  } catch (_) {
+    stats = null; // tables not created yet — dashboard still renders
   }
 
   res.render("dashboard", {
@@ -301,8 +309,6 @@ app.get("/dashboard", async (req, res) => {
     active: "dashboard",
     today: F.longDate(todayISO),
     todayISO,
-    dbStatus,
-    setup,
     stats,
   });
 });

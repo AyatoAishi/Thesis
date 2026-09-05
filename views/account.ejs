@@ -43,7 +43,7 @@
     </div>
   </div>
 
-  <form method="POST" action="/account/preferences" class="prefs"><%- include("partials/csrf") %>
+  <form method="POST" action="/account/preferences" class="prefs" data-prefs><%- include("partials/csrf") %>
 
     <!-- Mode -->
     <div class="pref-block">
@@ -92,19 +92,18 @@
         </label>
       </div>
 
-      <div class="pref-custom">
-        <label class="field" style="max-width:200px">
-          <span>Pumili ng kulay</span>
-          <%# Seeded with whatever colour is in force, not with the default.
-              Opening the picker on blue while the app is green reads as a bug,
-              and it makes "nudge the current colour a little" impossible. %>
-          <input type="color" name="accent" value="<%= prefs.accent %>" />
+      <%# Hidden until "Sarili ko" is the chosen swatch — see .pref-custom in
+          the stylesheet. A colour field sitting there permanently invited
+          people to set a colour that then did nothing, because the preset
+          above it was still the one selected. The input is seeded with the
+          colour in force rather than the default, so opening it on blue while
+          the app is green cannot happen, and nudging the current colour
+          slightly is possible. %>
+      <div class="pref-custom"<%- prefs.preset === "custom" ? "" : " hidden" %>>
+        <label class="field">
+          <span>Ang kulay mo</span>
+          <input type="color" name="accent" value="<%= prefs.accent %>" data-accent-input />
         </label>
-        <div class="pref-note" style="margin:0">
-          Piliin mo ang kulay; ako na ang bahala sa liwanag at dilim nito para
-          laging mabasa ang nakasulat. <b>Hindi mo siya kayang sirain.</b>
-          Piliin mo ang <b>Sarili ko</b> sa taas para gamitin ito.
-        </div>
       </div>
     </div>
 
@@ -115,9 +114,9 @@
         <% fonts.forEach(function (f) { %>
           <label class="fontopt <%= prefs.font === f.id ? 'is-on' : '' %>">
             <input type="radio" name="font" value="<%= f.id %>" <%= prefs.font === f.id ? "checked" : "" %> />
-            <span class="fontopt-sample" style="font-family:<%= f.stack.replace(/"/g, "&quot;") %>">Aa</span>
+            <span class="fontopt-sample" style="font-family:<%= f.stack %>">Aa</span>
             <span class="fontopt-meta">
-              <b style="font-family:<%= f.stack.replace(/"/g, "&quot;") %>"><%= f.label %></b>
+              <b style="font-family:<%= f.stack %>"><%= f.label %></b>
               <small><%= f.note %></small>
             </span>
           </label>

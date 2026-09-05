@@ -13,6 +13,7 @@
     "build": "npm run css",
     "css": "tailwindcss -i ./public/css/src.css -o ./public/css/app.css --minify",
     "css:watch": "tailwindcss -i ./public/css/src.css -o ./public/css/app.css --watch",
+    "test": "node test/help-search.test.js && node test/theme.test.js",
     "db:setup": "node db/migrate.js",
     "seed:admin": "node db/seed-admin.js",
     "seed:demo": "node db/seed-demo.js",

@@ -412,4 +412,57 @@
   document.addEventListener("click", function (e) {
     if (!wrap.contains(e.target)) hide();
   });
+
+  // ---- Appearance settings (views/account.ejs) ---------------------------
+  // The selected state is rendered by the server so the page is correct before
+  // any script runs. What was missing is what happens on the way to saving:
+  // clicking Malachite while Sampaguita was in force left BOTH lit, because the
+  // server's class stayed put and only the radio moved. Two highlighted options
+  // and no way to tell which one is about to be saved.
+  //
+  // So this moves the class with the radio. CSS :has() would do it alone, but
+  // the class is what the server writes and a browser without :has() would then
+  // show nothing selected at all — worse than what we started with.
+  document.querySelectorAll("[data-prefs]").forEach(function (form) {
+    function sync(name, cls) {
+      form.querySelectorAll('input[name="' + name + '"]').forEach(function (input) {
+        var label = input.closest("." + cls);
+        if (label) label.classList.toggle("is-on", input.checked);
+      });
+    }
+    var groups = [["mode", "pref-opt"], ["preset", "swatch"], ["font", "fontopt"]];
+
+    form.addEventListener("change", function (e) {
+      groups.forEach(function (g) { if (e.target.name === g[0]) sync(g[0], g[1]); });
+
+      // The colour field only exists while "Sarili ko" is the chosen swatch.
+      if (e.target.name === "preset") {
+        var custom = form.querySelector(".pref-custom");
+        var isCustom = e.target.value === "custom";
+        if (custom) custom.hidden = !isCustom;
+        // Revealed, not opened. Calling .click() on the colour input to pop the
+        // operating system's picker was the first attempt: browsers may refuse
+        // it outside a direct gesture, so it would work for some people and
+        // silently do nothing for others, and a native dialog appearing on its
+        // own is startling. The field appears; the person opens it.
+      }
+    });
+
+    // Touching the colour picker means they want their own colour, whatever
+    // radio happens to be selected. Without this they set a colour, save, and
+    // nothing changes because a preset was still the one checked.
+    var picker = form.querySelector("[data-accent-input]");
+    if (picker) {
+      picker.addEventListener("input", function () {
+        var customRadio = form.querySelector('input[name="preset"][value="custom"]');
+        if (customRadio && !customRadio.checked) {
+          customRadio.checked = true;
+          sync("preset", "swatch");
+        }
+        var dot = form.querySelector('.swatch:has(input[value="custom"]) .swatch-dot')
+               || (customRadio && customRadio.parentElement.querySelector(".swatch-dot"));
+        if (dot) dot.style.background = picker.value;
+      });
+    }
+  });
 })();

@@ -892,37 +892,144 @@ body {
 }
 
 /* ===========================================================================
-   Rail labels.
+   The rail, as a drawer that opens on hover.
 
-   The rail was icons only, each carrying title="Patients" — which is a HOVER
-   tooltip. The people this system is being handed to are elderly and will be
-   on a tablet, where there is no hover, only tap. So the navigation was, quite
-   literally, unreadable to them: seven identical grey squares. This is likely
-   the real reason they could not find things, and no amount of in-app help
-   fixes a nav you cannot read.
+   Collapsed it is icons only. Point at it and the whole rail slides open over
+   the page, each icon gaining its name beside it, with the page dimmed behind
+   — the same gesture as Ate Sam's panel, mirrored to the other edge.
+
+   THE CONFLICT, AND HOW IT IS SETTLED.
+   The labels were put here in the first place because the rail carried
+   title="Patients", which is a HOVER tooltip, and this system is going to
+   elderly staff on a tablet — where there is no hover, only tap. Seven grey
+   squares and no way to read any of them. Making the labels hover-only again
+   would walk straight back into that.
+
+   So the drawer is served only to devices that actually have a pointer, via
+   @media (hover: hover). A tablet takes the branch below it and keeps the
+   labels permanently visible. One design, two devices, neither compromised.
+
+   :focus-within is in the trigger alongside :hover so the drawer also opens
+   for someone moving through the nav on a keyboard, who otherwise gets the
+   collapsed rail and no idea where they are.
    =========================================================================== */
-/* flex-basis has to be overridden too, not just width — the original sets
-   `flex: 0 0 66px`, which would have pinned the rail at its old size and
-   quietly clipped every label. */
-/* 96px, sized off the longest label. "Appointments" measures 68px at 10px, and
-   at the first attempt (88px rail / 72px item) it had two pixels of clearance
-   each side and read as though it were about to be clipped. The rail is the
-   one element on screen whose whole job is to be read at a glance. */
+
+/* --- Shared: the label element itself ------------------------------------ */
+.rail-label {
+  font-size: 10px; font-weight: 600; line-height: 1.15;
+  letter-spacing: -.01em; text-align: center;
+}
+.rail-logo { margin-bottom: 2px; }
+
+/* --- Touch and everything without a pointer ------------------------------ */
+/* The state shipped before this: 96px, label stacked under the icon, always
+   readable. This is the fallback, and it is deliberately the DEFAULT so that
+   any browser which does not understand the media query below still gets a
+   navigation that can be read. */
 .rail { width: 96px; flex: 0 0 96px; }
 .rail-item {
   display: flex; flex-direction: column; gap: 4px;
   width: 80px; height: auto; padding: 9px 5px 7px;
 }
-.rail-label {
-  font-size: 10px; font-weight: 600; line-height: 1.15; text-align: center;
-  letter-spacing: -.01em;
+
+/* --- Pointer devices: the drawer ----------------------------------------- */
+@media (hover: hover) and (pointer: fine) {
+  /* Taken out of the flex flow so opening it covers the page instead of
+     shoving it sideways. A rail that pushes the whole layout right every time
+     the mouse crosses it is unusable — the thing you were about to click moves
+     out from under the cursor. .layout keeps the 66px as padding so nothing
+     ends up underneath the collapsed rail. */
+  .layout { padding-left: 66px; }
+  .rail {
+    position: fixed; left: 0; top: 0; bottom: 0; z-index: 50;
+    width: 66px; flex: none;
+    align-items: flex-start;
+    padding: 14px 11px;
+    overflow: hidden;
+    transition: width .3s cubic-bezier(.22,.9,.28,1);
+  }
+  .rail:hover, .rail:focus-within { width: 212px; }
+
+  /* The dimmer, hung on the main column rather than on the rail.
+     It was .rail::before with z-index:-1 first, on the assumption that a
+     negative child paints behind its parent. It does not: within a stacking
+     context the order is the context's own background, THEN negative-z
+     children, then everything else. So the scrim landed on top of the rail's
+     white background and greyed the rail itself, while each nav item — being
+     in-flow content painted later — stayed bright. The rail looked dimmed and
+     the links looked like they were floating above it.
+     .main-col is the rail's next sibling, so hovering one can dim the other
+     without adding an element to the EJS. */
+  .rail:hover ~ .main-col::before,
+  .rail:focus-within ~ .main-col::before { opacity: 1; }
+  .main-col::before {
+    content: ""; position: fixed; inset: 0; z-index: 40;
+    background: rgba(24, 35, 56, .34);
+    opacity: 0; pointer-events: none;
+    transition: opacity .3s ease;
+  }
+
+  .rail-logo { flex: none; margin: 0 0 10px 1px; }
+
+  .rail-item {
+    display: flex; flex-direction: row; align-items: center; gap: 12px;
+    width: 190px; height: 44px; padding: 0 0 0 10px;
+    /* Fixed width even while collapsed, so the label is already laid out and
+       only has to fade in. Animating width per item as well as on the rail
+       makes the text reflow mid-slide and shimmer. */
+    flex: none;
+  }
+  .rail-item svg {
+    flex: none;
+    transition: transform .34s cubic-bezier(.34,1.4,.5,1);
+  }
+
+  .rail-label {
+    font-size: 13px; font-weight: 600; text-align: left;
+    white-space: nowrap;
+    opacity: 0;
+    transform: translateX(-6px);
+    transition: opacity .22s ease, transform .28s ease;
+  }
+  .rail:hover .rail-label,
+  .rail:focus-within .rail-label { opacity: 1; transform: translateX(0); }
+
+  /* The tilt. Small on purpose — enough to register as the panel acknowledging
+     the mouse, not enough to look broken. The per-item delay makes it run down
+     the rail rather than snapping all at once. */
+  .rail:hover .rail-item svg,
+  .rail:focus-within .rail-item svg { transform: rotate(-9deg); }
+
+  .rail:hover .rail-item:nth-child(2) svg  { transition-delay: .00s; }
+  .rail:hover .rail-item:nth-child(3) svg  { transition-delay: .03s; }
+  .rail:hover .rail-item:nth-child(4) svg  { transition-delay: .06s; }
+  .rail:hover .rail-item:nth-child(5) svg  { transition-delay: .09s; }
+  .rail:hover .rail-item:nth-child(6) svg  { transition-delay: .12s; }
+  .rail:hover .rail-item:nth-child(7) svg  { transition-delay: .15s; }
+  .rail:hover .rail-item:nth-child(8) svg  { transition-delay: .18s; }
+  .rail:hover .rail-item:nth-child(9) svg  { transition-delay: .21s; }
+
+  /* Hovering one item straightens that icon while its neighbours stay tilted,
+     so the thing under the cursor is the one standing upright. */
+  .rail .rail-item:hover svg { transform: rotate(0deg); transition-delay: 0s; }
 }
-.rail-logo { margin-bottom: 2px; }
 
 @media (max-width: 640px) {
   /* On a phone the rail is already fighting the topbar for room; the labels
-     are the first thing to go, and hover works on a mouse anyway. */
-  .rail { width: 62px; flex: 0 0 62px; }
+     are the first thing to go. */
+  .layout { padding-left: 0; }
+  .rail {
+    position: static; width: 62px; flex: 0 0 62px;
+    align-items: center; padding: 14px 0; overflow: visible;
+  }
+  .main-col::before { display: none; }
   .rail-label { display: none; }
-  .rail-item { width: 44px; height: 44px; padding: 0; }
+  .rail-item { width: 44px; height: 44px; padding: 0; justify-content: center; }
+}
+
+/* A tilt and a slide are decoration. Someone who asked for less motion still
+   gets the drawer, and the labels still arrive — they just stop moving. */
+@media (prefers-reduced-motion: reduce) {
+  .rail, .main-col::before, .rail-label, .rail-item svg { transition: none; }
+  .rail:hover .rail-item svg, .rail:focus-within .rail-item svg { transform: none; }
 }

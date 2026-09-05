@@ -1,54 +1,28 @@
 <%
-  function badge(ok) { return ok ? '<span class="badge ok">ready</span>' : '<span class="badge warn">needed</span>'; }
+  // The setup checklist that used to sit at the top of this page is gone. It
+  // was a build-time tool — "paste your connection string into DATABASE_URL" —
+  // shown to nurses and facilitators who have no .env, no terminal, and no way
+  // to act on any of it. Two things were wrong with that: it made the first
+  // screen of the day unreadable to the people who open it most, and it put
+  // the shape of our infrastructure on a page anyone at the desk can see.
+  // That checklist now lives on the Trello board instead.
+  //
+  // What replaced it is the same idea aimed at the clinic: the things that
+  // need a person today. It reads res.locals.alerts, which server.js already
+  // computed for the topbar bell on this very request — so this panel costs
+  // no extra query, and it can never disagree with the bell.
+  const attention = typeof alerts !== "undefined" ? alerts : [];
+
+  const ICONS = {
+    today_waiting: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    imm_overdue:   '<path d="M12 2v6M9 5h6"/><rect x="7" y="8" width="10" height="13" rx="2"/><path d="M10 13h4"/>',
+    low_stock:     '<path d="M21 8V21H3V8"/><rect x="1" y="3" width="22" height="5" rx="1"/><path d="M10 12h4"/>',
+  };
 %>
 <div class="page-head">
   <h1>Dashboard</h1>
   <div class="sub"><%= today %></div>
 </div>
-
-<!-- Setup status: doubles as your live checklist while you create accounts -->
-<section class="card">
-  <div class="panel-head">
-    <div class="panel-title">Setup status <span class="muted">— fill these in <code class="mono">.env</code></span></div>
-  </div>
-  <div class="status-list">
-    <div class="status-row">
-      <div class="status-label">
-        Database (PostgreSQL)
-        <small>Paste your Neon connection string into <code class="mono">DATABASE_URL</code>, then run <code class="mono">npm run db:setup</code></small>
-      </div>
-      <%- badge(setup.database) %>
-    </div>
-    <div class="status-row">
-      <div class="status-label">
-        Live DB connection
-        <small><%= dbStatus.ok ? 'SELECT 1 succeeded — tables can be created next' : dbStatus.reason %></small>
-      </div>
-      <% if (dbStatus.ok) { %><span class="badge ok">connected</span><% } else { %><span class="badge bad">offline</span><% } %>
-    </div>
-    <div class="status-row">
-      <div class="status-label">
-        SMS (Semaphore)
-        <small>Add <code class="mono">SEMAPHORE_API_KEY</code>; register your Sender ID early (2–4 wk wait)</small>
-      </div>
-      <%- badge(setup.semaphore) %>
-    </div>
-    <div class="status-row">
-      <div class="status-label">
-        Email (SMTP, optional)
-        <small>Brevo or Gmail app password → <code class="mono">SMTP_USER</code> / <code class="mono">SMTP_PASS</code></small>
-      </div>
-      <%- badge(setup.smtp) %>
-    </div>
-    <div class="status-row">
-      <div class="status-label">
-        Session secret
-        <small>A long random string for signing login cookies</small>
-      </div>
-      <%- badge(setup.session) %>
-    </div>
-  </div>
-</section>
 
 <!-- Live metrics -->
 <div class="stat-grid">
@@ -62,23 +36,60 @@
     <div class="stat-value"><%= stats ? stats.patients : "—" %></div>
     <div class="stat-note">total records</div>
   </a>
-  <div class="stat-card">
+  <a class="stat-card" href="/appointments?date=<%= todayISO %>" style="text-decoration:none;color:inherit">
     <div class="stat-label">Completed today</div>
     <div class="stat-value"><%= stats ? stats.done : "—" %></div>
     <div class="stat-note">marked done</div>
-  </div>
-  <div class="stat-card">
+  </a>
+  <a class="stat-card" href="/appointments?date=<%= todayISO %>" style="text-decoration:none;color:inherit">
     <div class="stat-label">Missed today</div>
     <div class="stat-value"><%= stats ? stats.missed : "—" %></div>
     <div class="stat-note">no-shows</div>
-  </div>
+  </a>
 </div>
+
+<!-- Needs attention: only what this role can actually act on -->
+<section class="card">
+  <div class="panel-head">
+    <div class="panel-title">Needs attention</div>
+  </div>
+  <% if (attention.length) { %>
+    <div class="status-list">
+      <% attention.forEach(function (a) { %>
+        <a class="status-row" href="<%= a.href %>" style="text-decoration:none;color:inherit">
+          <div class="status-label" style="display:flex;align-items:center;gap:10px">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;color:var(--warn)">
+              <%- ICONS[a.key] || '<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/>' %>
+            </svg>
+            <span><%= a.label %></span>
+          </div>
+          <span class="badge warn">open</span>
+        </a>
+      <% }) %>
+    </div>
+  <% } else { %>
+    <div class="status-list">
+      <div class="status-row">
+        <div class="status-label" style="display:flex;align-items:center;gap:10px">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;color:var(--ok)">
+            <circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/>
+          </svg>
+          <span>Nothing needs chasing right now.
+            <small>No one is overdue, stock is above its levels, and today's list is clear.</small>
+          </span>
+        </div>
+      </div>
+    </div>
+  <% } %>
+</section>
 
 <section class="card">
   <div class="panel-head"><div class="panel-title">Quick actions</div></div>
   <ol class="steps">
     <li><a href="/patients/new">Add a patient</a>, then <a href="/appointments/new">book an appointment</a> into one of the 3 services.</li>
     <li>Open the <a href="/appointments?date=<%= todayISO %>">daily list</a> to mark patients done / missed as they arrive.</li>
-    <li>Register your <b>Semaphore</b> Sender ID early (2–4 wk wait) so SMS reminders are ready for M4.</li>
+    <li>Record what happened in a <a href="/forms">form</a> — immunization, prenatal, or family planning.</li>
   </ol>
 </section>

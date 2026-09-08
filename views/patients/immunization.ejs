@@ -79,8 +79,8 @@
                       <span class="badge ok" title="<%= slot.remarks || '' %>">
                         Dose <%= slot.doseNumber %>: <%= fmtDate(slot.date) %>
                       </span>
-                      <form method="POST" action="/patients/<%= patient.patient_id %><%- include("../partials/csrf") %>/immunization/<%= slot.imm_id %>/delete"
-                            onsubmit="return confirm('Remove this dose record?');" style="display:inline">
+                      <form method="POST" action="/patients/<%= patient.patient_id %>/immunization/<%= slot.imm_id %>/delete"
+                            onsubmit="return confirm('Remove this dose record?');" style="display:inline"><%- include("../partials/csrf") %>
                         <button type="submit" class="mini-btn" style="padding:2px 8px;font-size:11px">Undo</button>
                       </form>
                     <% } else { %>
@@ -124,8 +124,8 @@
             <td><%= fmtDate(r.given_date) %></td>
             <td class="muted"><%= r.remarks || "—" %></td>
             <td style="text-align:right">
-              <form method="POST" action="/patients/<%= patient.patient_id %><%- include("../partials/csrf") %>/immunization/<%= r.imm_id %>/delete"
-                    onsubmit="return confirm('Remove this dose record?');">
+              <form method="POST" action="/patients/<%= patient.patient_id %>/immunization/<%= r.imm_id %>/delete"
+                    onsubmit="return confirm('Remove this dose record?');"><%- include("../partials/csrf") %>
                 <button type="submit" class="mini-btn">Undo</button>
               </form>
             </td>

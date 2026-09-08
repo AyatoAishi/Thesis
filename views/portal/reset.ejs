@@ -49,7 +49,7 @@
           <div class="auth-error"><%= error %></div>
         <% } %>
 
-        <form method="POST" action="/portal/reset/<%= token %><%- include("../partials/csrf") %>" class="auth-form">
+        <form method="POST" action="/portal/reset/<%= token %>" class="auth-form"><%- include("../partials/csrf") %>
           <label class="field">
             <span>Bagong password</span>
             <%- include("../partials/password-field", { name: "password", id: "reset-pw" }) %>

@@ -16,7 +16,11 @@
 
 <div class="sam-scrim" data-sam-scrim hidden></div>
 
+<%# Where to ask. The staff pages and the portal have separate endpoints
+    behind separate gates, serving separate lists — a patient must never
+    reach an answer about dispensing medicine. The panel is the same. %>
 <aside class="sam-panel" data-sam-panel hidden
+       data-help-base="<%= typeof helpBase !== 'undefined' && helpBase ? helpBase : '/help' %>"
        data-csrf="<%= typeof csrfToken !== 'undefined' && csrfToken ? csrfToken : '' %>"
        role="dialog" aria-modal="true" aria-labelledby="sam-title">
   <header class="sam-head">

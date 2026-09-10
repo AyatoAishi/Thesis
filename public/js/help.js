@@ -20,6 +20,10 @@
   var clearBtn = panel.querySelector("[data-sam-clear]");
   var allBtn = panel.querySelector("[data-sam-all]");
   var closeBtn = panel.querySelector("[data-sam-close]");
+  // Staff and patients get different answers from different endpoints
+  // behind different gates. The panel carries which set it belongs to, so
+  // this file never has to know which side of the app it is on.
+  var API = panel.getAttribute("data-help-base") || "/help";
 
   var open = false;
   var showingAll = false;
@@ -149,7 +153,7 @@
   // ---- the three views -----------------------------------------------------
   function starters() {
     setAll(false);
-    fetch("/help/starters", { headers: { accept: "application/json" } })
+    fetch(API + "/starters", { headers: { accept: "application/json" } })
       .then(function (r) { return r.json(); })
       .then(function (d) {
         body.innerHTML =
@@ -165,7 +169,7 @@
     setAll(true);
     input.value = "";
     clearBtn.hidden = true;
-    fetch("/help/all", { headers: { accept: "application/json" } })
+    fetch(API + "/all", { headers: { accept: "application/json" } })
       .then(function (r) { return r.json(); })
       .then(function (d) {
         var h = '<div class="sam-label">Lahat ng tanong (' + d.total + ")</div>";
@@ -181,7 +185,7 @@
 
   function ask(q) {
     var mine = ++reqSeq;
-    fetch("/help/search?q=" + encodeURIComponent(q), { headers: { accept: "application/json" } })
+    fetch(API + "/search?q=" + encodeURIComponent(q), { headers: { accept: "application/json" } })
       .then(function (r) { return r.json(); })
       .then(function (d) {
         // A reply for a query the person has already typed past is stale. Two
@@ -229,7 +233,7 @@
     var key = q.trim().toLowerCase();
     if (!key || reported[key]) return;
     reported[key] = true;
-    fetch("/help/unanswered", {
+    fetch(API + "/unanswered", {
       method: "POST",
       headers: {
         "content-type": "application/json",

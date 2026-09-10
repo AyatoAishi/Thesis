@@ -35,5 +35,10 @@
   <footer class="portal-foot muted">
     Barangay Sampaguita Health Clinic · Your records are private (RA 10173)
   </footer>
+  <%# Ate Sam, portal side. Six answers of her own — the staff list would
+      be worse than nothing here. See routes/portal.js. %>
+  <%- include("partials/help", { helpBase: "/portal/help" }) %>
+  <script src="/js/app.js"></script>
+  <script src="/js/help.js"></script>
 </body>
 </html>

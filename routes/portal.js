@@ -629,4 +629,66 @@ router.get("/portal", requirePatient, async (req, res, next) => {
   }
 });
 
+
+// ---- Ate Sam, on the patient side ------------------------------------------
+// "Yung chatbot natin wala sa patient portal?" — Alyanna. She was right.
+//
+// Same matcher, same panel, a different and much shorter list: "patient" is
+// passed where a staff role goes and lib/help/search.js filters on it. The 31
+// staff answers would be worse than nothing here — a patient cannot dispense
+// medicine or open a report, and explaining how would be a confidently wrong
+// answer, which is the failure this whole design exists to avoid.
+//
+// Behind requirePatient because the answers name what is on THEIR portal.
+const help = require("../lib/help/search");
+const PATIENT_AUDIENCE = "patient";
+
+function presentHelp(e) {
+  // keys stays server-side: it is full of misspellings that exist for matching
+  // and would look like a mistake on screen.
+  return { id: e.id, q: e.q, tags: e.tags || [], short: e.short, steps: e.steps || [], go: e.go || null };
+}
+
+router.get("/portal/help/starters", requirePatient, (req, res) => {
+  // Six of seven, so the opening screen is a complete list rather than a
+  // sample. A patient has few enough things to ask that hiding any of them
+  // behind a search box would be perverse.
+  res.json({ items: help.all(PATIENT_AUDIENCE).map(presentHelp) });
+});
+
+router.get("/portal/help/all", requirePatient, (req, res) => {
+  const entries = help.all(PATIENT_AUDIENCE).map(presentHelp);
+  const groups = [];
+  for (const e of entries) {
+    const tag = e.tags[0] || "Iba pa";
+    let g = groups.find((x) => x.tag === tag);
+    if (!g) groups.push((g = { tag, items: [] }));
+    g.items.push(e);
+  }
+  res.json({ groups, total: entries.length });
+});
+
+router.get("/portal/help/search", requirePatient, (req, res) => {
+  const q = String(req.query.q || "").slice(0, 200);
+  const hits = help.search(q, PATIENT_AUDIENCE, 5);
+  if (hits.length) return res.json({ answered: true, hits: hits.map((h) => presentHelp(h.entry)) });
+  return res.json({
+    answered: false,
+    hits: [],
+    nearest: help.nearest(q, PATIENT_AUDIENCE, 3).map((h) => presentHelp(h.entry)),
+  });
+});
+
+router.post("/portal/help/unanswered", requirePatient, (req, res) => {
+  const q = String(req.body.q || "").trim().slice(0, 200);
+  // Two words is somebody mid-thought, not a question.
+  if (q.split(/\s+/).length >= 2) {
+    // user_id NULL — a patient asked this, not a staff member. Recorded so the
+    // group can see what the beneficiaries could not find, which is findings
+    // data and not a feature request.
+    audit.log(null, "help_unanswered", "help", null, `portal: ${q}`);
+  }
+  res.json({ ok: true });
+});
+
 module.exports = router;

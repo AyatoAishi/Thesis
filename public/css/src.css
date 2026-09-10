@@ -413,7 +413,14 @@ body {
   background: var(--ok-bg); color: var(--ok-ink);
   border: 1px solid rgba(24, 165, 113, .2);
 }
-.page-alert.ok::before { content: "¹3"; }
+/* A tick, written as a CSS escape rather than as the character itself.
+   The literal one had been here since 2026-08-20 and was already corrupt:
+   the bytes on disk were C2 B9 33, which a browser renders as a
+   superscript one followed by a 3. Every success message on the site
+   opened with that instead of a mark, and it is the thing Alyanna asked
+   about. The escape is the same glyph, and every byte of it is ASCII, so
+   no editor or encoding round-trip can mangle it again. */
+.page-alert.ok::before { content: "\2713"; }
 .page-alert.info {
   background: var(--accent-softer); color: var(--ink-2);
   border: 1px solid var(--accent-soft);

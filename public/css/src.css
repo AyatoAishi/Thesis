@@ -1335,3 +1335,55 @@ body {
 .check-inline b { font-size: 13px; color: var(--ink); }
 .check-inline small { font-size: 11.5px; color: var(--ink-3); line-height: 1.5; }
 .check-inline:has(input:checked) { border-color: var(--accent); background: var(--accent-softer); }
+
+/* ===========================================================================
+   Dispense lines (views/inventory/dispense-form.ejs).
+
+   One row per medicine, added and removed in the browser. Grid rather than
+   flex so every row's medicine, quantity and remove button line up down the
+   page — with flex the columns drift as soon as one medicine name is longer
+   than another, and a column of quantities that does not line up is hard to
+   read back and check.
+   =========================================================================== */
+
+.dispense-line {
+  display: grid;
+  grid-template-columns: 1fr 120px auto;
+  gap: 10px;
+  align-items: end;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--border);
+}
+.dispense-line:last-child { border-bottom: none; }
+.dispense-line .field { margin: 0; }
+.dispense-qty input { text-align: right; }
+
+/* Sits on the baseline of the inputs beside it rather than the top of the row. */
+.dispense-drop {
+  color: var(--bad-ink);
+  border-color: var(--border-strong);
+  margin-bottom: 1px;
+  white-space: nowrap;
+}
+.dispense-drop:hover { background: var(--bad-bg); border-color: var(--bad); }
+.dispense-drop[hidden] { display: none; }
+
+@media (max-width: 620px) {
+  /* Stacked, with the remove button pushed to the right under its own row —
+     three columns in 360px leaves the quantity box too narrow to read. */
+  .dispense-line { grid-template-columns: 1fr auto; }
+  .dispense-line .field:first-child { grid-column: 1 / -1; }
+}
+
+/* Visually hidden but still read aloud. The repeated "Medicine" and "Quantity"
+   labels are noise on screen after the first row, but a screen reader moving
+   through eight fields with no labels has nothing to go on. */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

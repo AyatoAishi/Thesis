@@ -56,16 +56,61 @@ function validateMedicine(m) {
 }
 
 // Validate a submitted dispense. `medicine` may be null (not chosen / not found).
-function validateDispense(body, medicine) {
+// A form field repeated N times arrives as an array — except when N is 1,
+// where Express hands back a bare string. Every read of these has to go
+// through here or one-medicine dispensing breaks in a way that two-medicine
+// dispensing does not, which is a horrible bug to be handed.
+const asArray = (v) => (v === undefined || v === null ? [] : Array.isArray(v) ? v : [v]);
+
+// One patient, one note, and a list of medicines. Alyanna: "Can add more
+// medicines para d paisa isa" — somebody leaving with three medicines used to
+// mean filling this form three times and picking the same patient each time.
+function validateDispense(body, medicines) {
   const errors = [];
   const patient_id = parseInt(body.patient_id, 10) || null;
-  const quantity = parseInt(body.quantity, 10) || null;
   const notes = (body.notes || "").trim().slice(0, 255) || null;
   if (!patient_id) errors.push("Choose a patient.");
-  if (!quantity || quantity <= 0) errors.push("Enter a quantity greater than zero.");
-  if (medicine && quantity && quantity > medicine.stock_quantity)
-    errors.push(`Only ${medicine.stock_quantity} ${medicine.unit || "unit(s)"} of ${medicine.name} left in stock.`);
-  return { errors, value: { patient_id, quantity, notes } };
+
+  const ids = asArray(body.line_medicine_id);
+  const qtys = asArray(body.line_quantity);
+  const byId = new Map((medicines || []).map((m) => [m.medicine_id, m]));
+
+  const lines = [];
+  const seen = new Map();
+  ids.forEach((rawId, i) => {
+    const medicine_id = parseInt(rawId, 10) || null;
+    const quantity = parseInt(qtys[i], 10) || null;
+    // A row left completely blank is somebody who pressed "add" and changed
+    // their mind. Dropped quietly rather than turned into an error.
+    if (!medicine_id && !quantity) return;
+    lines.push({ medicine_id, quantity });
+
+    const where = ids.length > 1 ? ` (row ${lines.length})` : "";
+    const med = byId.get(medicine_id);
+    if (!medicine_id) return errors.push(`Choose a medicine${where}.`);
+    if (!med) return errors.push(`That medicine is no longer in the inventory${where}.`);
+    if (!quantity || quantity <= 0)
+      return errors.push(`Enter a quantity greater than zero for ${med.name}${where}.`);
+
+    // The same medicine twice would pass each line's own stock check and
+    // together ask for more than exists, so the totals are what get checked.
+    seen.set(medicine_id, (seen.get(medicine_id) || 0) + quantity);
+  });
+
+  if (!lines.length) errors.push("Add at least one medicine.");
+
+  for (const [medicine_id, total] of seen) {
+    const med = byId.get(medicine_id);
+    if (med && total > med.stock_quantity) {
+      const twice = lines.filter((l) => l.medicine_id === medicine_id).length > 1;
+      errors.push(
+        `Only ${med.stock_quantity} ${med.unit || "unit(s)"} of ${med.name} left in stock` +
+        (twice ? `, and the rows above ask for ${total} between them.` : ".")
+      );
+    }
+  }
+
+  return { errors, value: { patient_id, notes, lines } };
 }
 
 // Local-redirect-only (no open-redirect via a `back` form field), optionally
@@ -93,21 +138,30 @@ async function rerenderDispenseForm(res, { body, medicine, errors }) {
       await db.query("SELECT patient_id, patient_number, full_name FROM patients ORDER BY full_name LIMIT 500")
     ).rows;
   }
-  const medicines = medicine
-    ? null
-    : (
-        await db.query(
-          "SELECT medicine_id, name, unit, dosage, stock_quantity FROM medicines ORDER BY name LIMIT 500"
-        )
-      ).rows;
+  // The medicine list is always needed now: every line is its own dropdown, so
+  // there is no longer a "one medicine already chosen" case that could skip it.
+  const medicines = (
+    await db.query(
+      "SELECT medicine_id, name, unit, dosage, stock_quantity FROM medicines ORDER BY name LIMIT 500"
+    )
+  ).rows;
+
+  // Hand the rows back exactly as they were typed. Retyping four medicines
+  // because the fourth one was short by two boxes is the kind of thing that
+  // makes people stop using a form and go back to paper.
+  const ids = asArray(body.line_medicine_id);
+  const qtys = asArray(body.line_quantity);
+  const lines = ids.map((id, i) => ({ medicine_id: id, quantity: qtys[i] }));
+
   return res.status(400).render("inventory/dispense-form", {
     title: "Dispense medicine · Sampaguita HC",
     active: "inventory",
     dispense: { ...body },
-    medicine,
+    medicine: medicine || null,
     medicines,
     patient,
     patients,
+    lines,
     errors,
   });
 }
@@ -278,7 +332,10 @@ router.get("/inventory/dispense/new", async (req, res, next) => {
       ]);
       medicine = r.rows[0] || null;
     }
-    if (!medicine) {
+    // Always loaded: every line on the form is its own dropdown now, so even
+    // arriving from one medicine's page (which pre-selects the first row) the
+    // rest of the list is needed for the rows the person may add.
+    {
       medicines = (
         await db.query("SELECT medicine_id, name, unit, dosage, stock_quantity FROM medicines ORDER BY name LIMIT 500")
       ).rows;
@@ -302,41 +359,56 @@ router.get("/inventory/dispense/new", async (req, res, next) => {
 // ---- CREATE DISPENSE  POST /inventory/dispense -----------------------------
 router.post("/inventory/dispense", async (req, res, next) => {
   try {
-    const medicine_id = parseInt(req.body.medicine_id, 10) || null;
-    const medQ = medicine_id
-      ? await db.query("SELECT * FROM medicines WHERE medicine_id=$1", [medicine_id])
-      : { rows: [] };
-    const medicine = medQ.rows[0] || null;
-
-    const { errors: valErrors, value } = validateDispense(req.body, medicine);
-    const errors = medicine ? valErrors : ["Choose a medicine.", ...valErrors];
-    if (errors.length) return rerenderDispenseForm(res, { body: req.body, medicine, errors });
+    const all = (await db.query("SELECT * FROM medicines ORDER BY name")).rows;
+    const { errors, value } = validateDispense(req.body, all);
+    if (errors.length) return rerenderDispenseForm(res, { body: req.body, errors });
 
     const client = await db.getClient();
     try {
       await client.query("BEGIN");
 
-      const upd = await client.query(
-        `UPDATE medicines SET stock_quantity = stock_quantity - $1, updated_at = now()
-          WHERE medicine_id = $2 AND stock_quantity >= $1`,
-        [value.quantity, medicine.medicine_id]
-      );
-      if (!upd.rowCount) {
-        await client.query("ROLLBACK");
-        return rerenderDispenseForm(res, {
-          body: req.body,
-          medicine,
-          errors: [`Only ${medicine.stock_quantity} ${medicine.unit || "unit(s)"} left — someone else may have just dispensed some. Refresh and try again.`],
-        });
+      // All of it or none of it. Handing somebody two of their three medicines
+      // and telling them the third failed leaves the stock count right and the
+      // patient's record wrong, and nobody would ever notice which line was
+      // missing. The conditional UPDATE is still the real guard: two staff at
+      // two desks dispensing the last box at the same moment is exactly the
+      // race this catches, because the row is locked by the first one to
+      // reach it.
+      for (const line of value.lines) {
+        const med = all.find((m) => m.medicine_id === line.medicine_id);
+        const upd = await client.query(
+          `UPDATE medicines SET stock_quantity = stock_quantity - $1, updated_at = now()
+            WHERE medicine_id = $2 AND stock_quantity >= $1`,
+          [line.quantity, line.medicine_id]
+        );
+        if (!upd.rowCount) {
+          await client.query("ROLLBACK");
+          return rerenderDispenseForm(res, {
+            body: req.body,
+            errors: [
+              `${med ? med.name : "That medicine"} ran out while this form was open — ` +
+              "somebody else may have just dispensed some. Nothing was dispensed. " +
+              "Refresh to see the current stock and try again.",
+            ],
+          });
+        }
+        // One row per medicine, not one per basket: the dispense history, the
+        // consumption report and the patient's own portal all read this table
+        // per medicine, and none of them would survive a combined row.
+        await client.query(
+          `INSERT INTO medicine_dispenses
+             (patient_id, medicine_id, quantity, dispensed_by, notes)
+           VALUES ($1,$2,$3,$4,$5)`,
+          [value.patient_id, line.medicine_id, line.quantity, req.session.user.user_id, value.notes]
+        );
       }
-      await client.query(
-        `INSERT INTO medicine_dispenses
-           (patient_id, medicine_id, quantity, dispensed_by, notes)
-         VALUES ($1,$2,$3,$4,$5)`,
-        [value.patient_id, medicine.medicine_id, value.quantity, req.session.user.user_id, value.notes]
-      );
+
       await client.query("COMMIT");
-      safeRedirect(res, null, `/inventory/${medicine.medicine_id}`, "Medicine dispensed and stock updated.");
+
+      const n = value.lines.length;
+      safeRedirect(res, null, "/inventory/dispenses",
+        n === 1 ? "Medicine dispensed and stock updated."
+                : `${n} medicines dispensed and stock updated.`);
     } catch (e) {
       await client.query("ROLLBACK");
       throw e;

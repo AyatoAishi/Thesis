@@ -1,10 +1,28 @@
+<%
+  // "Can add more medicines para d paisa isa" — Alyanna. Somebody leaving with
+  // three medicines used to mean filling this form three times, picking the
+  // same patient each time.
+  //
+  // The medicine picker here is a plain <select>, not the searchable one used
+  // elsewhere: there are nine medicines, and a searchable picker cannot simply
+  // be cloned for a row added after the page loaded — it carries its own
+  // hidden input and its own script state. Nine options in a select is not a
+  // problem worth that complexity.
+  //
+  // `lines` is what the server sends back after a validation failure, so a
+  // rejected form reopens with all the rows still filled in. First load gets
+  // one empty row, or one row pre-filled when arriving from a medicine's page.
+  const rows = (typeof lines !== "undefined" && lines && lines.length)
+    ? lines
+    : [{ medicine_id: medicine ? medicine.medicine_id : (dispense.medicine_id || ""), quantity: dispense.quantity || "" }];
+%>
 <div class="page-head">
   <h1>Dispense medicine</h1>
   <div class="sub"><a href="/inventory" class="back-link">← Back to inventory</a></div>
 </div>
 
 <% if (errors && errors.length) { %>
-  <div class="card" style="border-color:#f3c9cb;background:var(--bad-bg)">
+  <div class="card" style="border-color:var(--bad);background:var(--bad-bg)">
     <b style="color:var(--bad-ink)">Please fix:</b>
     <ul style="margin:8px 0 0;color:var(--bad-ink);font-size:13px">
       <% errors.forEach(e => { %><li><%= e %></li><% }) %>
@@ -13,8 +31,8 @@
 <% } %>
 
 <form method="POST" action="/inventory/dispense"><%- include("../partials/csrf") %>
-  <%# overflow:visible — the pickers' result lists drop below the card's own
-      height, and .card sets overflow-x which silently clips them. %>
+  <%# overflow:visible — the patient picker's result list drops below the card's
+      own height, and .card sets overflow-x which silently clips it. %>
   <div class="card" style="overflow:visible">
     <div class="form-grid">
       <label class="field" style="grid-column:1/-1"><span>Patient *</span>
@@ -27,36 +45,111 @@
           <%- include("../partials/patient-picker", { patients, selectedId: dispense.patient_id }) %>
         <% } %>
       </label>
+    </div>
+  </div>
 
-      <label class="field" style="grid-column:1/-1"><span>Medicine *</span>
-        <% if (medicine) { %>
-          <input type="hidden" name="medicine_id" value="<%= medicine.medicine_id %>" />
-          <input type="text" value="<%= medicine.name %><%= medicine.dosage ? ' ' + medicine.dosage : '' %> (<%= medicine.unit || 'unit' %>) — <%= medicine.stock_quantity %> in stock" disabled />
-        <% } else if (!medicines.length) { %>
-          <p class="muted" style="margin:6px 0 0">No medicines in inventory yet. <a href="/inventory/new">Add one first →</a></p>
-        <% } else { %>
-          <%- include("../partials/search-picker", {
-                items: medicines.map(med => ({
-                  id: med.medicine_id,
-                  label: `${med.name}${med.dosage ? " " + med.dosage : ""} (${med.unit || "unit"})`,
-                  meta: `${med.stock_quantity} in stock`,
-                })),
-                name: "medicine_id",
-                selectedId: dispense.medicine_id,
-                placeholder: "Search the medicine by name…",
-              }) %>
-        <% } %>
-      </label>
+  <div class="card">
+    <div class="panel-head" style="margin-bottom:4px">
+      <div>
+        <div class="panel-title">Medicines</div>
+        <div class="muted" style="font-size:12.5px;margin-top:3px">
+          Lahat ng gamot na iuuwi nila ngayon. Isang beses lang i-save — sabay-sabay
+          na babawas sa stock, at kung kulang ang kahit isa, walang mababawas sa lahat.
+        </div>
+      </div>
+    </div>
 
-      <label class="field"><span>Quantity *</span>
-        <input type="number" name="quantity" min="1" step="1" value="<%= dispense.quantity || '' %>" required />
-      </label>
+    <% if (!medicines.length) { %>
+      <p class="muted" style="margin:10px 0 0">No medicines in inventory yet. <a href="/inventory/new">Add one first →</a></p>
+    <% } else { %>
+      <div data-dispense-lines>
+        <% rows.forEach(function (ln, i) { %>
+          <div class="dispense-line" data-dispense-line>
+            <label class="field"><span<%= i ? ' class="sr-only"' : "" %>>Medicine *</span>
+              <select name="line_medicine_id" required>
+                <option value="">— choose —</option>
+                <% medicines.forEach(function (med) { %>
+                  <option value="<%= med.medicine_id %>"
+                          <%= String(ln.medicine_id) === String(med.medicine_id) ? "selected" : "" %>>
+                    <%= med.name %><%= med.dosage ? " " + med.dosage : "" %>
+                    (<%= med.unit || "unit" %>) — <%= med.stock_quantity %> in stock
+                  </option>
+                <% }) %>
+              </select>
+            </label>
+            <label class="field dispense-qty"><span<%= i ? ' class="sr-only"' : "" %>>Quantity *</span>
+              <input type="number" name="line_quantity" min="1" step="1"
+                     value="<%= ln.quantity || "" %>" required />
+            </label>
+            <%# Hidden on the first row: removing the only line would leave a
+                form that cannot be submitted, and a button that sometimes does
+                nothing is worse than one that is not there. %>
+            <button type="button" class="mini-btn dispense-drop" data-drop-line
+                    <%= rows.length === 1 ? "hidden" : "" %>
+                    aria-label="Alisin ang linyang ito">Alisin</button>
+          </div>
+        <% }) %>
+      </div>
 
+      <button type="button" class="mini-btn" data-add-line style="margin-top:4px">+ Isa pang gamot</button>
+    <% } %>
+  </div>
+
+  <div class="card">
+    <div class="form-grid">
       <label class="field" style="grid-column:1/-1"><span>Notes <span class="muted">(optional)</span></span>
-        <input type="text" name="notes" value="<%= dispense.notes || '' %>" maxlength="255" placeholder="e.g. for fever, 3x a day after meals" />
+        <input type="text" name="notes" value="<%= dispense.notes || '' %>" maxlength="255"
+               placeholder="e.g. for fever, 3x a day after meals" />
+        <span class="muted" style="font-size:11.5px;font-weight:500">
+          Isinusulat sa lahat ng gamot sa listahan.
+        </span>
       </label>
     </div>
   </div>
 
   <button type="submit" class="btn">Dispense</button>
 </form>
+
+<script>
+  // Rows are cloned from the first one and emptied, so a row added here is
+  // exactly the shape the server already knows how to read — nothing to keep
+  // in step by hand.
+  (function () {
+    var box = document.querySelector("[data-dispense-lines]");
+    var add = document.querySelector("[data-add-line]");
+    if (!box || !add) return;
+
+    function refreshDropButtons() {
+      var lines = box.querySelectorAll("[data-dispense-line]");
+      lines.forEach(function (l) {
+        var b = l.querySelector("[data-drop-line]");
+        if (b) b.hidden = lines.length === 1;
+      });
+    }
+
+    add.addEventListener("click", function () {
+      var first = box.querySelector("[data-dispense-line]");
+      if (!first) return;
+      var copy = first.cloneNode(true);
+      copy.querySelectorAll("select, input").forEach(function (f) { f.value = ""; });
+      // The labels only belong on the first row; repeating "Medicine" down the
+      // page is noise, but they stay in the markup for screen readers.
+      copy.querySelectorAll("label > span").forEach(function (s) { s.className = "sr-only"; });
+      box.appendChild(copy);
+      refreshDropButtons();
+      var sel = copy.querySelector("select");
+      if (sel) sel.focus();
+    });
+
+    box.addEventListener("click", function (e) {
+      var b = e.target.closest("[data-drop-line]");
+      if (!b) return;
+      var lines = box.querySelectorAll("[data-dispense-line]");
+      if (lines.length <= 1) return;
+      b.closest("[data-dispense-line]").remove();
+      refreshDropButtons();
+    });
+
+    refreshDropButtons();
+  })();
+</script>

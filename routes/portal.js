@@ -35,6 +35,35 @@ const audit = require("../lib/audit");
 
 const router = express.Router();
 
+// How often a patient may change their own password.
+//
+// Counted out of audit_log rather than from a new column, because the audit
+// rows are being written anyway and one source of truth beats two that can
+// disagree. password_changed_at only remembers the LAST change, which cannot
+// answer "how many times today".
+//
+// Deliberately not a lockout. There are already two ways past it and both
+// prove something the limit cannot: the emailed reset link proves control of
+// the address, and clinic staff resetting it at the desk proves the person is
+// standing there. Alyanna's "pede naman ipabypass sa clinic yun" is those two
+// paths, so the limit only governs the self-service change of somebody
+// already signed in — which is the only one an attacker with a stolen session
+// would use to churn a password out from under its owner.
+const PW_CHANGES_PER_DAY = 3;
+
+async function passwordChangesToday(accountId) {
+  const { rows } = await db.query(
+    `SELECT count(*)::int AS n
+       FROM audit_log
+      WHERE action = 'password_change'
+        AND entity_type = 'patient_account'
+        AND entity_id = $1
+        AND created_at > now() - interval '24 hours'`,
+    [accountId]
+  );
+  return rows[0].n;
+}
+
 // ---- LOGIN ------------------------------------------------------------------
 router.get("/portal/login", (req, res) => {
   if (req.session.patient) return res.redirect("/portal");
@@ -287,6 +316,14 @@ router.post("/portal/reset/:token", async (req, res, next) => {
     );
     await reset.invalidateOthers(accountId);
 
+    // Audited, but NOT counted against the daily limit: this path is the way
+    // out of that limit, and it already proved control of the email address.
+    // Recorded distinctly from a self-change so an admin can tell "they knew
+    // their password" from "they had to reset it", which is exactly the
+    // distinction that matters if an account is disputed later.
+    audit.log(null, "password_change", "patient_account", accountId,
+      "portal password reset through an emailed link");
+
     // Whoever was signed in with the old password goes out. Forgetting a
     // password is often how someone finds out that somebody else has been
     // using their account.
@@ -402,8 +439,15 @@ router.post("/portal/password", requirePatient, async (req, res, next) => {
     if (password.length < 8) return oops("Dapat 8 characters pataas ang bagong password.");
     if (password !== password2) return oops("Hindi magkatugma ang dalawang bagong password.");
 
+    // username and the patient's name come along for the audit line: an entry
+    // reading "account #4" is the thing Alyanna could not read on the staff
+    // side, and there is no reason to write a new one in that shape.
     const { rows } = await db.query(
-      "SELECT account_id, password_hash FROM patient_accounts WHERE patient_id = $1", [pid]
+      `SELECT a.account_id, a.password_hash, a.username, p.full_name
+         FROM patient_accounts a
+         JOIN patients p ON p.patient_id = a.patient_id
+        WHERE a.patient_id = $1`,
+      [pid]
     );
     const acct = rows[0];
     if (!acct || !(await bcrypt.compare(current, acct.password_hash))) {
@@ -411,6 +455,17 @@ router.post("/portal/password", requirePatient, async (req, res, next) => {
     }
     if (await bcrypt.compare(password, acct.password_hash)) {
       return oops("Pareho lang ng luma ang bagong password — pumili ng iba.");
+    }
+
+    // Too many already today. Said in full, with both ways forward, because
+    // "try again later" to somebody who thinks their account is compromised is
+    // the moment they give up and call.
+    if ((await passwordChangesToday(acct.account_id)) >= PW_CHANGES_PER_DAY) {
+      return oops(
+        `Napalitan na ang password ng account na ito ng ${PW_CHANGES_PER_DAY} beses ngayong araw. ` +
+        "Kung kailangan mo pang palitan, gamitin ang \u201cNakalimutan ang password\u201d sa sign-in page, " +
+        "o sabihin sa clinic staff sa susunod mong pagpunta at sila na ang magre-reset."
+      );
     }
 
     // Stamping the change is what lets the staff page stop saying "still on the
@@ -422,6 +477,13 @@ router.post("/portal/password", requirePatient, async (req, res, next) => {
         WHERE account_id = $2`,
       [await bcrypt.hash(password, 10), acct.account_id]
     );
+
+    // On the audit log, so an admin can answer "when did this account's
+    // password last change, and how often" — which is the first question
+    // asked when a patient says their account was got into. user_id is NULL
+    // because no staff member did this; naming one would be a lie.
+    audit.log(null, "password_change", "patient_account", acct.account_id,
+      `${acct.full_name || "patient"} changed their own portal password (${acct.username})`);
 
     // Signs out any other browser holding this patient's account — the phone
     // they borrowed at the clinic, or the household computer. A patient

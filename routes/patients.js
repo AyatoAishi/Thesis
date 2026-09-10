@@ -197,6 +197,40 @@ function readForm(body) {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const REMINDER_CHANNELS = ["both", "email", "sms", "none"];
 
+// Patients already on file who might be this same person.
+//
+// Matched on the name plus ONE other thing that agrees — the birthdate or a
+// phone number. Name alone would fire on every Dela Cruz in the barangay and
+// staff would learn to click straight past it, which is worse than no warning
+// at all. Name AND birthdate, or name AND the same number, is a real
+// coincidence worth a second look.
+//
+// The name is compared with whitespace collapsed and case ignored, so
+// "maria  santos" and "Maria Santos" are caught. `excludeId` is the record
+// being edited, which must never match itself.
+async function findLookalikes(p, excludeId) {
+  const name = (p.full_name || "").trim();
+  if (!name) return [];
+  const { rows } = await db.query(
+    `SELECT patient_id, patient_number, full_name, birthdate, contact_number,
+            family_contact_number
+       FROM patients
+      WHERE lower(regexp_replace(full_name, '\\s+', ' ', 'g')) =
+            lower(regexp_replace($1::text, '\\s+', ' ', 'g'))
+        AND ($2::int IS NULL OR patient_id <> $2::int)
+        AND (
+          ($3::date IS NOT NULL AND birthdate = $3::date)
+          OR ($4::text <> '' AND contact_number = $4::text)
+          OR ($5::text <> '' AND family_contact_number = $5::text)
+        )
+      ORDER BY patient_id
+      LIMIT 5`,
+    [name, excludeId || null, p.birthdate || null,
+     p.contact_number || "", p.family_contact_number || ""]
+  );
+  return rows;
+}
+
 // Shared validation. Returns an array of error strings (empty = valid).
 function validate(p) {
   const errors = [];
@@ -226,6 +260,20 @@ function validate(p) {
     errors.push("Emergency contact # must be 7–15 digits, numbers only (e.g. 09171234567).");
   if (!p.contact_number && !p.family_contact_number)
     errors.push("A contact number is required — either the patient's own, or the emergency contact's.");
+  // The emergency contact exists so there is a SECOND way to reach this
+  // person. The same number in both fields looks filled in and is worth
+  // nothing: whatever stops the first one — a dead phone, no load, a number
+  // that changed — stops the fallback in exactly the same moment. Alyanna
+  // found both fields accepting one number with no complaint.
+  if (
+    p.contact_number &&
+    p.family_contact_number &&
+    p.contact_number.replace(/\D/g, "") === p.family_contact_number.replace(/\D/g, "")
+  ) {
+    errors.push(
+      "The emergency contact # is the same as the patient's own. It needs to be a different number — someone else who can be reached if this patient can't be. Leave the patient's own blank if they have no phone of their own."
+    );
+  }
   if (!p.privacy_consent) errors.push("Data privacy consent must be recorded.");
   return errors;
 }
@@ -342,6 +390,40 @@ router.post("/patients", async (req, res, next) => {
     });
   }
   try {
+    // Is somebody already on file who looks like this person?
+    //
+    // A WARNING, not a block. Two people in one barangay really can share a
+    // name — and a birthdate, for twins — so refusing outright would dead-end
+    // a legitimate registration with no way past it. But the far more common
+    // case is the same person being registered twice by two staff on two
+    // days, and once that happens their history is split across two records
+    // and nothing in the system will ever put it back together.
+    //
+    // So: stop, show who is already there, and make continuing a decision
+    // somebody takes rather than something that happens silently. Alyanna
+    // registered the same patient twice with identical details and nothing
+    // said a word.
+    // Read straight off the body rather than through readForm: this is a
+    // decision about the form, not a field of the patient, and it must never
+    // reach the INSERT.
+    if (req.body.confirm_duplicate !== "yes") {
+      const twins = await findLookalikes(p, null);
+      if (twins.length) {
+        return res.status(409).render("patients/form", {
+          title: "Add patient · Sampaguita HC",
+          active: "patients",
+          mode: "new",
+          patient: p,
+          familyLookup: await loadFamilyLookup(),
+          familyMembers: await loadFamilyMembers(p.family_number),
+          relations: RELATIONS,
+          next: req.body.next === "book" ? "book" : "",
+          errors: [],
+          lookalikes: twins,
+        });
+      }
+    }
+
     const fam = await resolveFamily(p, null);
     p.family_number = fam.family_number;
 

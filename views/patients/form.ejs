@@ -20,7 +20,7 @@
 <% } %>
 
 <% if (errors && errors.length) { %>
-  <div class="card" style="border-color:#f3c9cb;background:var(--bad-bg)">
+  <div class="card" style="border-color:var(--bad);background:var(--bad-bg)">
     <b style="color:var(--bad-ink)">Please fix:</b>
     <ul style="margin:8px 0 0;color:var(--bad-ink);font-size:13px">
       <% errors.forEach(e => { %><li><%= e %></li><% }) %>
@@ -28,8 +28,48 @@
   </div>
 <% } %>
 
+<%
+  // Somebody already on file who may be this same person. A warning, never a
+  // block: two people in a barangay really can share a name, and twins share a
+  // birthdate too. But the same patient registered twice splits their history
+  // across two records and nothing will ever join it back up, so continuing is
+  // made a decision rather than a silence.
+  const twins = typeof lookalikes !== "undefined" && lookalikes ? lookalikes : [];
+%>
+<% if (twins.length) { %>
+  <div class="card" style="border-color:var(--warn);background:var(--warn-bg)">
+    <b style="color:var(--warn-ink)">
+      <%= twins.length === 1 ? "Somebody with this name is already on file" : "People with this name are already on file" %>
+    </b>
+    <p style="margin:7px 0 0;font-size:13px;color:var(--ink-2);line-height:1.55">
+      Nothing has been saved yet. Check whether this is the same person — if it
+      is, open their record instead of making a second one, or their visits and
+      doses end up split between two files.
+    </p>
+    <div class="status-list" style="margin-top:11px">
+      <% twins.forEach(function (t) { %>
+        <div class="status-row">
+          <div class="status-label">
+            <b><%= t.full_name %></b> · <span class="mono"><%= t.patient_number %></span>
+            <small>
+              <%= t.birthdate ? new Date(t.birthdate).toLocaleDateString("en-PH", { timeZone: "Asia/Manila", year: "numeric", month: "long", day: "numeric" }) : "no birthdate on file" %><%
+              %><%= t.contact_number ? " · " + t.contact_number : "" %>
+            </small>
+          </div>
+          <a class="mini-btn" href="/patients/<%= t.patient_id %>" target="_blank" rel="noopener">Open record</a>
+        </div>
+      <% }) %>
+    </div>
+    <p style="margin:12px 0 0;font-size:12.5px;color:var(--ink-3)">
+      Really a different person? Press <b>Save anyway</b> at the bottom.
+    </p>
+  </div>
+<% } %>
+
 <form method="POST" action="<%= action %>"><%- include("../partials/csrf") %>
   <% if (chain) { %><input type="hidden" name="next" value="<%= chain %>" /><% } %>
+  <%# Only present on the second pass, after the warning above has been read. %>
+  <% if (twins.length) { %><input type="hidden" name="confirm_duplicate" value="yes" /><% } %>
   <%# When this form was loaded, so the server can refuse to save on top of a
       change someone else made while it sat open — see routes/patients.js. %>
   <% if (isEdit && p.updated_at) { %>
@@ -140,7 +180,12 @@
     </label>
   </div>
 
-  <button type="submit" class="btn"><%= isEdit ? "Save changes" : "Create patient" %></button>
+  <%# The label changes on the second pass so it is clear what is being agreed
+      to — pressing "Create patient" again after a warning reads like the first
+      press simply failed. %>
+  <button type="submit" class="btn">
+    <%= twins.length ? "Save anyway — this is a different person" : (isEdit ? "Save changes" : "Create patient") %>
+  </button>
 </form>
 
 <script>

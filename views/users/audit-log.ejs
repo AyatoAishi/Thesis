@@ -27,9 +27,28 @@
 
   <div class="tabbar" style="margin-top:2px">
     <% filters.forEach(f => { %>
-      <a href="/admin/audit-log<%= f[0] ? '?action=' + f[0] : '' %>" class="tab <%= action === f[0] ? 'active' : '' %>" style="text-transform:capitalize"><%= f[1] %></a>
+      <a href="/admin/audit-log?action=<%= f[0] %>&sort=<%= sort %>" class="tab <%= action === f[0] ? 'active' : '' %>" style="text-transform:capitalize"><%= f[1] %></a>
     <% }) %>
   </div>
+
+  <%# Alyanna asked for "sort option per when and who para mas mabilis pag
+      check" — the real question is not "list the actors alphabetically" but
+      "show me everything one person did". Sorting by who groups a person's
+      lines together and keeps them in time order inside the group. The action
+      filter above carries the sort with it, so choosing one does not throw the
+      other away. %>
+  <form method="GET" action="/admin/audit-log" class="form-inline" style="margin:10px 0 4px;gap:8px">
+    <input type="hidden" name="action" value="<%= action %>" />
+    <label class="field" style="max-width:190px;margin:0">
+      <span>Sort by</span>
+      <select name="sort" onchange="this.form.submit()">
+        <% Object.keys(sorts).forEach(function (k) { %>
+          <option value="<%= k %>" <%= sort === k ? "selected" : "" %>><%= sorts[k].label %></option>
+        <% }) %>
+      </select>
+    </label>
+    <noscript><button class="btn" type="submit">Sort</button></noscript>
+  </form>
 
   <% if (!rows.length) { %>
     <p class="muted" style="padding:8px 2px;margin:0">No activity recorded<%= action ? ` for “${action}”` : "" %> yet.</p>
@@ -42,7 +61,14 @@
             <td class="mono" style="white-space:nowrap"><%= fmt(r.created_at) %></td>
             <td><%= r.actor_name || "—" %><% if (r.actor_username) { %><div class="muted mono" style="font-size:11px"><%= r.actor_username %></div><% } %></td>
             <td><%- actionBadge(r.action) %></td>
-            <td class="muted"><%= r.entity_type || "—" %><%= r.entity_id ? ` #${r.entity_id}` : "" %></td>
+            <td>
+              <% if (r.subject_name) { %>
+                <%= r.subject_name %>
+                <div class="muted mono" style="font-size:11px"><%= r.entity_type %> #<%= r.entity_id %></div>
+              <% } else { %>
+                <span class="muted"><%= r.entity_type || "—" %><%= r.entity_id ? ` #${r.entity_id}` : "" %></span>
+              <% } %>
+            </td>
             <td><%= r.details || "—" %></td>
           </tr>
         <% }) %>

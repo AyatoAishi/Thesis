@@ -265,7 +265,11 @@ app.use(async (req, res, next) => {
       { key: "today_waiting", n: c.today_waiting, href: "/appointments",
         label: `${c.today_waiting} patient${c.today_waiting === 1 ? "" : "s"} still expected today`,
         roles: ["nurse", "facilitator", "recorder", "admin"] },
-      { key: "imm_overdue", n: c.imm_overdue, href: "/patients",
+      // "Possible kaya na yung mga overdue list lang ang makikita pagka open
+      // ng kung sino sino overdue from notifications? Para lang mas
+      // straightforward sha" — Alyanna. It used to open the whole list of 13
+      // and leave her to hunt for the red badges.
+      { key: "imm_overdue", n: c.imm_overdue, href: "/patients?overdue=1",
         label: `${c.imm_overdue} child${c.imm_overdue === 1 ? "" : "ren"} overdue for immunization`,
         roles: ["nurse", "facilitator", "recorder", "admin"] },
       { key: "low_stock", n: c.low_stock, href: "/inventory?low=1",

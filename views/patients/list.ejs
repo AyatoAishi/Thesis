@@ -30,11 +30,14 @@
   }
 
   // Keeps the search box and sort choice when flipping between the two views.
-  function viewLink(v) {
+  function viewLink(v, keepOverdue) {
     const parts = [];
     if (q) parts.push("q=" + encodeURIComponent(q));
     if (sort && sort !== "newest") parts.push("sort=" + encodeURIComponent(sort));
     if (v === "household") parts.push("view=household");
+    // Carried across the tabs, so choosing "By household" does not silently
+    // drop the filter the bell just applied.
+    if (keepOverdue) parts.push("overdue=1");
     return "/patients" + (parts.length ? "?" + parts.join("&") : "");
   }
 %>
@@ -68,11 +71,24 @@
   </form>
 
   <div class="view-tabs">
-    <a class="view-tab <%= view === 'list' ? 'active' : '' %>" href="<%= viewLink('list') %>">All patients</a>
-    <a class="view-tab <%= view === 'household' ? 'active' : '' %>" href="<%= viewLink('household') %>">By household</a>
+    <a class="view-tab <%= view === 'list' && !overdueOnly ? 'active' : '' %>" href="<%= viewLink('list') %>">All patients</a>
+    <a class="view-tab <%= view === 'household' && !overdueOnly ? 'active' : '' %>" href="<%= viewLink('household') %>">By household</a>
+    <%# Where the bell lands. Alyanna asked for the overdue on their own rather
+        than having to pick the red badges out of the whole list. The count is
+        on the tab so it agrees with the bell that sent you here. %>
+    <% if (overdueTotal) { %>
+      <a class="view-tab <%= overdueOnly ? 'active' : '' %>" href="<%= viewLink(view, true) %>">
+        Overdue only <span class="badge bad" style="margin-left:5px"><%= overdueTotal %></span>
+      </a>
+    <% } %>
   </div>
 
-  <% if (!patients.length) { %>
+  <% if (overdueOnly && !patients.length) { %>
+    <p class="muted" style="padding:8px 2px">
+      Nobody is overdue<%= q ? " among the patients matching this search" : "" %>.
+      <a href="<%= viewLink(view) %>">Show all patients</a>
+    </p>
+  <% } else if (!patients.length) { %>
     <p class="muted" style="padding:8px 2px">No patients yet. Click <b>Add patient</b> to create the first record.</p>
   <% } else if (view === "household") { %>
     <%

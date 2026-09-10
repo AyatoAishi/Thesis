@@ -42,8 +42,8 @@
     <div class="sub mono"><%= p.patient_number %></div>
   </div>
   <div style="display:flex;gap:8px">
-    <a class="mini-btn" href="/patients/<%= p.patient_id %>/immunization">Immunization</a>
-    <% if (p.sex !== "male") { %><a class="mini-btn" href="/patients/<%= p.patient_id %>/prenatal">Prenatal</a><% } %>
+    <a class="mini-btn" href="/patients/<%= p.patient_id %>/immunization?back=/patients/<%= p.patient_id %>">Immunization</a>
+    <% if (p.sex !== "male") { %><a class="mini-btn" href="/patients/<%= p.patient_id %>/prenatal?back=/patients/<%= p.patient_id %>">Prenatal</a><% } %>
     <a class="mini-btn" href="/reports/export/patient/<%= p.patient_id %>" target="_blank" rel="noopener">Export PDF</a>
     <a class="btn" href="/patients/<%= p.patient_id %>/edit">Edit</a>
     <% if (typeof user !== "undefined" && user && user.role === "admin") { %>
@@ -99,7 +99,7 @@
           <li><%= overdueList.length - 5 %> more — see the immunization card.</li>
         <% } %>
       </ul>
-      <a class="mini-btn" style="margin-top:12px" href="/patients/<%= p.patient_id %>/immunization">Open immunization card</a>
+      <a class="mini-btn" style="margin-top:12px" href="/patients/<%= p.patient_id %>/immunization?back=/patients/<%= p.patient_id %>">Open immunization card</a>
     <% } %>
   </div>
 <% } else if (nextDose) { %>
@@ -109,7 +109,7 @@
       on <%= longDate(nextDose.dueDate) %><% if (nextDose.bookedFor) { %>,
       booked for <%= longDate(nextDose.bookedFor) %><% } %>.
     </div>
-    <a class="mini-btn" href="/patients/<%= p.patient_id %>/immunization">Immunization card</a>
+    <a class="mini-btn" href="/patients/<%= p.patient_id %>/immunization?back=/patients/<%= p.patient_id %>">Immunization card</a>
   </div>
 <% } %>
 

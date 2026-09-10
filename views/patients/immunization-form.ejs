@@ -12,7 +12,7 @@
   </div>
 <% } %>
 
-<form method="POST" action="/patients/<%= patient.patient_id %>/immunization"><%- include("../partials/csrf") %>
+<form method="POST" action="/patients/<%= patient.patient_id %>/immunization"><%- include("../partials/csrf") %><% if (back) { %><input type="hidden" name="back" value="<%= back %>" /><% } %>
   <div class="card">
     <div class="panel-title" style="margin-bottom:14px"><%= patient.full_name %></div>
     <div class="form-grid">

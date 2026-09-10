@@ -29,7 +29,7 @@
   </div>
   <div style="display:flex;gap:8px">
     <a class="mini-btn" href="/patients/<%= patient.patient_id %>/immunization/export" target="_blank" rel="noopener">Export PDF</a>
-    <a class="btn" href="/patients/<%= patient.patient_id %>/immunization/new">+ Record a dose</a>
+    <a class="btn" href="/patients/<%= patient.patient_id %>/immunization/new<%= back ? "?back=" + encodeURIComponent(back) : "" %>">+ Record a dose</a>
     <a class="back-link" href="/patients/<%= patient.patient_id %>" style="display:inline-flex;align-items:center">Back to patient</a>
   </div>
 </div>
@@ -86,7 +86,7 @@
                     <% } else { %>
                       <span style="display:inline-flex;align-items:center;gap:6px">
                         <a class="mini-btn" style="padding:2px 8px;font-size:11px"
-                           href="/patients/<%= patient.patient_id %>/immunization/new?vaccine=<%= encodeURIComponent(v.name) %>&dose=<%= slot.doseNumber %>">
+                           href="/patients/<%= patient.patient_id %>/immunization/new?vaccine=<%= encodeURIComponent(v.name) %>&dose=<%= slot.doseNumber %><%= back ? "&back=" + encodeURIComponent(back) : "" %>">
                           Dose <%= slot.doseNumber %>: Record
                         </a>
                         <% if (SLOT[slot.state]) { %>

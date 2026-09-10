@@ -168,12 +168,19 @@ function calcIsMinor(birthdate) {
 // Pull + normalize the patient fields from a submitted form.
 function readForm(body) {
   const birthdate = body.birthdate || null;
+  // "Walang sariling telepono" is decided HERE, not by the script that greys
+  // the field out. A disabled input submits nothing, so with JavaScript
+  // working the number never arrives anyway — but with it off, or with a
+  // hand-made request, the box could be ticked and a number sent alongside
+  // it. The checkbox is the statement of fact; it wins.
+  const noOwnPhone = body.no_own_phone === "on" || body.no_own_phone === "true";
   return {
     full_name: (body.full_name || "").trim(),
     birthdate,
     sex: body.sex || null,
     address: (body.address || "").trim() || null,
-    contact_number: digitsOnly(body.contact_number) || null,
+    no_own_phone: noOwnPhone,
+    contact_number: noOwnPhone ? null : digitsOnly(body.contact_number) || null,
     email: (body.email || "").trim().toLowerCase() || null,
     family_number: (body.family_number || "").trim() || null,
     // Relatives queued on the form but not yet in any household — resolved by
@@ -260,6 +267,12 @@ function validate(p) {
     errors.push("Emergency contact # must be 7–15 digits, numbers only (e.g. 09171234567).");
   if (!p.contact_number && !p.family_contact_number)
     errors.push("A contact number is required — either the patient's own, or the emergency contact's.");
+  // Ticking the box moves the requirement rather than removing it. Saying
+  // this patient has no phone and then leaving the fallback blank would
+  // produce a record nobody can be reached on at all, which is the one
+  // outcome the emergency contact exists to prevent.
+  if (p.no_own_phone && !p.family_contact_number)
+    errors.push("You marked this patient as having no phone of their own, so the emergency contact # is required — that is where their reminders will go.");
   // The emergency contact exists so there is a SECOND way to reach this
   // person. The same number in both fields looks filled in and is worth
   // nothing: whatever stops the first one — a dead phone, no load, a number
@@ -286,6 +299,10 @@ router.get("/patients", async (req, res, next) => {
     // "By household" gathers the family groups that were, until now, only
     // visible one patient at a time on each profile page.
     const view = req.query.view === "household" ? "household" : "list";
+    // Only the children who are behind on a dose. Reached from the bell, which
+    // says how many there are and now opens the list of exactly those rather
+    // than all 13 patients with the reader left to spot the red badges.
+    const overdueOnly = req.query.overdue === "1";
     const order =
       view === "household"
         ? "family_number NULLS LAST, birthdate ASC NULLS LAST, lower(full_name)"
@@ -303,7 +320,7 @@ router.get("/patients", async (req, res, next) => {
     // was most of what made this page feel slow to open. null asks for every
     // child still in the programme, which is a superset of this page and a
     // small one.
-    const [{ rows }, overdue] = await Promise.all([
+    const [{ rows: allRows }, overdue] = await Promise.all([
       db.query(
         `SELECT patient_id, patient_number, full_name, sex, birthdate,
                 contact_number, is_minor, family_number
@@ -315,6 +332,11 @@ router.get("/patients", async (req, res, next) => {
       ),
       overdueCounts(null),
     ]);
+    // Filtered here rather than in SQL because the overdue set is worked out
+    // in the second query, which runs alongside the first — asking the
+    // database to filter on it would put them back in sequence and undo the
+    // speed-up. The list is capped at 200 rows, so this costs nothing.
+    const rows = overdueOnly ? allRows.filter((r) => overdue.has(r.patient_id)) : allRows;
     res.render("patients/list", {
       title: "Patients · Sampaguita HC",
       active: "patients",
@@ -324,6 +346,8 @@ router.get("/patients", async (req, res, next) => {
       sort,
       sorts: SORTS,
       view,
+      overdueOnly,
+      overdueTotal: overdue.size,
     });
   } catch (e) {
     next(e);

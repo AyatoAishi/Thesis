@@ -135,22 +135,62 @@ router.post("/admin/users/:id/update", async (req, res, next) => {
 // table quietly filling up in the database.
 const AUDIT_ACTIONS = ["login", "logout", "create", "update", "delete", "password_change", "reschedule"];
 
+// How the log can be ordered. A fixed map rather than anything taken from the
+// query string, because this goes straight into ORDER BY — a value from the
+// URL there is an injection, no matter how harmless it looks.
+//
+// "Who" sorts by the person and then by time within them, which is the shape
+// of the actual question: not "list every actor alphabetically" but "show me
+// everything this one person did, in order". Alyanna asked for sorting "per
+// when and who" for exactly that reason — to check one person quickly.
+const AUDIT_SORTS = {
+  newest: { label: "Newest first", sql: "al.created_at DESC, al.audit_id DESC" },
+  oldest: { label: "Oldest first", sql: "al.created_at ASC, al.audit_id ASC" },
+  who:    { label: "By who", sql: "lower(coalesce(u.full_name, '~')), al.created_at DESC" },
+  what:   { label: "By action", sql: "al.action, al.created_at DESC" },
+};
+
 router.get("/admin/audit-log", async (req, res, next) => {
   try {
     const action = AUDIT_ACTIONS.includes(req.query.action) ? req.query.action : "";
+    const sort = AUDIT_SORTS[req.query.sort] ? req.query.sort : "newest";
+    const orderSql = AUDIT_SORTS[sort].sql;
     const params = [];
     let where = "";
     if (action) {
       params.push(action);
       where = `WHERE al.action = $${params.length}`;
     }
+    // The "On" column used to print entity_type and the raw row id — "user #1",
+    // "patient_account #4". That is the database's own vocabulary and it meant
+    // nothing to the people reading the page; Alyanna's note was "di ko gets
+    // mashado sorry huhu, user # based on database ba natin to?". Yes it was.
+    //
+    // So the name is looked up for the four types that have one. The id is
+    // still shown beside it, because two patients can share a name and the id
+    // is what makes a line in an accountability log unambiguous — but the name
+    // comes first, since that is what a person is looking for.
+    //
+    // LEFT JOINs, so a row whose subject has since been deleted still shows
+    // its type and id rather than vanishing. A deleted patient is precisely
+    // the kind of thing somebody comes to this page to look up.
     const { rows } = await db.query(
       `SELECT al.audit_id, al.action, al.entity_type, al.entity_id, al.details, al.created_at,
-              u.full_name AS actor_name, u.username AS actor_username
+              u.full_name AS actor_name, u.username AS actor_username,
+              CASE al.entity_type
+                WHEN 'user'            THEN su.full_name
+                WHEN 'patient'         THEN sp.full_name
+                WHEN 'patient_account' THEN spa.username
+                WHEN 'medicine'        THEN sm.name
+              END AS subject_name
          FROM audit_log al
-         LEFT JOIN users u ON u.user_id = al.user_id
+         LEFT JOIN users u  ON u.user_id  = al.user_id
+         LEFT JOIN users su ON al.entity_type = 'user'    AND su.user_id    = al.entity_id
+         LEFT JOIN patients sp ON al.entity_type = 'patient' AND sp.patient_id = al.entity_id
+         LEFT JOIN patient_accounts spa ON al.entity_type = 'patient_account' AND spa.account_id = al.entity_id
+         LEFT JOIN medicines sm ON al.entity_type = 'medicine' AND sm.medicine_id = al.entity_id
          ${where}
-        ORDER BY al.created_at DESC
+        ORDER BY ${orderSql}
         LIMIT 300`,
       params
     );
@@ -160,6 +200,8 @@ router.get("/admin/audit-log", async (req, res, next) => {
       rows,
       action,
       actions: AUDIT_ACTIONS,
+      sort,
+      sorts: AUDIT_SORTS,
     });
   } catch (e) {
     next(e);

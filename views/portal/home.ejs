@@ -24,7 +24,7 @@
   </div>
 <% } %>
 
-<div class="card hero-appt">
+<div class="card hero-appt<%= next ? "" : " is-empty" %>">
   <div class="panel-title" style="margin-bottom:6px">Next appointment</div>
   <% if (next) { %>
     <div class="hero-appt-main">

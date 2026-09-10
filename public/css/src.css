@@ -646,7 +646,28 @@ body {
 .portal-flash.bad-flash  { background: var(--bad-bg);  border-color: transparent; color: var(--bad-ink); }
 .portal-flash.warn-flash { background: var(--warn-bg); border-color: transparent; color: var(--warn-ink); }
 
-.hero-appt { background: linear-gradient(140deg, var(--accent-soft), var(--surface) 70%); }
+/* "Change natin color sa mas mapapansin sha, for emphasizing lang na may appt
+   sha" — Alyanna. It was a pale wash that faded into the page, on the one card
+   the patient opens the portal to read.
+   Now it carries the accent outright, with the date in the colour that sits on
+   the accent, and a bar down the left edge. Emphasis on the card that HAS an
+   appointment only: the empty state keeps the quiet treatment, because
+   shouting "no appointment" at somebody is not useful. */
+.hero-appt {
+  background: linear-gradient(140deg, var(--accent-soft), var(--accent-softer) 78%);
+  border-color: var(--accent-soft);
+  border-left: 4px solid var(--accent);
+  position: relative;
+}
+.hero-appt .panel-title { color: var(--accent-strong); }
+.hero-appt-date { color: var(--accent-strong); }
+/* No appointment: back to a plain card, so the colour always means something. */
+.hero-appt.is-empty {
+  background: var(--surface);
+  border-color: var(--border);
+  border-left: 1px solid var(--border);
+}
+.hero-appt.is-empty .panel-title { color: var(--ink); }
 .hero-appt-date { font-size: 22px; font-weight: 800; }
 .hero-appt-sub { font-size: 14px; color: var(--ink-2); margin-top: 2px; font-weight: 600; }
 
@@ -1299,3 +1320,18 @@ body {
   line-height: 0;
 }
 .sam-avatar svg { display: block; width: 38px; height: 38px; }
+
+/* A checkbox with a label and an explanatory line, used inside a form-grid.
+   Its own row rather than a field, because it is a statement about the record
+   ("this person has no phone") and not a value to be typed. */
+.check-inline {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 11px 13px; border-radius: var(--r-md);
+  background: var(--surface-2); border: 1px solid var(--border);
+  cursor: pointer;
+}
+.check-inline input[type="checkbox"] { margin-top: 2px; width: 16px; height: 16px; flex: none; accent-color: var(--accent); }
+.check-inline span { display: grid; gap: 2px; }
+.check-inline b { font-size: 13px; color: var(--ink); }
+.check-inline small { font-size: 11.5px; color: var(--ink-3); line-height: 1.5; }
+.check-inline:has(input:checked) { border-color: var(--accent); background: var(--accent-softer); }

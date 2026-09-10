@@ -40,6 +40,14 @@ function isDate(s) {
   return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
 }
 
+// Where the person came from, if they told us. Same rules as the login
+// redirect in routes/auth.js: it must be a path on this site, so a value that
+// starts "//" or "http:" cannot bounce somebody off to another host.
+function readBack(req) {
+  const b = req.query.back || req.body.back || "";
+  return typeof b === "string" && b.startsWith("/") && !b.startsWith("//") ? b : "";
+}
+
 function safeRedirect(res, back, fallback, flash) {
   const safe = back && back.startsWith("/") && !back.startsWith("//") ? back : fallback;
   const sep = safe.includes("?") ? "&" : "?";
@@ -72,6 +80,7 @@ router.get("/patients/:id/immunization", async (req, res, next) => {
       overdue,
       upcoming,
       flash: req.query.flash || null,
+      back: readBack(req),
     });
   } catch (e) {
     next(e);
@@ -97,6 +106,7 @@ router.get("/patients/:id/immunization/new", async (req, res, next) => {
         remarks: "",
       },
       errors: [],
+      back: readBack(req),
     });
   } catch (e) {
     next(e);
@@ -153,6 +163,7 @@ router.post("/patients/:id/immunization", async (req, res, next) => {
         vaccines: VACCINES,
         values: { ...values, dose_number: values.dose_number },
         errors,
+        back: readBack(req),
       });
     }
 
@@ -169,7 +180,12 @@ router.post("/patients/:id/immunization", async (req, res, next) => {
       patient.patient_id,
       `${values.vaccine_name} dose ${doseNumber} for ${patient.full_name}`
     );
-    safeRedirect(res, null, `/patients/${patient.patient_id}/immunization`, "Dose recorded.");
+    // Back to wherever this was started from. Arriving from the patient's
+    // profile returns you there — Alyanna's note — while starting from the
+    // card itself keeps you on the card, which is what you want when
+    // recording three doses in a row. One fixed destination cannot be right
+    // for both, so it is carried rather than chosen.
+    safeRedirect(res, readBack(req), `/patients/${patient.patient_id}/immunization`, "Dose recorded.");
   } catch (e) {
     next(e);
   }

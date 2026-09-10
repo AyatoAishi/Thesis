@@ -53,7 +53,17 @@
         <% appointments.forEach(a => { %>
           <tr>
             <td><%= longDate(a.appointment_date) %></td>
-            <td><%= pretty(a.service_name) %></td>
+            <td>
+              <%= pretty(a.service_name) %>
+              <%# For an "Other" visit the note IS the record — "vitals only",
+                  "BP check" — so without it the row says something happened on
+                  a date and nothing about what. Shown under the service name
+                  rather than in a column of its own, because most rows have no
+                  note and an almost-empty column reads as broken. %>
+              <% if (a.notes) { %>
+                <div class="muted" style="font-size:12px;margin-top:2px"><%= a.notes %></div>
+              <% } %>
+            </td>
             <td class="mono"><%= shortTime(a.appointment_time) || "—" %></td>
             <td><%- statusBadge(a.status) %></td>
           </tr>

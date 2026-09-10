@@ -379,7 +379,8 @@ router.get("/portal/household/:id", requirePatient, async (req, res, next) => {
 
     const [apptsQ, medsQ, immCard] = await Promise.all([
       db.query(
-        `SELECT a.appointment_date, a.appointment_time, a.status, s.name AS service_name
+        `SELECT a.appointment_date, a.appointment_time, a.status, a.notes,
+                s.name AS service_name
            FROM appointments a JOIN services s ON s.service_id = a.service_id
           WHERE a.patient_id = $1
           ORDER BY a.appointment_date DESC, a.appointment_time NULLS LAST
@@ -523,8 +524,12 @@ router.get("/portal", requirePatient, async (req, res, next) => {
     const none = Promise.resolve({ rows: [] });
     const [apptsQ, visitsQ, medsQ, immCard, prenatalQ, dependents] = await Promise.all([
       db.query(
+        // a.notes comes along because for an "Other" visit it IS the record —
+        // "vitals only", "BP check". Without it the patient sees a row that
+        // says something happened on a date and nothing about what, which is
+        // the shape Alyanna asked us to fix on the patient side.
         `SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.status,
-                s.name AS service_name
+                a.notes, s.name AS service_name
            FROM appointments a JOIN services s ON s.service_id = a.service_id
           WHERE a.patient_id = $1
           ORDER BY a.appointment_date DESC, a.appointment_time NULLS LAST

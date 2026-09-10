@@ -31,7 +31,12 @@
         <% appointments.forEach(a => { %>
           <tr>
             <td><%= longDate(a.appointment_date) %></td>
-            <td><%= pretty(a.service_name) %></td>
+            <td>
+              <%= pretty(a.service_name) %>
+              <% if (a.notes) { %>
+                <div class="muted" style="font-size:12px;margin-top:2px"><%= a.notes %></div>
+              <% } %>
+            </td>
             <td class="mono"><%= shortTime(a.appointment_time) || "—" %></td>
             <td><%- statusBadge(a.status) %></td>
           </tr>

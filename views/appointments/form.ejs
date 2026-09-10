@@ -38,8 +38,13 @@
         <% } %>
       </label>
 
+      <%# The id of "other", so the notes field below can go from optional to
+          required without hardcoding a number that a reseeded database would
+          change underneath it. %>
+      <% const otherSvc = services.find(s => s.name === "other"); %>
       <label class="field"><span>Service *</span>
-        <select name="service_id" id="svcSelect" required>
+        <select name="service_id" id="svcSelect" required
+                data-other-id="<%= otherSvc ? otherSvc.service_id : '' %>">
           <option value="">— choose —</option>
           <% services.forEach(s => { %>
             <option value="<%= s.service_id %>" <%= String(appt.service_id) === String(s.service_id) ? 'selected' : '' %>>
@@ -57,11 +62,43 @@
         <input type="time" name="appointment_time" value="<%= appt.appointment_time || '' %>" />
       </label>
 
-      <label class="field" style="grid-column:1/-1"><span>Notes <span class="muted">(optional)</span></span>
-        <input type="text" name="notes" value="<%= appt.notes || '' %>" maxlength="255" />
+      <label class="field" style="grid-column:1/-1">
+        <span>Notes <span class="muted" data-notes-optional>(optional)</span></span>
+        <input type="text" name="notes" value="<%= appt.notes || '' %>" maxlength="255"
+               data-notes-input placeholder="e.g. BP check only — 130/80" />
+        <%# Silent until "Other" is chosen, because that is the moment the word
+            "optional" above stops being true. The server enforces it either
+            way; this only stops somebody being told off after the fact. %>
+        <span class="muted" style="font-size:11.5px;font-weight:500" data-notes-hint></span>
       </label>
     </div>
   </div>
 
   <button type="submit" class="btn"><%= isEdit ? "Save changes" : "Book appointment" %></button>
 </form>
+
+<script>
+  // "Notes (optional)" stops being true the moment "Other" is the service, and
+  // being told that only after pressing Save is a worse way to find out. The
+  // server enforces it regardless — this is the courtesy, not the rule.
+  (function () {
+    var svc = document.getElementById("svcSelect");
+    var notes = document.querySelector("[data-notes-input]");
+    var word = document.querySelector("[data-notes-optional]");
+    var hint = document.querySelector("[data-notes-hint]");
+    if (!svc || !notes) return;
+    var otherId = svc.getAttribute("data-other-id");
+    function sync() {
+      var isOther = otherId && svc.value === otherId;
+      notes.required = !!isOther;
+      if (word) word.textContent = isOther ? "(required)" : "(optional)";
+      if (hint) hint.textContent = isOther
+        ? "Sabihin kung ano ang ginawa — vitals, BP, palit ng benda. Ito lang ang record ng pagpuntang ito."
+        : "";
+      if (isOther) notes.setAttribute("aria-required", "true");
+      else notes.removeAttribute("aria-required");
+    }
+    svc.addEventListener("change", sync);
+    sync();
+  })();
+</script>

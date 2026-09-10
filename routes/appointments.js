@@ -42,15 +42,16 @@ function confirmationFlash(r, name) {
   return { kind: "warn", text: `Hindi naipadala ang kumpirmasyon kay ${name}. ${r.reason || ""}`.trim() };
 }
 
-// The three services — Immunization, Pre-natal, Family planning — are read on
-// eight different routes and were fetched fresh every single time. Three rows
-// of reference data, and a full round trip to a database on another continent
-// to get them, on page after page.
+// The services — immunization, pre-natal, medicine distribution and now
+// "other" — are read on eight different routes and were fetched fresh every
+// single time. Four rows of reference data, and a full round trip to a
+// database on another continent to get them, on page after page.
 //
-// Nothing in the application ever writes to this table; the rows come from
-// db/schema.sql. So they are held in memory. The TTL is there only so that a
-// row changed by hand in the database shows up on its own within the minute
-// rather than needing a restart — not because the table is expected to move.
+// The application still never writes to this table; the rows come from
+// db/schema.sql and from db/migrations/2026-09-10-other-service.js. So they
+// are held in memory. The TTL exists so a row added by a migration or edited
+// by hand appears within the minute rather than needing a restart — which is
+// exactly what happened when "other" was added.
 let servicesCache = null;
 let servicesCachedAt = 0;
 const SERVICES_TTL_MS = 60 * 1000;
@@ -81,6 +82,17 @@ function validateAppt(body, services) {
   if (!isDate(date)) errors.push("Choose a valid date.");
 
   if (isDate(date) && date < F.manilaToday()) errors.push("That date is in the past.");
+
+  // "Other" exists so a visit that is not one of the three regular services
+  // can still be recorded honestly — vitals, a blood pressure check, a
+  // dressing change. Which means the note is the entire content of the
+  // record: "Other" with nothing written says something happened and nothing
+  // about what, and a row like that is barely better than not recording the
+  // visit at all. So here alone the note is required.
+  const other = services.find((s) => s.name === "other");
+  if (other && service_id === other.service_id && !notes) {
+    errors.push('You chose "Other" as the service, so please say what was done in the notes — vitals, blood pressure, a dressing change. That note is the only record of this visit.');
+  }
 
   // Services are no longer locked to a fixed weekday (v1 update) — staff choose
   // the service and the date independently.

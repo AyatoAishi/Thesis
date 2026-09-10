@@ -1,16 +1,28 @@
 <!--
-  Sampaguita — five white petals on the app's accent blue.
-  Deliberately blunt: a favicon is read at 16px, so shapes are big and the
-  contrast is high. Kept as SVG (not .ico) so it stays sharp on every screen.
+  Sampaguita with a health cross — the same mark as views/partials/logo.ejs.
+  Kept as a separate file because a favicon is fetched as a URL, not rendered
+  by a template; if the mark changes, both change together.
+
+  Colours are literal here rather than tokens: this file is loaded by the
+  browser on its own, with no stylesheet, so var(--accent) would resolve to
+  nothing. #3b6cf5 is the default accent. A staff member's own accent does not
+  follow into the browser tab, which is correct — the tab belongs to the
+  clinic, not to whoever happens to be signed in.
+
+  Five overlapping circles, not petal outlines: this is read at 16px, and any
+  stroke thinner than about 2px vanishes at that size.
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
   <rect width="32" height="32" rx="7" fill="#3b6cf5"/>
-  <g fill="#ffffff">
-    <circle cx="16"    cy="9"     r="5.1"/>
-    <circle cx="22.66" cy="13.84" r="5.1"/>
-    <circle cx="20.11" cy="21.66" r="5.1"/>
-    <circle cx="11.89" cy="21.66" r="5.1"/>
-    <circle cx="9.34"  cy="13.84" r="5.1"/>
+  <g fill="#ffffff" opacity=".92">
+    <circle cx="16"   cy="9.2"  r="4.9"/>
+    <circle cx="22.5" cy="13.9" r="4.9"/>
+    <circle cx="20"   cy="21.5" r="4.9"/>
+    <circle cx="12"   cy="21.5" r="4.9"/>
+    <circle cx="9.5"  cy="13.9" r="4.9"/>
   </g>
-  <circle cx="16" cy="16" r="3.4" fill="#ffd66b"/>
+  <g fill="#2c54d6">
+    <rect x="14.6" y="11.6" width="2.8" height="8.8" rx="1.2"/>
+    <rect x="11.6" y="14.6" width="8.8" height="2.8" rx="1.2"/>
+  </g>
 </svg>

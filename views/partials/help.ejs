@@ -11,11 +11,7 @@
 %>
 <button type="button" class="sam-bubble" data-sam-open
         aria-label="Buksan si Ate Sam — tulong at gabay" title="Tulong">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-    <path d="M9.1 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-    <path d="M12 17h.01"/>
-  </svg>
+  <%- include("sam-mark", { samSize: 30, samFilled: true }) %>
 </button>
 
 <div class="sam-scrim" data-sam-scrim hidden></div>
@@ -25,7 +21,7 @@
        role="dialog" aria-modal="true" aria-labelledby="sam-title">
   <header class="sam-head">
     <div class="sam-id">
-      <div class="sam-avatar" aria-hidden="true">S</div>
+      <div class="sam-avatar" aria-hidden="true"><%- include("sam-mark", { samSize: 38, samFilled: false }) %></div>
       <div>
         <div class="sam-name" id="sam-title">Ate Sam</div>
         <div class="sam-sub">Nandito ako para tumulong</div>

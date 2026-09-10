@@ -1,0 +1,32 @@
+<%
+  // Ate Sam's mark: a speech bubble with a sampaguita inside it.
+  //
+  // Deliberately NOT the clinic logo and deliberately NOT a face. It has to be
+  // a different thing from the logo, or the bubble in the corner reads as a
+  // stray copy of the brand — but it also must not look like a person. A face
+  // invites people to talk to her the way they would talk to a person, and she
+  // is a fixed list of 31 written answers. That expectation is the exact thing
+  // we decided against when we chose not to build a chatbot; the mark should
+  // not quietly promise it back.
+  //
+  // The bubble says "ask me". The flower says "part of this clinic".
+  //
+  // `size` in px. `filled` draws it as a solid shape on the accent (the
+  // floating button); otherwise petals in the accent on a light ground (the
+  // avatar inside the panel header).
+  const size = typeof samSize !== "undefined" ? samSize : 32;
+  const filled = typeof samFilled !== "undefined" ? samFilled : true;
+  const shell = filled ? "var(--on-accent, #fff)" : "var(--accent)";
+  const petal = filled ? "var(--accent)" : "var(--surface)";
+%><svg viewBox="0 0 32 32" width="<%= size %>" height="<%= size %>" fill="none"
+     role="img" aria-label="Ate Sam" focusable="false">
+  <path d="M6 11.5a4.5 4.5 0 0 1 4.5-4.5h11a4.5 4.5 0 0 1 4.5 4.5v6a4.5 4.5 0 0 1-4.5 4.5H15l-5.5 4v-4.3A4.5 4.5 0 0 1 6 17.5z"
+        fill="<%= shell %>"/>
+  <g fill="<%= petal %>">
+    <circle cx="16" cy="11.4" r="2.5"/>
+    <circle cx="12.6" cy="14.2" r="2.5"/>
+    <circle cx="19.4" cy="14.2" r="2.5"/>
+    <circle cx="16" cy="17.4" r="2.5"/>
+  </g>
+  <circle cx="16" cy="14.4" r="1.5" fill="#ffd66b"/>
+</svg>

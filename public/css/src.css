@@ -1265,3 +1265,37 @@ body {
 .toggle-text { display: grid; gap: 2px; }
 .toggle-text b { font-size: 13.5px; color: var(--ink); }
 .toggle-text small { font-size: 12px; color: var(--ink-3); line-height: 1.5; }
+
+/* ===========================================================================
+   The clinic mark and Ate Sam's mark.
+
+   Both chips used to hold a letter, so they carried their own background and
+   font weight. They now hold an SVG that paints its own rounded square, and
+   the leftover gradient showed as a coloured ring around it. These rules strip
+   the chip back to a container.
+   =========================================================================== */
+
+.rail-logo,
+.brand-badge {
+  background: none;
+  padding: 0;
+  overflow: hidden;
+  line-height: 0;      /* a letter's line-height leaves a gap under an SVG */
+}
+.rail-logo svg,
+.brand-badge svg { display: block; }
+
+/* The favicon and the marks share one shape, so the tab, the rail and the
+   topbar are the same thing at three sizes. */
+.rail-logo { width: 38px; height: 38px; border-radius: 0; }
+.brand-badge { width: 30px; height: 30px; border-radius: 0; }
+
+/* Ate Sam's bubble already has its own round background; her mark sits inside
+   it and must not add a second one. */
+.sam-bubble svg { width: 30px; height: 30px; }
+.sam-avatar {
+  background: var(--accent-softer);
+  overflow: hidden;
+  line-height: 0;
+}
+.sam-avatar svg { display: block; width: 38px; height: 38px; }

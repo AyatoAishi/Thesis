@@ -9,9 +9,18 @@
   // panel as data-csrf and goes back up as the x-csrf-token header, which
   // middleware/csrf.js accepts alongside the hidden form input.
 %>
+<%# A pill, not a bare circle. An accent-coloured circle bottom-right is the
+    exact shape the internet has trained everybody to ignore, so the icon on
+    its own was being missed — the word is what makes it register as something
+    you can use. Both labels live in the markup and are revealed by width, so
+    the long one costs nothing until somebody hovers. %>
 <button type="button" class="sam-bubble" data-sam-open
-        aria-label="Buksan si Ate Sam — tulong at gabay" title="Tulong">
+        aria-label="Buksan si Ate Sam — tulong at gabay">
   <%- include("sam-mark", { samSize: 30, samFilled: true }) %>
+  <span class="sam-bubble-text" aria-hidden="true">
+    <span class="sam-bubble-short">Tulong</span>
+    <span class="sam-bubble-long">Tanungin si Ate Sam</span>
+  </span>
 </button>
 
 <div class="sam-scrim" data-sam-scrim hidden></div>

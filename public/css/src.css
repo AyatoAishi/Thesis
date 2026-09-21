@@ -736,22 +736,55 @@ body {
    the only thing it can actually do.
    =========================================================================== */
 
+/* A labelled pill. The circle alone was being missed: an icon asks the viewer
+   to guess, a word tells them. "Tulong" is always visible and the fuller
+   "Tanungin si Ate Sam" is revealed on hover, so the resting state stays quiet
+   while the intent is never in doubt.
+
+   Note what hover does NOT do: scale. `animation` outranks a plain `transform`
+   declaration in the cascade, so while sam-hover is running any transform set
+   here is simply ignored — the old :hover scale never fired once. The pill
+   reacts by widening and darkening instead, neither of which is a transform,
+   so both the drift and the feedback survive together. */
 .sam-bubble {
   position: fixed; right: 22px; bottom: 22px; z-index: 60;
-  width: 56px; height: 56px; border-radius: 50%;
+  min-height: 52px; border-radius: 999px;
+  padding: 0 18px 0 11px;
   border: none; cursor: pointer;
   background: var(--accent); color: var(--on-accent);
   box-shadow: 0 8px 24px rgba(24,35,56,.28);
-  display: grid; place-items: center;
-  /* Drifts a few pixels, forever. On a screen this busy a motionless circle in
+  display: flex; align-items: center; gap: 9px;
+  /* A button does not inherit the page font on its own, and `inherit` is not a
+     legal component inside the `font` shorthand — so these stay separate. */
+  font-family: var(--font-app, "Plus Jakarta Sans", system-ui, sans-serif);
+  font-size: 13.5px; font-weight: 700; line-height: 1;
+  letter-spacing: .01em;
+  /* Drifts a few pixels, forever. On a screen this busy a motionless shape in
      the corner reads as decoration; the movement is what makes someone who is
      stuck actually notice there is help. */
   animation: sam-hover 3.2s ease-in-out infinite;
-  transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+  transition: box-shadow .18s ease, background .18s ease;
 }
-.sam-bubble svg { width: 26px; height: 26px; }
-.sam-bubble:hover { background: var(--accent-strong); transform: scale(1.07); box-shadow: 0 12px 30px rgba(24,35,56,.34); }
-.sam-bubble:active { transform: scale(.96); }
+.sam-bubble svg { width: 26px; height: 26px; flex: none; }
+
+/* Both labels are laid out side by side and clipped to nothing; only the one
+   that should be read is given width. Transitioning max-width (not display,
+   which cannot animate) is what makes the swap read as a reveal. */
+.sam-bubble-text { display: flex; align-items: center; }
+.sam-bubble-short,
+.sam-bubble-long {
+  white-space: nowrap; overflow: hidden;
+  transition: max-width .22s ease, opacity .16s ease;
+}
+.sam-bubble-short { max-width: 8em; opacity: 1; }
+.sam-bubble-long  { max-width: 0; opacity: 0; }
+.sam-bubble:hover .sam-bubble-short,
+.sam-bubble:focus-visible .sam-bubble-short { max-width: 0; opacity: 0; }
+.sam-bubble:hover .sam-bubble-long,
+.sam-bubble:focus-visible .sam-bubble-long { max-width: 14em; opacity: 1; }
+
+.sam-bubble:hover { background: var(--accent-strong); box-shadow: 0 12px 30px rgba(24,35,56,.34); }
+.sam-bubble:active { box-shadow: 0 5px 16px rgba(24,35,56,.3); }
 .sam-bubble:focus-visible { outline: 3px solid var(--accent-soft); outline-offset: 3px; }
 .sam-bubble[hidden] { display: none; }
 
@@ -912,7 +945,10 @@ body {
 
 @media (max-width: 520px) {
   .sam-panel { width: 100vw; border-left: none; }
-  .sam-bubble { right: 16px; bottom: 16px; width: 52px; height: 52px; }
+  /* The long label is hover-only and a phone has no hover, so only the short
+     one can ever show here — the pill is sized for that and nothing else. */
+  .sam-bubble { right: 16px; bottom: 16px; min-height: 48px; padding: 0 15px 0 9px; }
+  .sam-bubble-long { display: none; }
 }
 
 /* Somebody who has asked not to see motion has asked for a reason — vestibular

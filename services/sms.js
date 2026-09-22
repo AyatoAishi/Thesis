@@ -21,7 +21,13 @@
 // against the live service; treat the first real send as a test.
 // ============================================================================
 const SEMAPHORE_BASE = "https://api.semaphore.co/api/v4";
-const PHILSMS_BASE = "https://app.philsms.com/api/v3";
+
+// 2026-09-22: PhilSMS moved platforms. app.philsms.com is the OLD dashboard and
+// they no longer maintain it — an account there cannot even be topped up, which
+// is how this was found. The new host is dashboard.philsms.com and the paths and
+// payloads are unchanged, so only the base moves. Overridable by env because we
+// have now been caught once by a provider changing host underneath us.
+const PHILSMS_BASE = process.env.PHILSMS_BASE || "https://dashboard.philsms.com/api/v3";
 const TIMEOUT_MS = 15000;
 
 // Which adapter is in play. PhilSMS wins if both are somehow set.
@@ -55,11 +61,17 @@ function toIntl(local09) {
   return "63" + local09.slice(1);
 }
 
-// Guard: Semaphore SILENTLY DROPS any message whose body starts with "test".
-// Never let such a message through — surface it as an error instead.
-function assertSendable(message) {
+// Guard: Semaphore SILENTLY DROPS any message whose body starts with "test", so
+// such a message must never be handed to it.
+//
+// This used to apply to every provider, which was wrong in the most annoying way
+// possible: PhilSMS has no such rule, and the very first thing anybody types when
+// wiring up a new SMS provider is "TEST". Our own code would refuse it, and the
+// refusal reads exactly like a broken setup. The rule belongs to the provider
+// that has it.
+function assertSendable(message, forProvider = provider()) {
   if (!message || !message.trim()) throw new Error("Empty SMS message.");
-  if (/^\s*test\b/i.test(message)) {
+  if (forProvider === "semaphore" && /^\s*test\b/i.test(message)) {
     throw new Error('SMS body must not start with "TEST" — Semaphore drops these silently.');
   }
 }
@@ -95,7 +107,13 @@ async function sendPhilSMS(local09, message) {
     let data;
     try { data = JSON.parse(text); } catch { data = null; }
     if (res.ok && data && data.status === "success") {
-      const id = data.data && (data.data.uid || data.data.message_id);
+      // Their docs print `data` as a bare descriptive string, and a single send
+      // may come back as an object or wrapped in an array. Success is decided by
+      // `status` alone; the id is a bonus we dig for without letting its shape
+      // turn a delivered message into a failed one.
+      const d = data.data;
+      const one = Array.isArray(d) ? d[0] : d;
+      const id = one && typeof one === "object" ? (one.uid || one.message_id || one.id) : null;
       return {
         sent: true, simulated: false,
         message_id: id ? String(id) : null,

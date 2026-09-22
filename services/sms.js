@@ -191,9 +191,18 @@ async function accountBalance() {
         signal: t.signal,
         headers: { Authorization: `Bearer ${process.env.PHILSMS_TOKEN}`, Accept: "application/json" },
       });
+      // Verified against the live endpoint, 2026-09-22:
+      //   {"status":"success","data":{"remaining_balance":"₱0","expired_on":"…"}}
+      // The field is remaining_balance, not balance, and it is a STRING with a
+      // peso sign and possibly thousands separators in it — so it is stripped
+      // to digits before Number() sees it. Reading `balance` returned null
+      // forever and looked exactly like a dead token.
       const data = await res.json();
-      const bal = data && (data.balance != null ? data.balance : data.data && data.data.balance);
-      return bal != null ? Number(bal) : null;
+      const d = (data && data.data) || {};
+      const raw = d.remaining_balance != null ? d.remaining_balance : d.balance;
+      if (raw == null) return null;
+      const n = Number(String(raw).replace(/[^\d.-]/g, ""));
+      return Number.isFinite(n) ? n : null;
     }
     const res = await fetch(
       `${SEMAPHORE_BASE}/account?apikey=${encodeURIComponent(process.env.SEMAPHORE_API_KEY)}`,

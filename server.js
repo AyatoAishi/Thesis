@@ -14,6 +14,7 @@ const db = require("./db");
 const cron = require("node-cron");
 const authRoutes = require("./routes/auth");
 const legalRoutes = require("./routes/legal");
+const cal = require("./lib/calendar");
 const patientRoutes = require("./routes/patients");
 const appointmentRoutes = require("./routes/appointments");
 const reminderRoutes = require("./routes/reminders");
@@ -320,17 +321,66 @@ app.use("/", formRoutes);
 // a free instance an ocean away, on the busiest page in the system.
 app.get("/dashboard", async (req, res) => {
   const todayISO = F.manilaToday();
+
+  // The calendar reads two things off the URL and validates both, because a
+  // hand-typed or stale ?d= should land on a real day rather than on a blank
+  // page with no explanation. Selecting a day inside a different month moves
+  // the grid to that month, so a bookmarked link always opens showing the day
+  // it points at.
+  const selected = cal.validDate(req.query.d) || todayISO;
+  const month = cal.parseMonth(req.query.m || selected.slice(0, 7), todayISO);
+
   let stats = null;
+  let calendar = null;
+  let dayAppts = [];
+
   try {
-    const [p, t, done, missed] = await Promise.all([
+    const grid = cal.buildMonth(month, {}, todayISO, selected);
+
+    const [p, t, done, missed, monthCounts, day] = await Promise.all([
       db.query("SELECT count(*)::int n FROM patients"),
       db.query("SELECT count(*)::int n FROM appointments WHERE appointment_date=$1", [todayISO]),
       db.query("SELECT count(*)::int n FROM appointments WHERE appointment_date=$1 AND status='completed'", [todayISO]),
       db.query("SELECT count(*)::int n FROM appointments WHERE appointment_date=$1 AND status='missed'", [todayISO]),
+      // One query for the whole month rather than one per day. 30 round trips
+      // to a database an ocean away is the difference between a page and a
+      // wait, and the grid only needs counts.
+      db.query(
+        `SELECT to_char(appointment_date, 'YYYY-MM-DD') AS d,
+                count(*)::int AS total,
+                count(*) FILTER (WHERE status = 'missed')::int AS missed,
+                count(*) FILTER (WHERE status = 'scheduled')::int AS scheduled
+           FROM appointments
+          WHERE appointment_date BETWEEN $1 AND $2
+          GROUP BY 1`,
+        [grid.firstDay, grid.lastDay]
+      ),
+      // The selected day in full. Separate from the counts because this is the
+      // only day whose names and times anybody is reading.
+      db.query(
+        `SELECT a.appointment_id, a.appointment_time, a.status, a.notes,
+                s.name AS service_name,
+                p.patient_id, p.patient_number, p.full_name
+           FROM appointments a
+           JOIN services s ON s.service_id = a.service_id
+           JOIN patients p ON p.patient_id = a.patient_id
+          WHERE a.appointment_date = $1
+          ORDER BY a.appointment_time NULLS LAST, p.full_name`,
+        [selected]
+      ),
     ]);
+
     stats = { patients: p.rows[0].n, today: t.rows[0].n, done: done.rows[0].n, missed: missed.rows[0].n };
+
+    const counts = {};
+    monthCounts.rows.forEach((r) => {
+      counts[r.d] = { total: r.total, missed: r.missed, scheduled: r.scheduled };
+    });
+    calendar = cal.buildMonth(month, counts, todayISO, selected);
+    dayAppts = day.rows;
   } catch (_) {
     stats = null; // tables not created yet — dashboard still renders
+    calendar = null;
   }
 
   res.render("dashboard", {
@@ -339,6 +389,11 @@ app.get("/dashboard", async (req, res) => {
     today: F.longDate(todayISO),
     todayISO,
     stats,
+    calendar,
+    selected,
+    selectedLabel: F.longDate(selected),
+    dayAppts,
+    weekdays: cal.WEEKDAYS,
   });
 });
 

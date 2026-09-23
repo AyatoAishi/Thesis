@@ -85,6 +85,101 @@
   <% } %>
 </section>
 
+<%# The calendar. This is a scheduling system whose front page had no calendar
+    on it — the cards above say HOW MANY, and a clinic's actual question is
+    WHEN. Niel asked for this and he was right.
+
+    Days are links, not buttons, and the selection lives in the URL (?d=&m=).
+    That is the same reasoning as the patient search: a GET is shareable, the
+    Back button works through it, and a day can be bookmarked. Nothing here
+    needs JavaScript to function. %>
+<% if (calendar) { %>
+<section class="card cal-card">
+  <div class="panel-head">
+    <div>
+      <div class="panel-title">Kalendaryo</div>
+      <div class="muted" style="font-size:12.5px;margin-top:3px">
+        Pindutin ang araw para makita ang mga appointment nito.
+      </div>
+    </div>
+    <div class="cal-nav">
+      <a class="mini-btn" href="/dashboard?m=<%= calendar.prev %>&d=<%= selected %>" aria-label="Nakaraang buwan">&larr;</a>
+      <b class="cal-month"><%= calendar.label %></b>
+      <a class="mini-btn" href="/dashboard?m=<%= calendar.next %>&d=<%= selected %>" aria-label="Susunod na buwan">&rarr;</a>
+      <% if (calendar.key !== todayISO.slice(0, 7) || selected !== todayISO) { %>
+        <a class="mini-btn" href="/dashboard">Ngayon</a>
+      <% } %>
+    </div>
+  </div>
+
+  <div class="cal-grid" role="grid" aria-label="<%= calendar.label %>">
+    <% weekdays.forEach(function (w) { %>
+      <div class="cal-head" role="columnheader"><%= w %></div>
+    <% }) %>
+
+    <% calendar.weeks.forEach(function (week) { %>
+      <% week.forEach(function (c) { %>
+        <% if (!c) { %>
+          <%# Blank, not the neighbouring month's date. A greyed 30th sitting in
+              October looks pressable and means nothing here. %>
+          <div class="cal-cell is-empty" role="gridcell" aria-hidden="true"></div>
+        <% } else { %>
+          <a class="cal-cell<%= c.isToday ? " is-today" : "" %><%= c.isSelected ? " is-selected" : "" %><%= c.count ? " has-appts" : "" %><%= c.isPast ? " is-past" : "" %>"
+             role="gridcell"
+             href="/dashboard?m=<%= calendar.key %>&d=<%= c.date %>"
+             aria-current="<%= c.isSelected ? "date" : "false" %>"
+             aria-label="<%= c.day %> — <%= c.count === 0 ? "walang appointment" : c.count + " appointment" %>">
+            <span class="cal-day"><%= c.day %></span>
+            <% if (c.count) { %>
+              <%# The number, not a dot: "3" is the thing somebody is deciding
+                  with, and a dot makes them press the day to find out. %>
+              <span class="cal-count<%= c.missed ? " is-missed" : "" %>"><%= c.count %></span>
+            <% } %>
+          </a>
+        <% } %>
+      <% }) %>
+    <% }) %>
+  </div>
+
+  <div class="cal-day-panel">
+    <div class="panel-head" style="margin-bottom:8px">
+      <div class="panel-title" style="font-size:14px">
+        <%= selectedLabel %><% if (selected === todayISO) { %> <span class="badge ok">Ngayon</span><% } %>
+      </div>
+      <% if (dayAppts.length) { %>
+        <a class="mini-btn" href="/appointments?date=<%= selected %>">Buksan ang buong listahan</a>
+      <% } else { %>
+        <a class="mini-btn" href="/appointments/new">+ Magpa-book</a>
+      <% } %>
+    </div>
+
+    <% if (!dayAppts.length) { %>
+      <p class="muted" style="margin:4px 2px;font-size:13px">Walang appointment sa araw na ito.</p>
+    <% } else { %>
+      <div class="status-list">
+        <% dayAppts.forEach(function (a) { %>
+          <%
+            const badge = { scheduled: ["info", "Scheduled"], completed: ["ok", "Done"],
+                            missed: ["bad", "Missed"], cancelled: ["warn", "Cancelled"] }[a.status]
+                          || ["info", a.status];
+          %>
+          <div class="status-row">
+            <div class="status-label">
+              <b><%= a.appointment_time ? a.appointment_time.slice(0, 5) : "—" %></b>
+              &nbsp;<a href="/patients/<%= a.patient_id %>"><%= a.full_name %></a>
+              <small>
+                <%= a.service_name.replace(/_/g, " ") %><%= a.notes ? " · " + a.notes : "" %>
+              </small>
+            </div>
+            <span class="badge <%= badge[0] %>"><%= badge[1] %></span>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+  </div>
+</section>
+<% } %>
+
 <section class="card">
   <div class="panel-head"><div class="panel-title">Quick actions</div></div>
   <ol class="steps">

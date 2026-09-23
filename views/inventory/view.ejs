@@ -15,11 +15,42 @@
     <div class="sub"><%= m.description || " " %></div>
   </div>
   <div style="display:flex;gap:8px">
-    <a class="btn" href="/inventory/dispense/new?medicine_id=<%= m.medicine_id %>">+ Dispense</a>
+    <% if (!m.archived_at) { %>
+      <a class="btn" href="/inventory/dispense/new?medicine_id=<%= m.medicine_id %>">+ Dispense</a>
+    <% } %>
     <a class="mini-btn" href="/inventory/<%= m.medicine_id %>/edit">Edit</a>
+    <%# Archive, never delete. medicine_dispenses points at this row to say what
+        a patient was given, so deleting it either fails on the foreign key or
+        destroys that record. There is no confirm dialog because there is
+        nothing to lose — Restore is one press, and it is right there. %>
+    <form method="POST" action="/inventory/<%= m.medicine_id %>/archive" style="margin:0">
+      <%- include("../partials/csrf") %>
+      <% if (m.archived_at) { %>
+        <input type="hidden" name="restore" value="yes" />
+        <button type="submit" class="btn">Ibalik sa listahan</button>
+      <% } else { %>
+        <button type="submit" class="mini-btn">Archive</button>
+      <% } %>
+    </form>
     <a class="logout-btn" href="/inventory" style="display:inline-flex;align-items:center;text-decoration:none">Back</a>
   </div>
 </div>
+
+<% if (m.archived_at) { %>
+  <div class="card" style="border-color:var(--warn);background:var(--warn-bg)">
+    <b style="color:var(--warn-ink)">Naka-archive ang gamot na ito</b>
+    <p style="margin:6px 0 0;font-size:13px;color:var(--ink-2);line-height:1.55">
+      Wala siya sa listahan ng inventory at wala sa dropdown ng dispense. Buo pa
+      rin ang lahat ng naunang dispense niya — walang naburang record.
+      <% if (m.stock_quantity > 0) { %>
+        <br /><b>May <%= m.stock_quantity %> pa siyang stock.</b> Kung may
+        natitira talaga sa lalagyan, ibalik siya sa listahan; kung wala, i-edit
+        at gawing 0 ang stock — kung hindi, may binibilang na gamot na walang
+        makakagamit.
+      <% } %>
+    </p>
+  </div>
+<% } %>
 
 <% if (flash) { %>
   <div class="card" style="background:var(--accent-softer);border-color:var(--accent-soft)"><%= flash %></div>

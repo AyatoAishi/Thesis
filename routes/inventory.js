@@ -22,6 +22,8 @@
 const express = require("express");
 const db = require("../db");
 const audit = require("../lib/audit");
+const { UNITS, optionsFor, isKnown } = require("../lib/medicineUnits");
+const { splitDose, dosageNeedsUnit } = require("../lib/medicineName");
 
 const router = express.Router();
 
@@ -48,6 +50,29 @@ function readMedicineForm(body) {
 function validateMedicine(m) {
   const errors = [];
   if (!m.name) errors.push("Medicine name is required.");
+
+  // The strength has one home, and it is the Dosage field. "Amlodipine 10mg"
+  // typed into the name is how the live inventory ended up holding three rows
+  // for one medicine: the duplicate check compares name and dosage exactly,
+  // and "Amlodipine" really is a different string from "Amlodipine 10mg", so
+  // it fired on none of them. The error hands over the exact split rather than
+  // saying "invalid" and leaving somebody to guess what we wanted.
+  const split = splitDose(m.name);
+  if (split) {
+    errors.push(
+      `Put the strength in the Dosage field, not in the name — name "${split.name}", ` +
+      `dosage "${split.dosage}". Keeping it in both places is what creates duplicate medicines.`
+    );
+  }
+
+  // "10" cannot be compared with "10mg" and cannot be read aloud to a patient.
+  if (dosageNeedsUnit(m.dosage))
+    errors.push(`Dosage needs its unit — "${m.dosage}mg" or "${m.dosage}ml", not just "${m.dosage}".`);
+
+  if (!m.unit) errors.push("Choose a unit.");
+  else if (!isKnown(m.unit))
+    errors.push(`"${m.unit}" is not one of the units on the list. Pick one, or the same medicine ends up counted on two separate lines.`);
+
   if (!Number.isInteger(m.stock_quantity) || m.stock_quantity < 0)
     errors.push("Stock quantity must be zero or a positive whole number.");
   if (!Number.isInteger(m.low_stock_threshold) || m.low_stock_threshold < 0)
@@ -142,7 +167,7 @@ async function rerenderDispenseForm(res, { body, medicine, errors }) {
   // there is no longer a "one medicine already chosen" case that could skip it.
   const medicines = (
     await db.query(
-      "SELECT medicine_id, name, unit, dosage, stock_quantity FROM medicines ORDER BY name LIMIT 500"
+      "SELECT medicine_id, name, unit, dosage, stock_quantity FROM medicines WHERE archived_at IS NULL ORDER BY name LIMIT 500"
     )
   ).rows;
 
@@ -171,16 +196,20 @@ router.get("/inventory", async (req, res, next) => {
   try {
     const q = (req.query.q || "").trim();
     const lowOnly = req.query.low === "1";
-    const conds = [];
+    // Archived medicines are off the shelf, so they are off the list — but
+    // reachable, because the only reason to archive by accident is that the
+    // undo was hidden.
+    const archivedOnly = req.query.archived === "1";
+    const conds = [archivedOnly ? "archived_at IS NOT NULL" : "archived_at IS NULL"];
     const params = [];
     if (q) {
       params.push(`%${q}%`);
       conds.push(`name ILIKE $${params.length}`);
     }
     if (lowOnly) conds.push("stock_quantity < low_stock_threshold");
-    const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
+    const where = `WHERE ${conds.join(" AND ")}`;
 
-    const [{ rows }, totalQ, lowQ] = await Promise.all([
+    const [{ rows }, totalQ, lowQ, archivedQ] = await Promise.all([
       db.query(
         `SELECT medicine_id, name, description, unit, dosage, stock_quantity, low_stock_threshold,
                 source, is_family_planning
@@ -188,8 +217,9 @@ router.get("/inventory", async (req, res, next) => {
           ORDER BY name LIMIT 500`,
         params
       ),
-      db.query("SELECT count(*)::int n FROM medicines"),
-      db.query("SELECT count(*)::int n FROM medicines WHERE stock_quantity < low_stock_threshold"),
+      db.query("SELECT count(*)::int n FROM medicines WHERE archived_at IS NULL"),
+      db.query("SELECT count(*)::int n FROM medicines WHERE archived_at IS NULL AND stock_quantity < low_stock_threshold"),
+      db.query("SELECT count(*)::int n FROM medicines WHERE archived_at IS NOT NULL"),
     ]);
 
     res.render("inventory/list", {
@@ -198,8 +228,10 @@ router.get("/inventory", async (req, res, next) => {
       medicines: rows,
       q,
       lowOnly,
+      archivedOnly,
       total: totalQ.rows[0].n,
       lowCount: lowQ.rows[0].n,
+      archivedCount: archivedQ.rows[0].n,
       flash: req.query.flash || null,
     });
   } catch (e) {
@@ -214,6 +246,7 @@ router.get("/inventory/new", (req, res) => {
     active: "inventory",
     mode: "new",
     medicine: {},
+    unitOptions: optionsFor(({}).unit),
     errors: [],
   });
 });
@@ -224,7 +257,7 @@ router.get("/inventory/new", (req, res) => {
 // id, so editing a medicine doesn't flag itself as a duplicate of itself.
 async function findDuplicateMedicine(m, excludeId) {
   const { rows } = await db.query(
-    `SELECT medicine_id, name, dosage FROM medicines
+    `SELECT medicine_id, name, dosage, archived_at FROM medicines
       WHERE lower(name) = lower($1)
         AND lower(coalesce(dosage,'')) = lower(coalesce($2,''))
         AND medicine_id <> coalesce($3, -1)
@@ -244,6 +277,7 @@ router.post("/inventory", async (req, res, next) => {
       active: "inventory",
       mode: "new",
       medicine: m,
+      unitOptions: optionsFor(m.unit),
       errors,
     });
   }
@@ -255,9 +289,12 @@ router.post("/inventory", async (req, res, next) => {
         active: "inventory",
         mode: "new",
         medicine: m,
+        unitOptions: optionsFor(m.unit),
         errors: [
-          `"${dup.name}"${dup.dosage ? ` (${dup.dosage})` : ""} already exists in inventory. ` +
-            `Open it and adjust its stock quantity instead of adding a duplicate entry.`,
+          `"${dup.name}"${dup.dosage ? ` (${dup.dosage})` : ""} already exists in inventory` +
+            (dup.archived_at
+              ? ` but is archived. Restore it instead of adding a second row for the same medicine.`
+              : `. Open it and adjust its stock quantity instead of adding a duplicate entry.`),
         ],
         dupId: dup.medicine_id,
       });
@@ -337,7 +374,7 @@ router.get("/inventory/dispense/new", async (req, res, next) => {
     // rest of the list is needed for the rows the person may add.
     {
       medicines = (
-        await db.query("SELECT medicine_id, name, unit, dosage, stock_quantity FROM medicines ORDER BY name LIMIT 500")
+        await db.query("SELECT medicine_id, name, unit, dosage, stock_quantity FROM medicines WHERE archived_at IS NULL ORDER BY name LIMIT 500")
       ).rows;
     }
 
@@ -359,7 +396,7 @@ router.get("/inventory/dispense/new", async (req, res, next) => {
 // ---- CREATE DISPENSE  POST /inventory/dispense -----------------------------
 router.post("/inventory/dispense", async (req, res, next) => {
   try {
-    const all = (await db.query("SELECT * FROM medicines ORDER BY name")).rows;
+    const all = (await db.query("SELECT * FROM medicines WHERE archived_at IS NULL ORDER BY name")).rows;
     const { errors, value } = validateDispense(req.body, all);
     if (errors.length) return rerenderDispenseForm(res, { body: req.body, errors });
 
@@ -451,6 +488,52 @@ router.get("/inventory/:id", async (req, res, next) => {
   }
 });
 
+// ---- ARCHIVE / RESTORE  POST /inventory/:id/archive ------------------------
+// Not a delete, and it cannot be one. medicine_dispenses.medicine_id is a NOT
+// NULL foreign key with no ON DELETE clause, so DELETE on a medicine anybody
+// has ever received fails outright — and that refusal is correct. The row is
+// what a dispense record points at to say WHAT the patient was given; remove
+// it and you have either an error or, with a cascade, a medical record that no
+// longer says what was handed over.
+//
+// So archiving is the real operation: off the shelf, out of the dropdowns,
+// still attached to every record that refers to it, and undoable.
+router.post("/inventory/:id/archive", async (req, res, next) => {
+  try {
+    const restore = req.body.restore === "yes";
+    const { rows } = await db.query(
+      `UPDATE medicines SET archived_at = ${restore ? "NULL" : "now()"}, updated_at = now()
+        WHERE medicine_id = $1
+        RETURNING medicine_id, name, stock_quantity`,
+      [req.params.id]
+    );
+    if (!rows[0]) return next();
+
+    // Said out loud in the audit line, because stock that is still on the
+    // shelf when the medicine leaves the list is how a count goes wrong
+    // quietly: nobody dispenses it, nobody sees it, and it stays counted
+    // nowhere.
+    const left = rows[0].stock_quantity;
+    audit.log(
+      req.session.user.user_id, "update", "medicine", rows[0].medicine_id,
+      restore
+        ? `${rows[0].name} restored to the inventory`
+        : `${rows[0].name} archived${left > 0 ? ` with ${left} still in stock` : ""}`
+    );
+
+    res.redirect(
+      `/inventory/${rows[0].medicine_id}?flash=` +
+        encodeURIComponent(
+          restore
+            ? "Medicine restored. It is back on the inventory list."
+            : "Medicine archived. It is off the list and out of the dispense dropdown — its past dispenses are untouched."
+        )
+    );
+  } catch (e) {
+    next(e);
+  }
+});
+
 // ---- EDIT form  GET /inventory/:id/edit ------------------------------------
 router.get("/inventory/:id/edit", async (req, res, next) => {
   try {
@@ -461,6 +544,7 @@ router.get("/inventory/:id/edit", async (req, res, next) => {
       active: "inventory",
       mode: "edit",
       medicine: rows[0],
+      unitOptions: optionsFor(rows[0].unit),
       errors: [],
     });
   } catch (e) {
@@ -478,6 +562,7 @@ router.post("/inventory/:id", async (req, res, next) => {
       active: "inventory",
       mode: "edit",
       medicine: { ...m, medicine_id: req.params.id },
+      unitOptions: optionsFor(({ ...m, medicine_id: req.params.id }).unit),
       errors,
     });
   }
@@ -489,6 +574,7 @@ router.post("/inventory/:id", async (req, res, next) => {
         active: "inventory",
         mode: "edit",
         medicine: { ...m, medicine_id: req.params.id },
+        unitOptions: optionsFor(({ ...m, medicine_id: req.params.id }).unit),
         errors: [
           `"${dup.name}"${dup.dosage ? ` (${dup.dosage})` : ""} already exists as a separate entry — ` +
             `merge stock there instead of having two entries for the same medicine.`,
@@ -532,6 +618,7 @@ router.post("/inventory/:id", async (req, res, next) => {
         active: "inventory",
         mode: "edit",
         medicine: still.rows[0],   // redraw with the CURRENT numbers, not theirs
+        unitOptions: optionsFor(still.rows[0].unit),
         errors: [
           `Someone else changed "${still.rows[0].name}" while this page was open — most likely a dispense. ` +
             `Nothing was saved. The current values are shown below; make your change again on top of them.`,

@@ -16,11 +16,30 @@
     <a href="/inventory?low=1" style="text-decoration:none">
       <span class="sum-pill <%= lowCount ? 'bad' : '' %>"><b><%= lowCount %></b> low stock</span>
     </a>
-    <% if (lowOnly) { %><a class="mini-btn" href="/inventory">Clear filter</a><% } %>
+    <%# Only shown once something is actually in there. A permanent "0 archived"
+        pill is a control that does nothing 99% of the time and teaches the eye
+        to skip that row. %>
+    <% if (archivedCount) { %>
+      <a href="/inventory?archived=1" style="text-decoration:none">
+        <span class="sum-pill"><b><%= archivedCount %></b> archived</span>
+      </a>
+    <% } %>
+    <% if (lowOnly || archivedOnly) { %><a class="mini-btn" href="/inventory">Clear filter</a><% } %>
   </div>
+
+  <% if (archivedOnly) { %>
+    <div class="card" style="border-color:var(--warn);background:var(--warn-bg);margin-bottom:14px">
+      <b style="color:var(--warn-ink)">Mga naka-archive na gamot</b>
+      <p style="margin:6px 0 0;font-size:13px;color:var(--ink-2)">
+        Wala sila sa inventory at wala sa dispense. Buksan ang isa at pindutin
+        ang <b>Ibalik sa listahan</b> kung mali ang pag-archive.
+      </p>
+    </div>
+  <% } %>
 
   <form method="GET" action="/inventory" style="margin-bottom:14px">
     <% if (lowOnly) { %><input type="hidden" name="low" value="1" /><% } %>
+    <% if (archivedOnly) { %><input type="hidden" name="archived" value="1" /><% } %>
     <input class="search" type="search" name="q" value="<%= q %>"
            placeholder="Search medicine name…" style="max-width:100%" />
   </form>

@@ -24,7 +24,7 @@ While you wait on nothing — also message your barangay contact to confirm: doc
 - ☐ Paste this first (the **Kickoff**):
 
 ```
-Read CLAUDE.md and everything in docs/ (PRD, ARCHITECTURE, DESIGN-SYSTEM, BUILD-PLAN, HOSTING).
+Read CLAUDE.md and everything in docs/ (PRD, ARCHITECTURE, DESIGN-SYSTEM, BUILD-PLAN, HOSTING, OPERATIONS).
 Also look at db/schema.sql and the prototype in "design-reference/" — we want the app to match that look.
 Do not write code yet. Summarize back: 1) the tech stack, 2) the folder structure, 3) the milestone order.
 Then wait for my go-ahead.

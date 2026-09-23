@@ -1505,3 +1505,35 @@ body {
   border-top: 1px solid var(--line);
   font-size: 13px !important;
 }
+
+/* The links to the privacy notice and the terms, wherever they appear.
+
+   They sit inside footers that carry .muted, and a muted grey link in a muted
+   grey sentence is indistinguishable from the sentence — it read as small print
+   rather than as something to press. So these override the inherited colour
+   rather than accept it: accent blue, bold, underlined.
+
+   The underline is not decoration. Colour alone is not a reliable signal for a
+   link — it disappears for the ~8% of men with red-green colour blindness and
+   in any grey-on-grey rendering — so the underline is what carries the meaning
+   and the colour reinforces it. `!important` is here because the .muted on the
+   parent is what we are deliberately defeating. */
+.legal-link {
+  color: var(--accent-strong) !important;
+  font-weight: 700 !important;
+  font-size: 12.5px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1.5px;
+}
+.legal-link:hover {
+  color: var(--accent) !important;
+  text-decoration-thickness: 2.5px;
+}
+/* A visible focus ring, because these are reachable by keyboard from the sign-in
+   form and a link with no focus state leaves a keyboard user guessing. */
+.legal-link:focus-visible {
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 2px;
+  border-radius: 3px;
+}

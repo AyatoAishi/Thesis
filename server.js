@@ -433,7 +433,17 @@ app.use((err, req, res, next) => {
 // Fires while the server is awake. On free hosting that may sleep, ALSO point
 // cron-job.org at /tasks/run-reminders?token=CRON_SECRET as a reliable trigger.
 const reminderCron = process.env.REMINDER_CRON || "0 8 * * *";
-if (cron.validate(reminderCron)) {
+
+// Serverless has no long-running process to hold a timer, so scheduling one
+// there is not a cron — it is a timer registered on a function that is about to
+// be frozen, re-registered on the next request, and never fired. Skipped
+// outright rather than left to look like it works.
+//
+// Nothing is lost. cron-job.org already calls /tasks/run-reminders on a
+// schedule, and that has always been the reliable trigger; this one only ever
+// covered the case where the server happened to be awake.
+const SERVERLESS = !!process.env.VERCEL;
+if (!SERVERLESS && cron.validate(reminderCron)) {
   cron.schedule(
     reminderCron,
     async () => {
@@ -454,6 +464,21 @@ if (cron.validate(reminderCron)) {
 }
 
 // ----- Boot -----------------------------------------------------------------
+// Two ways in, and this is the whole of the difference between them.
+//
+//   node server.js          -> require.main === module, so it listens on a port
+//   a serverless platform   -> imports this file and calls the exported app
+//                              itself, one invocation per request
+//
+// Exported either way, so the local behaviour is byte-identical to what it was
+// before and nothing about running it on a real server changed.
+module.exports = app;
+
+if (require.main !== module) {
+  // Imported, not run. No port, no banner — the platform owns the socket.
+  return;
+}
+
 app.listen(PORT, async () => {
   console.log("\n  Sampaguita Clinic — server is running");
   console.log(`  ▶  http://localhost:${PORT}`);

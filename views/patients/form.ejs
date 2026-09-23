@@ -139,8 +139,12 @@
   </div>
 
   <div class="card" style="overflow:visible">
-    <div class="panel-title" style="margin-bottom:6px">Family</div>
-    <p class="muted" style="font-size:12.5px;margin:0 0 12px">If this patient has family already registered in the system, search for them below — this groups them together automatically.</p>
+    <%# Marked optional because every other section on this form is either
+        required or says so, and a section with no marking reads as required by
+        default — which had staff hunting for a relative who is not registered
+        before they would save a walk-in. %>
+    <div class="panel-title" style="margin-bottom:6px">Family <span class="muted" style="font-weight:500">(optional)</span></div>
+    <p class="muted" style="font-size:12.5px;margin:0 0 12px">If this patient has family already registered in the system, search for them below — this groups them together automatically. Leave it blank if they have none, or if you do not know yet.</p>
     <%- include("../partials/family-lookup", { familyLookup, familyMembers, patient: p }) %>
   </div>
 
@@ -193,7 +197,8 @@
   <div class="card">
     <label class="check">
       <input type="checkbox" name="privacy_consent" required <%= p.privacy_consent ? 'checked' : '' %> />
-      <span>Patient (or guardian) agrees to the clinic's <b>data privacy disclosure</b> — records are collected and stored per RA 10173. *</span>
+      <span>Patient (or guardian) agrees to the clinic's <b>data privacy disclosure</b> — records are collected and stored per RA 10173. *<br />
+        <a href="/privacy" target="_blank" rel="noopener" style="font-size:12px">Read the Privacy Notice →</a></span>
     </label>
   </div>
 

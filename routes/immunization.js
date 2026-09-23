@@ -23,7 +23,7 @@ const F = require("../lib/format");
 const VACCINES = require("../lib/vaccines");
 const audit = require("../lib/audit");
 const { buildReportPdf } = require("../lib/pdf");
-const { buildCard } = require("../lib/immunizationCard");
+const { buildCard, offeredTo, rowVisible } = require("../lib/immunizationCard");
 
 const router = express.Router();
 
@@ -55,7 +55,9 @@ function safeRedirect(res, back, fallback, flash) {
 }
 
 async function loadPatient(id) {
-  const { rows } = await db.query("SELECT patient_id, full_name, patient_number, birthdate FROM patients WHERE patient_id=$1", [id]);
+  // `sex` is here for the HPV row: the DOH programme is girls-only, so the
+  // card and the dropdown need to know who they are looking at.
+  const { rows } = await db.query("SELECT patient_id, full_name, patient_number, birthdate, sex FROM patients WHERE patient_id=$1", [id]);
   return rows[0] || null;
 }
 
@@ -75,7 +77,7 @@ router.get("/patients/:id/immunization", async (req, res, next) => {
       title: `${patient.full_name} — Immunization · Sampaguita HC`,
       active: "patients",
       patient,
-      schedule,
+      schedule: schedule.filter((row) => rowVisible(row, patient.sex)),
       other,
       overdue,
       upcoming,
@@ -98,7 +100,7 @@ router.get("/patients/:id/immunization/new", async (req, res, next) => {
       title: `Record a dose — ${patient.full_name} · Sampaguita HC`,
       active: "patients",
       patient,
-      vaccines: VACCINES,
+      vaccines: VACCINES.filter((v) => offeredTo(v, patient.sex)),
       values: {
         vaccine_name: req.query.vaccine || "",
         dose_number: req.query.dose || "",
@@ -160,7 +162,7 @@ router.post("/patients/:id/immunization", async (req, res, next) => {
         title: `Record a dose — ${patient.full_name} · Sampaguita HC`,
         active: "patients",
         patient,
-        vaccines: VACCINES,
+        vaccines: VACCINES.filter((v) => offeredTo(v, patient.sex)),
         values: { ...values, dose_number: values.dose_number },
         errors,
         back: readBack(req),

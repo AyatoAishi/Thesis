@@ -1,0 +1,290 @@
+<%
+  // Privacy notice and terms, as one standalone page with two documents.
+  //
+  // Standalone (layout: false) and mounted above the login gate, because the
+  // people who most need to read this are the ones who have not signed in: a
+  // patient deciding whether to consent, and a panel checking that the RA 10173
+  // claim on the landing page points at something real.
+  //
+  // Written in Tagalog with the legal terms kept in English. The readers are
+  // the beneficiaries; the citations are for whoever checks the citations.
+  //
+  // Anything the clinic must decide for itself is marked with .legal-todo, and
+  // it renders visibly unfinished on purpose. A privacy notice with a made-up
+  // Data Protection Officer is worse than one that admits the name is missing.
+  const isPrivacy = doc === "privacy";
+%>
+<!DOCTYPE html>
+<html lang="tl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= title %></title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body class="legal-body">
+  <header class="legal-top">
+    <a class="legal-brand" href="/">
+      <span class="brand-badge"><%- include("partials/logo", { logoSize: 28 }) %></span>
+      <span>
+        <b>Sampaguita Health Clinic</b>
+        <span class="muted">Barangay EMR &amp; Appointments</span>
+      </span>
+    </a>
+    <nav class="legal-tabs">
+      <a href="/privacy" class="<%= isPrivacy ? 'is-on' : '' %>">Privacy Notice</a>
+      <a href="/terms" class="<%= isPrivacy ? '' : 'is-on' %>">Terms of Service</a>
+    </nav>
+  </header>
+
+  <main class="legal-wrap">
+
+  <% if (isPrivacy) { %>
+    <h1>Privacy Notice</h1>
+    <p class="legal-lede">
+      Paano hinahawakan ng Sampaguita Health Clinic ang mga records mo, at ano
+      ang mga karapatan mo sa ilalim ng <b>Republic Act No. 10173</b>, ang Data
+      Privacy Act of 2012.
+    </p>
+    <p class="legal-meta">Huling update: <%= updated %></p>
+
+    <h2>1. Sino ang may hawak ng records mo</h2>
+    <p>
+      Ang Barangay Sampaguita Health Clinic ang <i>personal information
+      controller</i>. Ang klinika ang nagdedesisyon kung ano ang kinokolekta at
+      para saan ito gagamitin.
+    </p>
+    <p class="legal-todo">
+      <b>Kailangan pang punan ng klinika:</b> buong pangalan at address ng
+      klinika, at ang pangalan at contact ng <b>Data Protection Officer</b>
+      (hinihingi ng NPC sa mga ahensyang humahawak ng health records).
+    </p>
+
+    <h2>2. Anong impormasyon ang kinokolekta</h2>
+    <p>Ito lang ang nasa sistema, at wala nang iba:</p>
+    <ul>
+      <li><b>Pagkakakilanlan:</b> pangalan, petsa ng kapanganakan, kasarian, address, patient number, family number</li>
+      <li><b>Contact:</b> cellphone number, email, at ang pangalan, relasyon at numero ng emergency contact</li>
+      <li><b>Valid ID:</b> uri ng ID at ID number, kung nagbigay kayo</li>
+      <li><b>Health records:</b> konsultasyon at diagnosis, immunization, prenatal record, gamot na naibigay</li>
+      <li><b>Appointments:</b> serbisyo, petsa, oras, at notes</li>
+      <li><b>Portal account:</b> username at <i>hashed</i> na password — hindi nakikita ng kahit sino ang totoong password, kahit ng staff</li>
+    </ul>
+    <p>
+      Ang health records ay <b>sensitive personal information</b> sa ilalim ng
+      Section 3(l) ng RA 10173, at may mas mataas na proteksyon sila kaysa
+      ordinaryong personal information.
+    </p>
+
+    <h2>3. Bakit kinokolekta</h2>
+    <ul>
+      <li>Para may tuloy-tuloy na medical record kayo sa klinika</li>
+      <li>Para makapag-schedule at makapagpaalala ng appointment</li>
+      <li>Para masubaybayan ang immunization ng mga bata at ang prenatal care</li>
+      <li>Para mabilang ang stock ng gamot at kung sino ang nabigyan</li>
+      <li>Para makagawa ng <b>bilang</b> na iniuulat sa barangay at sa DOH — bilang lang, walang pangalan</li>
+    </ul>
+    <p>
+      Hindi ipinagbibili, hindi ipinapaupa, at hindi ipinapadala sa kahit sinong
+      advertiser ang anumang nandito.
+    </p>
+
+    <h2>4. Ano ang basehan sa batas</h2>
+    <p>
+      Sections 12 at 13 ng RA 10173. Ang pangunahin ay ang <b>consent</b> na
+      ibinibigay ninyo sa pagpapa-register — yun ang checkbox na sinasagutan sa
+      harap ninyo, at naitatala sa record ninyo. Ang paghawak ng medical record
+      ay pinapayagan din ng <b>Section 13(f)</b>, na para sa mga medical
+      practitioner at institusyong nagbibigay ng health care.
+    </p>
+
+    <h2>5. Sino ang nakakakita</h2>
+    <ul>
+      <li><b>Clinic staff</b> — para lang sa trabaho nila. Iba ang nakikita ng admin sa nakikita ng facilitator.</li>
+      <li><b>Kayo mismo</b>, sa patient portal</li>
+      <li><b>Magulang o guardian</b> ng menor de edad, at para lang sa anak na kasama nila sa isang family number</li>
+    </ul>
+    <p>
+      Naitatala sa <b>activity log</b> ang bawat pagbukas, pagbago at pagbura —
+      kasama kung sino at kailan. Hindi ito mabubura ng staff.
+    </p>
+
+    <h2>6. Nasaan ang data, at sino ang mga nakakahawak</h2>
+    <p>
+      Naka-online ang sistema, kaya may mga serbisyong dinaraanan ng data.
+      Nakalista lahat dito:
+    </p>
+    <ul>
+      <li><b>Neon</b> — dito nakatago ang database</li>
+      <li><b>Render</b> — dito tumatakbo ang website</li>
+      <li><b>Brevo</b> — dito dumadaan ang mga email na paalala</li>
+      <li><b>PhilSMS</b> — dito dumadaan ang mga SMS na paalala</li>
+    </ul>
+    <p>
+      Ang ibig sabihin nito: may <b>cross-border transfer</b> — may server na
+      nasa labas ng Pilipinas. Nananatili pa rin ang responsibilidad ng klinika
+      sa data ninyo kahit nasa serbisyo ng iba ito.
+    </p>
+    <p>
+      Ang ipinapadala sa Brevo at PhilSMS ay ang <b>numero o email lang at ang
+      teksto ng paalala</b> — hindi ang buong medical record ninyo.
+    </p>
+
+    <h2>7. Paano iniingatan</h2>
+    <ul>
+      <li><b>Naka-encrypt</b> (HTTPS) ang koneksyon sa website</li>
+      <li><b>Hashed</b> ang password, hindi naka-plain text. Hindi ito mababasa kahit ng may access sa database.</li>
+      <li><b>Limitado ang pagsubok mag-login</b> — 5 maling password kada username sa loob ng 15 minuto</li>
+      <li><b>Kusang namamatay ang session</b> pagkatapos ng ilang oras, kaya hindi nakabukas ang record sa isang computer na iniwan</li>
+      <li><b>Naitatala ang lahat ng pagbabago</b> sa activity log</li>
+    </ul>
+
+    <h2>8. Gaano katagal itatago</h2>
+    <p class="legal-todo">
+      <b>Kailangan pang desisyunan ng klinika:</b> ang <i>retention period</i>.
+      Ang pangkalahatang panuntunan ng DOH para sa medical records ay hindi
+      bababa sa <b>15 taon</b>, pero ang klinika ang dapat magsabi ng tiyak na
+      panahon at kung paano sila bubura pagkatapos.
+    </p>
+
+    <h2>9. Ang mga karapatan ninyo</h2>
+    <p>Sa ilalim ng <b>Section 16</b> ng RA 10173, karapatan ninyong:</p>
+    <ul>
+      <li><b>Malaman</b> kung may hawak na data tungkol sa inyo, at ano ito</li>
+      <li><b>Makita</b> ang kopya ng records ninyo</li>
+      <li><b>Maipatama</b> ang maling impormasyon</li>
+      <li><b>Tumutol</b> sa paghawak, at humiling na <b>alisin o i-block</b> ang data</li>
+      <li><b>Makakuha ng kopya</b> sa anyong madaling ilipat (<i>data portability</i>)</li>
+      <li><b>Makahingi ng danyos</b> kung napinsala kayo ng maling paghawak</li>
+    </ul>
+    <p>
+      Sa klinika po kayo lumapit para gamitin ang alinman dito. Kung hindi kayo
+      nasagot, maaari kayong magreklamo sa <b>National Privacy Commission</b>
+      (privacy.gov.ph).
+    </p>
+    <p>
+      Isang bagay na dapat maliwanag: maaaring tumanggi ang klinika sa
+      <b>pagbura</b> ng medical record kung kailangan pa itong itago sa ilalim
+      ng batas o para sa pangangalaga ninyo. Hindi lahat ng hiling ay agad na
+      pwede, at may karapatan kayong malaman ang dahilan.
+    </p>
+
+    <h2>10. Mga paalala sa cellphone at email</h2>
+    <p>
+      Maaari kayong pumili kung <b>SMS, email, o wala</b> ang paalala ninyo.
+      Sabihin lang sa staff at papalitan nila.
+    </p>
+    <p>
+      At isang bagay na alam natin at hindi itatago: kung <b>pareho ang email</b>
+      ninyo ng iba sa pamilya, <b>makikita nila ang paalala</b> na ipinapadala
+      sa address na iyon. Pinapayagan ito kasi isa lang kadalasan ang email ng
+      isang pamilya — pero karapatan ninyong malaman, at nakasulat sa profile
+      ninyo kung sino pa ang gumagamit ng address na iyon.
+    </p>
+
+    <h2>11. Kung may pagbabago dito</h2>
+    <p>
+      Kung mababago ang notice na ito, mababago ang petsa sa itaas, at nakikita
+      ang bagong bersyon sa parehong address na ito.
+    </p>
+
+  <% } else { %>
+    <h1>Terms of Service</h1>
+    <p class="legal-lede">
+      Ang mga tuntunin sa paggamit ng patient portal ng Sampaguita Health Clinic.
+    </p>
+    <p class="legal-meta">Huling update: <%= updated %></p>
+
+    <h2>1. Ano ang portal na ito</h2>
+    <p>
+      Isang bintana para makita ninyo ang sarili ninyong records — appointment,
+      immunization, gamot na naibigay, at ang records ng anak ninyong menor de
+      edad. Ang klinika ang gumagawa ng account; walang self-signup.
+    </p>
+
+    <h2>2. Tingnan lang, hindi baguhin</h2>
+    <p>
+      <b>Read-only</b> ang portal. Hindi kayo makakapag-book, makakapag-cancel,
+      o makakapag-reschedule ng appointment dito, at hindi rin kayo makakabago
+      ng medical record.
+    </p>
+    <p>
+      Sinadya ito, at hindi kulang na feature. <b>Isang kalendaryo</b> ang hawak
+      ng klinika, at kung dalawa ang magsusulat dun — kayo at ang staff — may
+      dalawang taong makukuha ang parehong oras. Ang pagpapatama ng record ay
+      desisyon ng nurse na nakakita sa inyo, hindi ng form.
+    </p>
+    <p>
+      Kaya ang pagpapa-appointment at pagpapatama ng detalye ay sa klinika po,
+      hindi dito.
+    </p>
+
+    <h2>3. Responsibilidad ninyo sa account</h2>
+    <ul>
+      <li>Huwag ipahiram ang password ninyo — ang gumagamit ng account ninyo ay nakikita ang buong record ninyo</li>
+      <li>Kung sa palagay ninyo ay may nakaalam ng password ninyo, palitan agad sa portal, o sabihin sa klinika</li>
+      <li>May limitasyong <b>tatlong palit ng password kada araw</b>. Kung kailangan pa, may emailed reset link, o sa klinika po kayo lumapit.</li>
+      <li>Naitatala sa activity log ang bawat palit ng password — para may masangguni kung may pagtatalo sa account</li>
+    </ul>
+
+    <h2>4. Hindi ito para sa emergency</h2>
+    <p>
+      <b>Huwag gamitin ang portal na ito kung may emergency.</b> Hindi ito
+      binabantayan, at walang makakakita ng mensahe ninyo agad. Kung may
+      emergency, pumunta sa klinika o sa pinakamalapit na ospital, o tumawag sa
+      <b>911</b>.
+    </p>
+
+    <h2>5. Hindi ito medical advice</h2>
+    <p>
+      Talaan ang nakikita ninyo dito, hindi payo. Ang pagpapaliwanag ng anumang
+      resulta o diagnosis ay sa health worker po ng klinika.
+    </p>
+    <p>
+      Kasama rito si <b>Ate Sam</b>, ang gabay sa loob ng sistema. Nakasulat na
+      sagot lang siya tungkol sa <b>paggamit ng website</b> — hindi siya
+      doktor, hindi siya nurse, at hindi siya nagbibigay ng payo sa gamot o sa
+      sakit.
+    </p>
+
+    <h2>6. Kung may mali sa records ninyo</h2>
+    <p>
+      Sabihin po sa klinika. Ang mga petsa at talaan dito ay ipinasok ng tao,
+      kaya may pagkakataong may mali — at karapatan ninyong ipatama ito
+      (tingnan ang <a href="/privacy">Privacy Notice</a>, Section 9).
+    </p>
+
+    <h2>7. Maaaring ihinto ang access</h2>
+    <p>
+      Maaaring i-disable ng klinika ang account ninyo kung may maling paggamit,
+      o kung hindi na kayo pasyente ng klinika. Nananatili ang medical record
+      ninyo kahit isara ang portal account — magkaibang bagay ang record at ang
+      account.
+    </p>
+
+    <h2>8. Hindi palaging bukas</h2>
+    <p>
+      Sa libreng hosting tumatakbo ang sistemang ito. May pagkakataong mabagal
+      ang unang pagbukas, o hindi maabot ang website ng ilang sandali. Walang
+      pangako ng tuloy-tuloy na serbisyo — at kaya nga <b>sa klinika</b> pa rin
+      ang tamang daan para sa kahit anong kailangan agad.
+    </p>
+
+    <h2>9. Batas na sumasaklaw</h2>
+    <p>
+      Batas ng Republika ng Pilipinas, kasama ang <b>RA 10173</b> (Data Privacy
+      Act of 2012) at ang <b>Implementing Rules and Regulations</b> nito.
+    </p>
+  <% } %>
+
+    <p class="legal-foot">
+      <a href="/">← Balik sa umpisa</a>
+      <span class="muted">Barangay Sampaguita Health Clinic</span>
+    </p>
+  </main>
+</body>
+</html>

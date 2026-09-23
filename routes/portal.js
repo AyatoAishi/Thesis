@@ -25,7 +25,7 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const db = require("../db");
 const F = require("../lib/format");
-const { buildCard } = require("../lib/immunizationCard");
+const { buildCard, rowVisible } = require("../lib/immunizationCard");
 const { requirePatient } = require("../middleware/portalAuth");
 const { endOtherPatientSessions } = require("../lib/sessions");
 const emailSvc = require("../services/email");
@@ -345,7 +345,7 @@ router.post("/portal/reset/:token", async (req, res, next) => {
 // Note there is no separate "approval" table: family_number is assigned by
 // clinic staff on the patient form, so grouping a household IS the approval.
 const HOUSEHOLD_SQL = `
-  SELECT c.patient_id, c.patient_number, c.full_name
+  SELECT c.patient_id, c.patient_number, c.full_name, c.sex
     FROM patients c
     JOIN patients g ON g.patient_id = $1
     JOIN patient_accounts a ON a.patient_id = g.patient_id
@@ -403,7 +403,9 @@ router.get("/portal/household/:id", requirePatient, async (req, res, next) => {
       .map((key) => ({
         key,
         label: { infant: "Infant", school: "School-aged", senior: "Senior citizen" }[key],
-        rows: immCard.schedule.filter((v) => v.category === key),
+        // Girls-only rows are dropped for a boy, unless a dose is already on
+        // record — see rowVisible() in lib/immunizationCard.js.
+        rows: immCard.schedule.filter((v) => v.category === key && rowVisible(v, child.sex)),
       }))
       .filter((c) => c.rows.some((v) => v.doseSlots.some((s) => s.given)));
 
@@ -577,7 +579,7 @@ router.get("/portal", requirePatient, async (req, res, next) => {
       .map((key) => ({
         key,
         label: { infant: "Infant", school: "School-aged", senior: "Senior citizen" }[key],
-        rows: immCard.schedule.filter((v) => v.category === key),
+        rows: immCard.schedule.filter((v) => v.category === key && rowVisible(v, me.sex)),
       }))
       .filter((c) => c.rows.some((v) => v.doseSlots.some((s) => s.given)));
 

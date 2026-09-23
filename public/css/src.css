@@ -1423,3 +1423,85 @@ body {
   white-space: nowrap;
   border: 0;
 }
+
+/* ===========================================================================
+   The privacy notice and the terms (views/legal.ejs)
+
+   A prose page, and the only one in the system — everything else here is a
+   table, a form or a card. So it gets prose rules rather than app rules: one
+   measured column, generous line height, and headings that separate sections
+   instead of labelling widgets. Somebody has to actually read this, possibly
+   on a phone, possibly while a nurse waits for them to tick a box.
+   =========================================================================== */
+.legal-body {
+  background: var(--surface-2);
+  color: var(--ink);
+  min-height: 100vh;
+}
+
+.legal-top {
+  display: flex; flex-wrap: wrap; gap: 12px;
+  align-items: center; justify-content: space-between;
+  padding: 14px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.legal-brand {
+  display: flex; align-items: center; gap: 10px;
+  text-decoration: none; color: inherit;
+}
+.legal-brand b { display: block; font-size: 14px; }
+.legal-brand .muted { display: block; font-size: 11.5px; }
+
+.legal-tabs { display: flex; gap: 6px; }
+.legal-tabs a {
+  font-size: 13px; font-weight: 600; text-decoration: none;
+  color: var(--ink-2); padding: 7px 12px; border-radius: 999px;
+}
+.legal-tabs a:hover { background: var(--surface-2); color: var(--ink); }
+.legal-tabs a.is-on { background: var(--accent); color: var(--on-accent); }
+
+/* 68ch, not a pixel width: the measure that matters for reading is how many
+   characters fit on a line, and that follows the font the reader ended up
+   with rather than the one we assumed. */
+.legal-wrap {
+  max-width: 68ch;
+  margin: 0 auto;
+  padding: 28px 16px 64px;
+  background: var(--surface);
+  min-height: calc(100vh - 60px);
+}
+
+.legal-wrap h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -.01em; }
+.legal-wrap h2 {
+  font-size: 15.5px; margin: 32px 0 8px;
+  padding-top: 18px; border-top: 1px solid var(--line);
+}
+.legal-wrap p, .legal-wrap li { font-size: 14.5px; line-height: 1.7; color: var(--ink); }
+.legal-wrap p { margin: 0 0 12px; }
+.legal-wrap ul { margin: 0 0 14px; padding-left: 22px; }
+.legal-wrap li { margin-bottom: 7px; }
+.legal-wrap a { color: var(--accent-strong); font-weight: 600; }
+
+.legal-lede { font-size: 15.5px !important; color: var(--ink-2) !important; }
+.legal-meta { font-size: 12px !important; color: var(--ink-4) !important; margin-bottom: 4px !important; }
+
+/* Deliberately loud. This marks a fact the clinic still has to supply — a
+   Data Protection Officer's name, a retention period — and a privacy notice
+   that quietly invents either is worse than one that shows the gap. It is
+   meant to be impossible to publish without noticing. */
+.legal-todo {
+  border-left: 3px solid var(--warn, #d98324);
+  background: var(--warn-bg, #fff7ed);
+  padding: 11px 13px;
+  border-radius: 0 10px 10px 0;
+  font-size: 13.5px !important;
+}
+
+.legal-foot {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  align-items: center; justify-content: space-between;
+  margin-top: 36px !important; padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: 13px !important;
+}

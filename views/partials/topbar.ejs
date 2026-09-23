@@ -63,8 +63,10 @@
           </span>
         </button>
         <div class="user-menu-dropdown" data-user-menu-dropdown hidden>
+          <%# One entry, not two. "Change password" pointed at /account as well,
+              so the menu offered two labels for one destination — and the page
+              it opens already holds the password form under Update profile. %>
           <a href="/account">Update profile</a>
-          <a href="/account">Change password</a>
           <form method="POST" action="/logout" style="margin:0"><%- include("../partials/csrf") %>
             <button type="submit" class="user-menu-logout">Logout</button>
           </form>

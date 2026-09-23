@@ -13,6 +13,7 @@ const expressLayouts = require("express-ejs-layouts");
 const db = require("./db");
 const cron = require("node-cron");
 const authRoutes = require("./routes/auth");
+const legalRoutes = require("./routes/legal");
 const patientRoutes = require("./routes/patients");
 const appointmentRoutes = require("./routes/appointments");
 const reminderRoutes = require("./routes/reminders");
@@ -155,6 +156,11 @@ app.all("/tasks/run-reminders", (req, res) => {
 
 // Auth (login / logout) — public
 app.use("/", authRoutes);
+
+// Privacy notice and terms — public, and above the login gate on purpose:
+// the reader who needs them most is the patient deciding whether to consent,
+// who has no account at all.
+app.use("/", legalRoutes);
 
 // Patient portal (M5) — public pages + its own patient-session gate.
 app.use("/", portalRoutes);

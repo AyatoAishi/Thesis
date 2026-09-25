@@ -69,8 +69,7 @@
     </div>
   <% } %>
 
-  <div class="svc-head" style="margin-top:16px;opacity:.6"
-       title="No SMS provider is connected yet — PhilSMS is being looked at.">
+  <div class="svc-head" style="margin-top:16px<%= live ? "" : ";opacity:.6" %>">
     <div>
       <span class="panel-title">SMS</span>
       <% if (live) { %>
@@ -121,28 +120,59 @@
 </div>
 
 <div class="card">
-  <div class="panel-title" style="margin-bottom:12px">Recent reminders <span class="muted">(last 100)</span></div>
+  <div class="svc-head" style="flex-wrap:wrap;gap:10px">
+    <span class="panel-title">Recent reminders</span>
+    <%# A GET form: the chosen day is in the address, so refreshing or sharing
+        the page keeps it. It submits itself when the date changes. %>
+    <form method="GET" action="/reminders" class="daynav-left" style="gap:8px;flex-wrap:wrap;align-items:center;margin:0">
+      <input type="hidden" name="date" value="<%= date %>" />
+      <label class="muted" for="logDate" style="font-size:13px;font-weight:600">Sent on</label>
+      <input type="date" id="logDate" name="log_date" value="<%= logDate %>" onchange="this.form.submit()" />
+      <% if (logDate) { %><a class="mini-btn" href="/reminders?date=<%= date %>">Show all</a><% } %>
+    </form>
+  </div>
+  <p class="muted" style="font-size:13px;margin:6px 2px 12px">
+    <% if (logDate) { %>
+      <%= log.length %> reminder<%= log.length === 1 ? "" : "s" %> sent on <b><%= new Date(logDate + "T00:00:00+08:00").toLocaleDateString("en-PH", { timeZone: "Asia/Manila", month: "long", day: "numeric", year: "numeric" }) %></b><%
+      %><%= logTotals.sent ? ` · ${logTotals.sent} sent` : "" %><%= logTotals.failed ? ` · ${logTotals.failed} failed` : "" %>.
+    <% } else { %>
+      Newest first<%= log.length >= 300 ? " — the latest 300" : "" %>. Pick a day to see only what was sent then.
+    <% } %>
+  </p>
+
   <% if (!log.length) { %>
-    <p class="muted" style="margin:0">No reminders sent yet. Book an appointment, then run a send above.</p>
+    <p class="muted" style="margin:0">
+      <%= logDate ? "Nothing was sent on that day." : "No reminders sent yet. Book an appointment, then run a send above." %>
+    </p>
   <% } else { %>
-    <table class="tbl">
-      <thead><tr><th>When</th><th>Patient</th><th>Channel</th><th>To</th><th>Type</th><th>Status</th></tr></thead>
-      <tbody>
-        <% log.forEach(n => { %>
-          <tr>
-            <td class="mono" style="font-size:12px"><%= new Date(n.created_at).toLocaleString("en-PH", { timeZone:"Asia/Manila", month:"short", day:"numeric", hour:"numeric", minute:"2-digit" }) %></td>
-            <td><a href="/patients/<%= n.patient_id %>" title="<%= n.message %>"><%= n.full_name %></a></td>
-            <td><span class="badge <%= n.channel === 'email' ? 'ok' : 'info' %>"><%= n.channel %></span></td>
-            <td class="mono" style="font-size:12px"><%= n.recipient %></td>
-            <td><%= n.recipient_type %></td>
-            <td>
-              <% if (n.status === 'sent') { %><span class="badge ok">sent</span>
-              <% } else if (n.status === 'failed') { %><span class="badge bad">failed</span>
-              <% } else { %><span class="badge info"><%= n.status %></span><% } %>
-            </td>
-          </tr>
-        <% }) %>
-      </tbody>
-    </table>
+    <%# Its own scrolling box ("contained in a box, and scrollable pababa nang
+        hindi nagagalaw yung buong page"). The header row stays put while the
+        rows scroll under it. %>
+    <div class="scroll-box">
+      <table class="tbl">
+        <thead><tr><th>When</th><th>Patient</th><th>Mobile #</th><th>Email</th><th>Channel</th><th>Sent to</th><th>Status</th></tr></thead>
+        <tbody>
+          <% log.forEach(n => { %>
+            <tr>
+              <td class="mono" style="font-size:12.5px;white-space:nowrap"><%= new Date(n.created_at).toLocaleString("en-PH", { timeZone:"Asia/Manila", month:"short", day:"numeric", hour:"numeric", minute:"2-digit" }) %></td>
+              <td><a href="/patients/<%= n.patient_id %>" title="<%= n.message %>"><%= n.full_name %></a></td>
+              <td class="mono" style="font-size:12.5px">
+                <% if (n.contact_number) { %><%= n.contact_number %><% } else if (n.family_contact_number) { %><%= n.family_contact_number %> <span class="muted">(emergency)</span><% } else { %>—<% } %>
+              </td>
+              <td style="font-size:13px">
+                <% if (n.email) { %><%= n.email %><% } else if (n.family_email) { %><%= n.family_email %> <span class="muted">(emergency)</span><% } else { %>—<% } %>
+              </td>
+              <td><span class="badge <%= n.channel === 'email' ? 'ok' : 'info' %>"><%= n.channel %></span></td>
+              <td class="mono" style="font-size:12.5px"><%= n.recipient %><% if (n.recipient_type && n.recipient_type !== "patient") { %> <span class="muted">(<%= n.recipient_type %>)</span><% } %></td>
+              <td>
+                <% if (n.status === 'sent') { %><span class="badge ok">sent</span>
+                <% } else if (n.status === 'failed') { %><span class="badge bad">failed</span>
+                <% } else { %><span class="badge info"><%= n.status %></span><% } %>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
   <% } %>
 </div>

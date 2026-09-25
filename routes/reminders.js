@@ -38,13 +38,24 @@ async function recentFailures() {
 async function renderIndex(req, res, extra = {}) {
   const date = isDate(req.query.date) ? req.query.date : defaultTarget();
 
+  // The log has its own date, separate from the send form's. The send form's
+  // date is the APPOINTMENT date; this one is the day reminders were SENT.
+  // The review found them tangled: picking a date showed every reminder ever
+  // sent, which reads as the filter being broken. "Kapag nagchoose … ng date
+  // sa recent reminders, kung ano ung sent reminders sa date na yon, ayun lang
+  // din dapat ung lalabas." Blank means everything, newest first.
+  const logDate = isDate(req.query.log_date) ? req.query.log_date : "";
+
   const [logQ, cntQ, balance, fails] = await Promise.all([
     db.query(
       `SELECT n.notification_id, n.created_at, n.channel, n.recipient, n.recipient_type,
-              n.status, n.message, n.patient_id, p.full_name
+              n.status, n.message, n.patient_id, p.full_name,
+              p.contact_number, p.email, p.family_contact_number, p.family_email
          FROM notifications n
          JOIN patients p ON p.patient_id = n.patient_id
-        ORDER BY n.created_at DESC LIMIT 100`
+        WHERE $1 = '' OR (n.created_at AT TIME ZONE 'Asia/Manila')::date = $1::date
+        ORDER BY n.created_at DESC LIMIT 300`,
+      [logDate]
     ),
     db.query(
       "SELECT count(*)::int n FROM appointments WHERE appointment_date=$1 AND status='scheduled'",
@@ -67,6 +78,8 @@ async function renderIndex(req, res, extra = {}) {
     date,
     pending: cntQ.rows[0].n,
     log: logQ.rows,
+    logDate,
+    logTotals: logQ.rows.reduce((t, n) => { t[n.status] = (t[n.status] || 0) + 1; return t; }, {}),
     cronExpr: process.env.REMINDER_CRON || "0 8 * * *",
     flash: req.query.flash || null,
     ...extra,

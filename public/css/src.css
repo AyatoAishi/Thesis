@@ -1693,3 +1693,17 @@ body { font-size: 15px; }
   .content { max-width: none; padding: 0; }
   .card { break-inside: avoid; box-shadow: none; }
 }
+
+/* A list that scrolls inside its own box instead of stretching the page. The
+   header row is sticky so the columns stay labelled while the rows move. */
+.scroll-box {
+  max-height: 460px; overflow: auto;
+  border: 1px solid var(--border); border-radius: 12px;
+  overscroll-behavior: contain;
+}
+.scroll-box .tbl thead th {
+  position: sticky; top: 0; z-index: 1;
+  background: var(--surface-2);
+  box-shadow: 0 1px 0 var(--border);
+}
+.scroll-box .tbl td, .scroll-box .tbl th { padding-left: 12px; padding-right: 12px; }

@@ -1,0 +1,96 @@
+<%
+  function age(bd) {
+    if (!bd) return "—";
+    const d = new Date(bd), n = new Date();
+    let a = n.getFullYear() - d.getFullYear();
+    const m = n.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && n.getDate() < d.getDate())) a--;
+    return a;
+  }
+  const living = members.filter(m => !m.deceased_at).length;
+  const kindBadge = { Consultation: "info", Immunization: "ok", Medicine: "warn", Prenatal: "info" };
+%>
+<div class="page-head" style="display:flex;align-items:center;justify-content:space-between">
+  <div>
+    <h1>Family Record <span class="mono" style="color:var(--accent-strong)"><%= number %></span></h1>
+    <div class="sub"><%= members.length %> member<%= members.length === 1 ? "" : "s" %> registered<%= living !== members.length ? ` · ${members.length - living} deceased` : "" %></div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button type="button" class="mini-btn" onclick="window.print()">Print</button>
+    <a class="back-link" href="/families" style="display:inline-flex;align-items:center">All families</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="panel-title" style="margin-bottom:10px">Members</div>
+  <div style="overflow-x:auto">
+    <table class="tbl">
+      <thead><tr><th>Patient #</th><th>Name</th><th>Sex</th><th>Age</th><th>Mobile #</th><th>Email</th></tr></thead>
+      <tbody>
+        <% members.forEach(m => { %>
+          <tr>
+            <td class="mono"><%= m.patient_number %></td>
+            <td>
+              <a href="/patients/<%= m.patient_id %>"><%= m.full_name %></a>
+              <% if (m.is_minor) { %><span class="badge info" style="margin-left:6px">Minor</span><% } %>
+              <% if (m.deceased_at) { %><span class="badge bad" style="margin-left:6px">Deceased</span><% } %>
+              <% const od = overdue.get(m.patient_id); %>
+              <% if (od) { %><a href="/patients/<%= m.patient_id %>/immunization" class="badge bad" style="margin-left:6px;text-decoration:none"><%= od.overdue %> overdue</a><% } %>
+            </td>
+            <td><%= m.sex || "—" %></td>
+            <td><%= age(m.birthdate) %></td>
+            <td class="mono"><%= m.contact_number || "—" %></td>
+            <td><%= m.email || "—" %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="panel-title" style="margin-bottom:10px">Upcoming appointments</div>
+  <% if (!upcoming.length) { %>
+    <p class="muted" style="margin:4px 2px">No one in this family has an appointment coming up.</p>
+  <% } else { %>
+    <div class="status-list">
+      <% upcoming.forEach(a => { %>
+        <div class="status-row">
+          <div class="status-label">
+            <b><%= longDate(String(a.appointment_date).slice(0, 10)) %></b><%= a.appointment_time ? " · " + shortTime(a.appointment_time) : "" %>
+            — <a href="/patients/<%= a.patient_id %>"><%= a.full_name %></a>
+            <small><%= pretty(a.service_name) %><%= a.notes ? " · " + a.notes : "" %></small>
+          </div>
+          <span class="badge info">Scheduled</span>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+</div>
+
+<div class="card">
+  <div class="panel-title" style="margin-bottom:4px">Records</div>
+  <p class="muted" style="font-size:13px;margin:0 0 12px">
+    Everything recorded for this family, newest first. Each line opens the
+    member's own record, where it can be edited.
+  </p>
+  <% if (!timeline.length) { %>
+    <p class="muted" style="margin:4px 2px">Nothing recorded yet.</p>
+  <% } else { %>
+    <div style="overflow-x:auto">
+      <table class="tbl">
+        <thead><tr><th>Date</th><th>Record</th><th>Member</th><th>Details</th></tr></thead>
+        <tbody>
+          <% timeline.forEach(t => { %>
+            <tr>
+              <td style="white-space:nowrap"><%= longDate(t.at) %></td>
+              <td><span class="badge <%= kindBadge[t.kind] || "info" %>"><%= t.kind %></span></td>
+              <td><a href="/patients/<%= t.who.patient_id %>"><%= t.who.full_name %></a></td>
+              <td><a href="<%= t.href %>"><%= t.what %></a></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>

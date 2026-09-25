@@ -70,7 +70,10 @@ async function nextPatientNumber() {
   return prefix + String(n).padStart(4, "0");
 }
 
-// Next household/family number for the current year, e.g. 26-00, 26-01…
+// Next household/family number for the current year, e.g. 26-0000, 26-0001…
+// Four digits since 2026-09-25 (professors' review: "Format: 26-0000"); the
+// older two-digit numbers were padded in place by a migration, so the sequence
+// carries on from them rather than starting over.
 // (teammate spec: 2-digit year, sequence starting at 00 — separate scheme
 // from patient_number since one family groups several patients). Only rows
 // that already match the YY-N pattern count toward the sequence, so old
@@ -84,7 +87,15 @@ async function nextFamilyNumber() {
     [yy]
   );
   const n = rows[0].max_seq === null ? 0 : rows[0].max_seq + 1;
-  return `${yy}-${String(n).padStart(2, "0")}`;
+  return `${yy}-${String(n).padStart(4, "0")}`;
+}
+
+// A family number typed short — "26-1", "26-01" — still finds 26-0001. The
+// sequence is read as an integer and padded, the same way the numbers are
+// minted, so nobody has to remember how many zeroes there are.
+function familyNumberOf(q) {
+  const m = /^\s*(\d{2})-(\d{1,4})\s*$/.exec(String(q || ""));
+  return m ? `${m[1]}-${String(parseInt(m[2], 10)).padStart(4, "0")}` : null;
 }
 
 // Patients for the "link to existing family member" search on the form —
@@ -325,12 +336,12 @@ router.get("/patients", async (req, res, next) => {
     const [{ rows: allRows }, overdue] = await Promise.all([
       db.query(
         `SELECT patient_id, patient_number, full_name, sex, birthdate,
-                contact_number, is_minor, family_number
+                contact_number, email, is_minor, family_number, deceased_at
            FROM patients
-          ${q ? "WHERE full_name ILIKE $1 OR patient_number ILIKE $1 OR contact_number ILIKE $1" : ""}
+          ${q ? "WHERE full_name ILIKE $1 OR patient_number ILIKE $1 OR contact_number ILIKE $1 OR email ILIKE $1 OR family_number ILIKE $1 OR family_number = $2" : ""}
           ORDER BY ${order}
           LIMIT 200`,
-        q ? [`%${q}%`] : []
+        q ? [`%${q}%`, familyNumberOf(q)] : []
       ),
       overdueCounts(null),
     ]);
@@ -369,9 +380,10 @@ router.get("/patients/search.json", async (req, res, next) => {
       `SELECT patient_id, patient_number, full_name, is_minor
          FROM patients
         WHERE full_name ILIKE $1 OR patient_number ILIKE $1 OR contact_number ILIKE $1
+           OR email ILIKE $1 OR family_number ILIKE $1 OR family_number = $2
         ORDER BY lower(full_name)
         LIMIT 8`,
-      [`%${q}%`]
+      [`%${q}%`, familyNumberOf(q)]
     );
     res.json(rows);
   } catch (e) {

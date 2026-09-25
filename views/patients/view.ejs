@@ -194,9 +194,15 @@
         <span class="badge warn">Not reminded</span>
       <% } else { %><%= rcLabel[rc] %><% } %>
     </dd></div>
-    <div><dt>Family</dt><dd>
-      <% if (familyMembers && familyMembers.length) { %>
-        Linked with <% familyMembers.forEach((m, i) => { %><a href="/patients/<%= m.patient_id %>" style="color:var(--accent-strong);font-weight:600;text-decoration:none"><%= m.full_name %></a><%= i < familyMembers.length - 1 ? ", " : "" %><% }) %>
+    <%# "Wag na yung individual family member ang makikita sa patient record,
+        better if 'Family Record' nalang along with their family number" — the
+        professors' review. One link to the household's folder. %>
+    <div><dt>Family Record</dt><dd>
+      <% if (p.family_number) { %>
+        <a href="/families/<%= p.family_number %>" class="family-link">
+          <span class="mono"><%= p.family_number %></span>
+          <span><%= (familyMembers ? familyMembers.length : 0) + 1 %> member<%= (familyMembers ? familyMembers.length : 0) === 0 ? "" : "s" %> →</span>
+        </a>
       <% } else { %>—<% } %>
     </dd></div>
     <div><dt>Privacy consent</dt><dd>
@@ -205,6 +211,121 @@
     </dd></div>
     <div style="grid-column:1/-1"><dt>Address</dt><dd><%= p.address || "—" %></dd></div>
   </dl>
+</div>
+
+<%# "Change the placement of the portal account part with reset password,
+    maybe include it in the patient account settings" — the professors'
+    review. It sat at the very bottom, under every appointment, consultation
+    and medicine, which is the last place anyone looks for a login. It now
+    sits under the demographics as the patient's account settings. %>
+<div class="card" id="account-settings">
+  <div class="svc-head">
+    <span class="panel-title">Account settings <span class="muted" style="font-weight:500">· patient portal</span></span>
+    <% if (account) { %>
+      <% if (account.is_verified) { %><span class="badge ok">Verified</span>
+      <% } else { %><span class="badge warn">Pending ID check</span><% } %>
+    <% } %>
+  </div>
+
+  <% if (typeof acctErr !== "undefined" && acctErr) { %>
+    <div style="background:var(--bad-bg);color:var(--bad-ink);border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:12px"><%= acctErr %></div>
+  <% } %>
+
+  <% if (typeof secrets !== "undefined" && secrets) { %>
+    <div style="background:var(--ok-bg);border-radius:10px;padding:14px;margin-bottom:12px">
+      <b style="color:var(--ok-ink)">Give these to the patient — shown only once:</b>
+      <dl class="kv" style="margin-top:10px">
+        <div><dt>Username</dt><dd class="mono"><%= secrets.username %></dd></div>
+        <div><dt>Temporary password</dt><dd class="mono" style="font-weight:700"><%= secrets.temp_password %></dd></div>
+        <div><dt>Portal address</dt><dd class="mono">/portal</dd></div>
+      </dl>
+      <p class="muted" style="font-size:12px;margin:10px 0 0">
+        Write this down or hand it over now — <b>this box will not appear again.</b>
+        Only a scrambled version of the password is kept, so nobody, including an
+        admin, can look it up later. If the patient forgets it, they come back
+        here and you press Reset to issue a new one.
+      </p>
+    </div>
+  <% } %>
+
+  <% if (account) { %>
+    <dl class="kv">
+      <div><dt>Username</dt><dd class="mono"><%= account.username %></dd></div>
+      <div><dt>Valid ID</dt><dd><%= account.valid_id_type || "—" %><%= account.valid_id_number ? ` · ${account.valid_id_number}` : "" %></dd></div>
+    </dl>
+
+    <%# The lasting record of what happened to this account's password. The
+        one-time box above vanishes on the next page load, which made a reset
+        look like it had never been saved. %>
+    <% if (account.password_changed_at) { %>
+      <div class="pw-state ok">
+        The patient chose their own password on <b><%= stamp(account.password_changed_at) %></b>.
+        Not even an admin can see it. If they forget it, press Reset below.
+      </div>
+    <% } else { %>
+      <div class="pw-state warn">
+        Still on the temporary password issued <b><%= stamp(account.temp_issued_at) %></b><%
+          %><%= account.temp_issued_by_name ? ` by ${account.temp_issued_by_name}` : "" %>.
+        The patient has not changed it yet — remind them to set their own from their portal page.
+      </div>
+    <% } %>
+    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+      <% if (!account.is_verified && account.valid_id_type) { %>
+        <%# An ID is already on record — verifying only confirms a person held it. %>
+        <form method="POST" action="/portal-accounts/<%= account.account_id %>/verify" style="margin:0"
+              onsubmit="return confirm('Confirm you checked the physical valid ID?')"><%- include("../partials/csrf") %>
+          <input type="hidden" name="back" value="/patients/<%= p.patient_id %>" />
+          <button type="submit" class="mini-btn ok">Verify (ID checked)</button>
+        </form>
+      <% } else if (!account.is_verified) { %>
+        <%# Created with no ID on hand. Verifying has to say which ID was checked,
+            or the badge ends up meaning nothing. %>
+        <form method="POST" action="/portal-accounts/<%= account.account_id %>/verify"
+              style="margin:0;width:100%" data-id-form><%- include("../partials/csrf") %>
+          <input type="hidden" name="back" value="/patients/<%= p.patient_id %>" />
+          <div class="form-grid">
+            <label class="field"><span>Valid ID presented now</span>
+              <select name="valid_id_type" required data-id-type>
+                <option value="">— choose an ID —</option>
+                <% idTypes.forEach(t => { %><option value="<%= t %>"><%= t %></option><% }) %>
+              </select>
+            </label>
+            <label class="field" data-id-number-field><span>Valid ID number</span>
+              <input type="text" name="valid_id_number" required data-id-number />
+            </label>
+          </div>
+          <button type="submit" class="mini-btn ok" style="margin-top:10px">Verify (ID checked)</button>
+        </form>
+      <% } %>
+      <form method="POST" action="/portal-accounts/<%= account.account_id %>/reset" style="margin:0"
+            onsubmit="return confirm('Issue a new temporary password for this patient?')"><%- include("../partials/csrf") %>
+        <button type="submit" class="mini-btn">Reset password</button>
+      </form>
+    </div>
+  <% } else { %>
+    <p class="muted" style="font-size:13px;margin:0 0 12px">
+      No portal account. Create one here after checking the patient's valid ID.
+    </p>
+    <form method="POST" action="/patients/<%= p.patient_id %>/portal-account" data-id-form><%- include("../partials/csrf") %>
+      <div class="form-grid">
+        <label class="field"><span>Username</span>
+          <input type="text" name="username" placeholder="e.g. juan.dela.cruz" required autocapitalize="none" spellcheck="false" />
+        </label>
+        <label class="field"><span>Valid ID presented</span>
+          <select name="valid_id_type" required data-id-type>
+            <option value="">— choose an ID —</option>
+            <% idTypes.forEach(t => { %><option value="<%= t %>"><%= t %></option><% }) %>
+            <option value="<%= noIdValue %>">No ID on hand — create unverified</option>
+          </select>
+        </label>
+        <label class="field" data-id-number-field><span>Valid ID number</span>
+          <input type="text" name="valid_id_number" required data-id-number />
+        </label>
+      </div>
+      <div class="muted" style="font-size:11.5px;font-weight:500;margin-top:8px" data-id-note></div>
+      <button type="submit" class="btn" style="margin-top:12px">Create account</button>
+    </form>
+  <% } %>
 </div>
 
 <div class="card">
@@ -333,116 +454,6 @@
         <% }) %>
       </tbody>
     </table>
-  <% } %>
-</div>
-
-<div class="card">
-  <div class="svc-head">
-    <span class="panel-title">Portal account</span>
-    <% if (account) { %>
-      <% if (account.is_verified) { %><span class="badge ok">Verified</span>
-      <% } else { %><span class="badge warn">Pending ID check</span><% } %>
-    <% } %>
-  </div>
-
-  <% if (typeof acctErr !== "undefined" && acctErr) { %>
-    <div style="background:var(--bad-bg);color:var(--bad-ink);border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:12px"><%= acctErr %></div>
-  <% } %>
-
-  <% if (typeof secrets !== "undefined" && secrets) { %>
-    <div style="background:var(--ok-bg);border-radius:10px;padding:14px;margin-bottom:12px">
-      <b style="color:var(--ok-ink)">Give these to the patient — shown only once:</b>
-      <dl class="kv" style="margin-top:10px">
-        <div><dt>Username</dt><dd class="mono"><%= secrets.username %></dd></div>
-        <div><dt>Temporary password</dt><dd class="mono" style="font-weight:700"><%= secrets.temp_password %></dd></div>
-        <div><dt>Portal address</dt><dd class="mono">/portal</dd></div>
-      </dl>
-      <p class="muted" style="font-size:12px;margin:10px 0 0">
-        Write this down or hand it over now — <b>this box will not appear again.</b>
-        Only a scrambled version of the password is kept, so nobody, including an
-        admin, can look it up later. If the patient forgets it, they come back
-        here and you press Reset to issue a new one.
-      </p>
-    </div>
-  <% } %>
-
-  <% if (account) { %>
-    <dl class="kv">
-      <div><dt>Username</dt><dd class="mono"><%= account.username %></dd></div>
-      <div><dt>Valid ID</dt><dd><%= account.valid_id_type || "—" %><%= account.valid_id_number ? ` · ${account.valid_id_number}` : "" %></dd></div>
-    </dl>
-
-    <%# The lasting record of what happened to this account's password. The
-        one-time box above vanishes on the next page load, which made a reset
-        look like it had never been saved. %>
-    <% if (account.password_changed_at) { %>
-      <div class="pw-state ok">
-        The patient chose their own password on <b><%= stamp(account.password_changed_at) %></b>.
-        Not even an admin can see it. If they forget it, press Reset below.
-      </div>
-    <% } else { %>
-      <div class="pw-state warn">
-        Still on the temporary password issued <b><%= stamp(account.temp_issued_at) %></b><%
-          %><%= account.temp_issued_by_name ? ` by ${account.temp_issued_by_name}` : "" %>.
-        The patient has not changed it yet — remind them to set their own from their portal page.
-      </div>
-    <% } %>
-    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
-      <% if (!account.is_verified && account.valid_id_type) { %>
-        <%# An ID is already on record — verifying only confirms a person held it. %>
-        <form method="POST" action="/portal-accounts/<%= account.account_id %>/verify" style="margin:0"
-              onsubmit="return confirm('Confirm you checked the physical valid ID?')"><%- include("../partials/csrf") %>
-          <input type="hidden" name="back" value="/patients/<%= p.patient_id %>" />
-          <button type="submit" class="mini-btn ok">Verify (ID checked)</button>
-        </form>
-      <% } else if (!account.is_verified) { %>
-        <%# Created with no ID on hand. Verifying has to say which ID was checked,
-            or the badge ends up meaning nothing. %>
-        <form method="POST" action="/portal-accounts/<%= account.account_id %>/verify"
-              style="margin:0;width:100%" data-id-form><%- include("../partials/csrf") %>
-          <input type="hidden" name="back" value="/patients/<%= p.patient_id %>" />
-          <div class="form-grid">
-            <label class="field"><span>Valid ID presented now</span>
-              <select name="valid_id_type" required data-id-type>
-                <option value="">— choose an ID —</option>
-                <% idTypes.forEach(t => { %><option value="<%= t %>"><%= t %></option><% }) %>
-              </select>
-            </label>
-            <label class="field" data-id-number-field><span>Valid ID number</span>
-              <input type="text" name="valid_id_number" required data-id-number />
-            </label>
-          </div>
-          <button type="submit" class="mini-btn ok" style="margin-top:10px">Verify (ID checked)</button>
-        </form>
-      <% } %>
-      <form method="POST" action="/portal-accounts/<%= account.account_id %>/reset" style="margin:0"
-            onsubmit="return confirm('Issue a new temporary password for this patient?')"><%- include("../partials/csrf") %>
-        <button type="submit" class="mini-btn">Reset password</button>
-      </form>
-    </div>
-  <% } else { %>
-    <p class="muted" style="font-size:13px;margin:0 0 12px">
-      No portal account. Create one here after checking the patient's valid ID.
-    </p>
-    <form method="POST" action="/patients/<%= p.patient_id %>/portal-account" data-id-form><%- include("../partials/csrf") %>
-      <div class="form-grid">
-        <label class="field"><span>Username</span>
-          <input type="text" name="username" placeholder="e.g. juan.dela.cruz" required autocapitalize="none" spellcheck="false" />
-        </label>
-        <label class="field"><span>Valid ID presented</span>
-          <select name="valid_id_type" required data-id-type>
-            <option value="">— choose an ID —</option>
-            <% idTypes.forEach(t => { %><option value="<%= t %>"><%= t %></option><% }) %>
-            <option value="<%= noIdValue %>">No ID on hand — create unverified</option>
-          </select>
-        </label>
-        <label class="field" data-id-number-field><span>Valid ID number</span>
-          <input type="text" name="valid_id_number" required data-id-number />
-        </label>
-      </div>
-      <div class="muted" style="font-size:11.5px;font-weight:500;margin-top:8px" data-id-note></div>
-      <button type="submit" class="btn" style="margin-top:12px">Create account</button>
-    </form>
   <% } %>
 </div>
 

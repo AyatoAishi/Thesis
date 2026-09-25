@@ -16,6 +16,7 @@ const authRoutes = require("./routes/auth");
 const legalRoutes = require("./routes/legal");
 const cal = require("./lib/calendar");
 const patientRoutes = require("./routes/patients");
+const familyRoutes = require("./routes/families");
 const appointmentRoutes = require("./routes/appointments");
 const reminderRoutes = require("./routes/reminders");
 const inventoryRoutes = require("./routes/inventory");
@@ -296,6 +297,7 @@ app.use(async (req, res, next) => {
 
 // Feature routes
 app.use("/", patientRoutes);
+app.use("/", familyRoutes);
 app.use("/", appointmentRoutes);
 app.use("/", reminderRoutes);
 app.use("/", inventoryRoutes);

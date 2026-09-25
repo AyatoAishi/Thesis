@@ -420,4 +420,47 @@
     if (!wrap.contains(e.target)) hide();
   });
 
+
+  // ---- Live search on list pages (patients, families) ---------------------
+  // "No need to click enter when searching for patients … It should
+  // automatically show up when the name matches." The form stays a plain GET:
+  // typing fetches the same URL the form would submit, and swaps in only the
+  // results area. So Enter, Back, a refresh and a shared link all still show
+  // exactly what the box says — the search lives in the address bar, as it
+  // always has.
+  //
+  // Debounced, and every request is numbered so a slow reply to "Mar" cannot
+  // arrive after the reply to "Maria" and put the wrong list back on screen.
+  document.querySelectorAll("[data-live-search]").forEach(function (form) {
+    var input = form.querySelector('input[type="search"]');
+    var target = document.querySelector("[data-live-results]");
+    if (!input || !target || !window.fetch || !window.DOMParser) return;
+    var timer = null;
+    var seq = 0;
+
+    function run() {
+      var params = new URLSearchParams(new FormData(form));
+      var url = form.getAttribute("action") + "?" + params.toString();
+      var mine = ++seq;
+      target.setAttribute("aria-busy", "true");
+      fetch(url, { credentials: "same-origin", headers: { "X-Live-Search": "1" } })
+        .then(function (r) { return r.ok ? r.text() : null; })
+        .then(function (html) {
+          if (html === null || mine !== seq) return;
+          var doc = new DOMParser().parseFromString(html, "text/html");
+          var fresh = doc.querySelector("[data-live-results]");
+          if (!fresh) return;
+          target.innerHTML = fresh.innerHTML;
+          try { history.replaceState(null, "", url); } catch (e) {}
+        })
+        .catch(function () { /* the plain form still works; say nothing */ })
+        .then(function () { if (mine === seq) target.removeAttribute("aria-busy"); });
+    }
+
+    input.addEventListener("input", function () {
+      clearTimeout(timer);
+      timer = setTimeout(run, 250);
+    });
+    // Enter still submits normally, but it no longer has to.
+  });
 })();

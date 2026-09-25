@@ -1,0 +1,41 @@
+<div class="page-head" style="display:flex;align-items:center;justify-content:space-between">
+  <div>
+    <h1>Family records</h1>
+    <div class="sub"><%= families.length %> famil<%= families.length === 1 ? "y" : "ies" %><%= q ? ` matching “${q}”` : "" %></div>
+  </div>
+  <a class="back-link" href="/patients" style="display:inline-flex;align-items:center">Patients</a>
+</div>
+
+<div class="card">
+  <form method="GET" action="/families" class="list-controls" data-live-search>
+    <div class="search-wrap search-wrap-lg">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-3.6-3.6"/></svg>
+      <input class="search search-lg" type="search" name="q" value="<%= q %>"
+             placeholder="Family number (26-0001) or a member's name…" autocomplete="off" />
+    </div>
+  </form>
+
+  <div data-live-results>
+    <% if (!families.length) { %>
+      <p class="muted" style="padding:8px 2px">
+        <% if (q) { %>No family matches “<%= q %>”.<% } else { %>
+          No families yet. A family number is given automatically the first time a
+          patient is linked to a relative under <b>Family</b> on the patient form.
+        <% } %>
+      </p>
+    <% } else { %>
+      <table class="tbl">
+        <thead><tr><th>Family #</th><th>Members</th><th>Names</th></tr></thead>
+        <tbody>
+          <% families.forEach(f => { %>
+            <tr>
+              <td class="mono"><a href="/families/<%= f.family_number %>"><%= f.family_number %></a></td>
+              <td><%= f.members %><%= f.minors ? ` (${f.minors} minor${f.minors === 1 ? "" : "s"})` : "" %></td>
+              <td><a href="/families/<%= f.family_number %>" style="font-weight:500"><%= f.names %></a></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+</div>

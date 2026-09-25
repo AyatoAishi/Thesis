@@ -1673,3 +1673,23 @@ body { font-size: 15px; }
 .deceased-box > summary::-webkit-details-marker { display: none; }
 .deceased-box > summary::before { content: "▸ "; }
 .deceased-box[open] > summary::before { content: "▾ "; }
+
+/* Family Record link on the patient page, and the household headers that now
+   open the folder. */
+.family-link {
+  display: inline-flex; align-items: center; gap: 8px;
+  color: var(--accent-strong); font-weight: 700; text-decoration: none;
+}
+.family-link .mono {
+  background: var(--accent-soft); padding: 2px 8px; border-radius: 6px;
+}
+.family-link:hover span:last-child { text-decoration: underline; }
+.household-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+[data-live-results][aria-busy="true"] { opacity: .6; transition: opacity .15s; }
+
+@media print {
+  .rail, .topbar, .sam-bubble, .sam-panel, .sam-scrim, .page-head .mini-btn, .page-head .back-link { display: none !important; }
+  .layout { padding: 0 !important; }
+  .content { max-width: none; padding: 0; }
+  .card { break-inside: avoid; box-shadow: none; }
+}

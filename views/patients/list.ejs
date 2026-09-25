@@ -50,11 +50,14 @@
 </div>
 
 <div class="card">
-  <form method="GET" action="/patients" class="list-controls">
+  <%# Live: results update as you type ("No need to click enter when
+      searching for patients"). Still a real GET form underneath, so Enter,
+      Back and a shared link all keep working. %>
+  <form method="GET" action="/patients" class="list-controls" data-live-search>
     <div class="search-wrap search-wrap-lg">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-3.6-3.6"/></svg>
       <input class="search search-lg" type="search" name="q" value="<%= q %>"
-             placeholder="Search name, patient number, or contact…" autofocus />
+             placeholder="Name, patient #, mobile #, email, or family # (26-0001)…" autofocus autocomplete="off" />
     </div>
     <% if (view !== "household") { %>
       <label class="field list-sort"><span>Sort by</span>
@@ -70,9 +73,11 @@
     <button class="btn" type="submit">Search</button>
   </form>
 
+  <div data-live-results>
   <div class="view-tabs">
     <a class="view-tab <%= view === 'list' && !overdueOnly ? 'active' : '' %>" href="<%= viewLink('list') %>">All patients</a>
     <a class="view-tab <%= view === 'household' && !overdueOnly ? 'active' : '' %>" href="<%= viewLink('household') %>">By household</a>
+    <a class="view-tab" href="/families">Family records</a>
     <%# Where the bell lands. Alyanna asked for the overdue on their own rather
         than having to pick the red badges out of the whole list. The count is
         on the tab so it agrees with the bell that sent you here. %>
@@ -105,6 +110,7 @@
         <div class="household-head">
           <b><%= g.head.full_name %></b>
           <span class="muted">household · <%= g.members.length %> member<%= g.members.length === 1 ? "" : "s" %></span>
+          <% if (g.members[0] && g.members[0].family_number) { %><a class="mini-btn" href="/families/<%= g.members[0].family_number %>" style="margin-left:auto">Family Record <%= g.members[0].family_number %> →</a><% } %>
         </div>
         <table class="tbl">
           <tbody>
@@ -152,7 +158,7 @@
   <% } else { %>
     <table class="tbl">
       <thead>
-        <tr><th>Patient #</th><th>Name</th><th>Sex</th><th>Age</th><th>Mobile #</th><th></th></tr>
+        <tr><th>Patient #</th><th>Name</th><th>Sex</th><th>Age</th><th>Mobile #</th><th>Email</th><th>Family #</th><th></th></tr>
       </thead>
       <tbody>
         <% patients.forEach(p => { %>
@@ -161,15 +167,19 @@
             <td>
               <a href="/patients/<%= p.patient_id %>"><%= p.full_name %></a>
               <% if (p.is_minor) { %><span class="badge info" style="margin-left:6px">Minor</span><% } %>
+              <% if (p.deceased_at) { %><span class="badge bad" style="margin-left:6px">Deceased</span><% } %>
               <% const od = overdue.get(p.patient_id); %><% if (od) { %><a href="/patients/<%= p.patient_id %>/immunization" class="badge bad" style="margin-left:6px;text-decoration:none" title="Oldest dose is <%= od.worstDays %> days late"><%= od.overdue %> overdue</a><% } %>
             </td>
             <td><%= p.sex || "—" %></td>
             <td><%= age(p.birthdate) %></td>
-            <td><%= p.contact_number || "—" %></td>
+            <td class="mono"><%= p.contact_number || "—" %></td>
+            <td><%= p.email || "—" %></td>
+            <td class="mono"><% if (p.family_number) { %><a href="/families/<%= p.family_number %>"><%= p.family_number %></a><% } else { %>—<% } %></td>
             <td style="text-align:right"><a href="/patients/<%= p.patient_id %>/edit" class="muted">Edit</a></td>
           </tr>
         <% }) %>
       </tbody>
     </table>
   <% } %>
+  </div>
 </div>

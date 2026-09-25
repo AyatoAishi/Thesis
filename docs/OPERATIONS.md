@@ -78,7 +78,12 @@ A real fault looks like: **every page** failing, an error page with a number on 
 
 - **Account ownership.** Render, Neon, Brevo, PhilSMS and cron-job.org are all currently under a student's email. On handover these must move to a clinic-owned address, or the clinic loses the system when that address is abandoned. **This is the one item that cannot wait for a problem to appear.**
 - **Free-tier limits.** Neon's free plan allows 191.9 compute-hours a month. If use grows past it, somebody has to pay or upgrade.
-- **Backups.** Neon's free plan keeps a short backup window. There is no scheduled export.
+- **Backups.** Neon's free plan keeps only a short restore window, so the system exports its own:
+  the admin presses **Download backup** on Staff accounts, or a developer runs `npm run backup`
+  (writes to `backups/`, which is gitignored — this repository is public). Once a week and before
+  any big change is a sensible rhythm. The file holds every patient record: keep it on the clinic's
+  own storage, never in email or a public folder. Restoring from it needs a developer; Neon's own
+  restore window covers a mistake made in the last few hours.
 - **Dependency updates.** `npm audit` once or twice a year.
 - **Keys.** The Brevo and PhilSMS keys can expire or be rotated.
 
@@ -88,6 +93,7 @@ A real fault looks like: **every page** failing, an error page with a number on 
 
 Better said by us than found by a panel.
 
+- **SMS is not switched on in the live system yet.** The PhilSMS account has no load, and their API was not answering during the last check. The code is ready: set `PHILSMS_TOKEN` and `PHILSMS_SENDER` on Render after topping up, and send one test to a Globe number first.
 - **SMS reaches Globe and TM only.** PhilSMS's shared sender ID does not deliver to Smart or TNT. A registered sender ID is ₱3,000/year and their application form excludes "testing, academic research, or thesis purposes" outright. Email has no such limit.
 - **The hosting sleeps.** Free tier: the first request after idle takes a few seconds.
 - **No uptime guarantee**, which is why the clinic's paper process must remain able to run for a day without the system.

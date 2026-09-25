@@ -1,3 +1,9 @@
+> **Superseded (2026-09-25).** The current manual is inside the system: sign in and open
+> **your name → User's manual**, or go to `/manual`. It is kept beside the features it
+> describes and updated with them. This file is kept for history and may be out of date
+> (for example, staff now have a forgot-password request, and services are no longer
+> locked to a weekday).
+
 # Sampaguita Health Clinic System — Staff Guide
 
 A plain-language guide to the clinic's patient records, appointments, medicine inventory, and reports

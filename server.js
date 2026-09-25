@@ -306,6 +306,10 @@ app.use(async (req, res, next) => {
 // Feature routes
 app.use("/", patientRoutes);
 app.use("/", familyRoutes);
+
+// The user's manual ("Add a user's manual" — the professors' review). Every
+// signed-in staff member can open it; see views/manual.ejs.
+app.get("/manual", (req, res) => res.render("manual", { title: "User's manual · Sampaguita HC", active: "" }));
 app.use("/", appointmentRoutes);
 app.use("/", reminderRoutes);
 app.use("/", inventoryRoutes);

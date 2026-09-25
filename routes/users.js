@@ -186,6 +186,28 @@ router.post("/admin/password-requests/:id/reject", async (req, res, next) => {
   }
 });
 
+// ---- BACKUP  GET /admin/backup ---------------------------------------------------
+// "Need backup database." The same snapshot `npm run backup` writes, as a
+// download, so the admin can take a copy from the clinic's own computer
+// without a terminal. Admin-only (this router's /admin guard) and written to
+// the activity log every time, because a file holding every patient record
+// leaving the system is exactly the kind of event that log exists for.
+const { snapshot, filenameFor } = require("../lib/backup");
+router.get("/admin/backup", async (req, res, next) => {
+  try {
+    const data = await snapshot();
+    const total = Object.values(data.counts).reduce((a, b) => a + b, 0);
+    audit.log(req.session.user.user_id, "create", "backup", null,
+      `downloaded a full backup (${Object.keys(data.counts).length} tables, ${total} rows)`);
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filenameFor()}"`);
+    res.setHeader("Cache-Control", "no-store");
+    res.send(JSON.stringify(data));
+  } catch (e) {
+    next(e);
+  }
+});
+
 // ---- ACTIVITY LOG  GET /admin/audit-log ------------------------------------
 // Read-only view over audit_log (lib/audit.js) — logins/logouts, patient
 // create/update/delete, and staff account changes. Panel's accountability

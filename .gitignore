@@ -16,3 +16,8 @@ Thumbs.db
 
 # Local visual previews rendered with fake data. Never deployed.
 public/_preview/
+
+# Database backups hold every patient record. The repository is PUBLIC:
+# these must never be committed.
+backups/
+*.backup.json

@@ -18,7 +18,8 @@
     "seed:admin": "node db/seed-admin.js",
     "seed:demo": "node db/seed-demo.js",
     "reminders:run": "node services/reminders.js",
-    "test:sql": "node test/sql-injection.test.js"
+    "test:sql": "node test/sql-injection.test.js",
+    "backup": "node db/backup.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

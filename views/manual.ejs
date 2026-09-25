@@ -1,0 +1,132 @@
+<%#
+  The user's manual, inside the system ("Add a user's manual" — the
+  professors' review). In here rather than a separate document because a
+  manual that lives in a folder is out of date by the second release; this
+  one sits beside the thing it describes and is edited in the same commit.
+  Short sections, numbered steps, and each one names the exact button.
+%>
+<div class="page-head" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+  <div>
+    <h1>User's manual</h1>
+    <div class="sub">How to do each everyday task in the Sampaguita Health Clinic system</div>
+  </div>
+  <button type="button" class="mini-btn" onclick="window.print()">Print</button>
+</div>
+
+<nav class="card manual-toc">
+  <b>Contents</b>
+  <ol>
+    <li><a href="#signin">Signing in and your password</a></li>
+    <li><a href="#patients">Patients</a></li>
+    <li><a href="#families">Family records</a></li>
+    <li><a href="#appointments">Appointments</a></li>
+    <li><a href="#forms">Immunization, prenatal and consultations</a></li>
+    <li><a href="#inventory">Medicine inventory</a></li>
+    <li><a href="#reports">Reports and exports</a></li>
+    <li><a href="#portal">Patient portal accounts</a></li>
+    <li><a href="#admin">For the admin</a></li>
+    <li><a href="#help">When something goes wrong</a></li>
+  </ol>
+</nav>
+
+<section class="card manual" id="signin">
+  <h2>1. Signing in and your password</h2>
+  <ol>
+    <li>From the start page choose <b>Clinic staff</b>, then enter your username and password. Usernames are case-sensitive.</li>
+    <li>Five wrong passwords in 15 minutes locks that username for a while. Wait, then try again.</li>
+    <li><b>Changing your password:</b> your name (top right) → <b>Update profile</b> → <b>Change password</b> → <b>Send for approval</b>. The admin approves it; your old password keeps working until then.</li>
+    <li><b>Forgot your password:</b> on the sign-in page press <b>Forgot your password?</b>, type your username, and ask the admin for your temporary password in person.</li>
+  </ol>
+</section>
+
+<section class="card manual" id="patients">
+  <h2>2. Patients</h2>
+  <ol>
+    <li><b>Find a patient:</b> type in the search box at the top of any page, or on <b>Patients</b>. Results appear as you type — name, patient number, mobile number, email, or family number (26-0001 or just 26-1).</li>
+    <li><b>Add a patient:</b> <b>Patients → + Add patient</b>. Mobile numbers must be 11 digits (09xxxxxxxxx). If the patient has no phone, tick <b>Walang sariling telepono</b> and fill in the emergency contact's number instead.</li>
+    <li>Minors need a guardian's name and consent. Everyone needs the data privacy consent ticked — the <b>Read the Privacy Notice</b> link under it opens what they are agreeing to.</li>
+    <li>If a patient with the same name and birthdate or number already exists, the system warns you before saving. Open the existing record instead of making a second one.</li>
+    <li><b>Mark as deceased</b> (nurse or admin), on the patient's page: this cancels upcoming appointments and stops reminders, vaccine scheduling and portal access. The record is kept.</li>
+  </ol>
+</section>
+
+<section class="card manual" id="families">
+  <h2>3. Family records</h2>
+  <ol>
+    <li>On the patient form, under <b>Family (optional)</b>, search for a relative already registered. Saving puts them in the same household and gives the family a number like <b>26-0001</b> automatically.</li>
+    <li>The patient page shows <b>Family Record 26-0001</b>. Open it to see every member, their upcoming appointments, and one list of everything recorded for the family.</li>
+    <li><b>Patients → Family records</b> lists every household. Records are still edited on each member's own page.</li>
+  </ol>
+</section>
+
+<section class="card manual" id="appointments">
+  <h2>4. Appointments</h2>
+  <ol>
+    <li><b>Book:</b> from a patient's page press <b>+ Book appointment</b>, choose the service, the date, and a <b>time slot</b> (8 AM – 5 PM, no slots during lunch 12–1).</li>
+    <li>Slots that have already ended today cannot be chosen. Prenatal cannot be booked for a male patient.</li>
+    <li><b>Other</b> is for visits that are not one of the regular services (a BP check, vitals). Its note is required — the note is the record.</li>
+    <li><b>The dashboard calendar</b> shows how many appointments each day has; point at a day to see the count, press it to see the list.</li>
+    <li>On the day, open <b>Appointments</b> and mark each one <b>Done</b> or <b>Missed</b>. Children's vaccine appointments are also booked automatically, marked <b>"Automatic:"</b>.</li>
+    <li>Patients get an email confirmation when booked and a reminder the day before.</li>
+  </ol>
+</section>
+
+<section class="card manual" id="forms">
+  <h2>5. Immunization, prenatal and consultations</h2>
+  <ol>
+    <li><b>Immunization:</b> patient page → <b>Immunization</b>. Press an empty dose box to record it. HPV is only offered to female patients.</li>
+    <li><b>Prenatal:</b> patient page → <b>Prenatal</b> → start a record. It follows the barangay's paper form: weight, height, PhilHealth, each screening test's result and date, symptoms at intake and notes, the children table, and a check-up for each visit.</li>
+    <li><b>Consultation:</b> from the day's appointment list, record vital signs and the diagnosis.</li>
+  </ol>
+</section>
+
+<section class="card manual" id="inventory">
+  <h2>6. Medicine inventory</h2>
+  <ol>
+    <li><b>Add a medicine:</b> <b>Inventory → + Add medicine</b>. The strength goes in <b>Dosage</b> (500mg), never in the name. Choose the unit from the list. The opening stock needs the expiry date on the box.</li>
+    <li><b>A delivery arrives:</b> open the medicine → <b>+ Restock</b> → quantity and expiry date. Each delivery is its own batch.</li>
+    <li><b>Dispense:</b> <b>+ Dispense</b>, choose the patient, add one line per medicine, and optionally write <b>How often</b> (e.g. 1 tablet, 3x a day) — the patient sees it on their portal. The system takes stock from the batch that expires first.</li>
+    <li><b>Expired stock</b> leaves usable stock automatically the day after its expiry date and cannot be dispensed. It appears under <b>expired to dispose of</b>; when the boxes are removed, open the medicine → <b>Manage → Dispose</b>.</li>
+    <li><b>After a physical count</b> that differs: <b>Manage → Correct count</b>, with the reason.</li>
+    <li><b>Archive</b> a medicine the clinic no longer stocks. It leaves every list and count, and can be restored.</li>
+  </ol>
+</section>
+
+<section class="card manual" id="reports">
+  <h2>7. Reports and exports</h2>
+  <ol>
+    <li><b>Reports</b> in the menu. Everyone can open Inventory, Expired medicines, Stock history and Consumption; the patient reports are for nurses, recorders and the admin.</li>
+    <li>Every inventory report has <b>Export CSV (Excel)</b> and <b>Print</b>. Stock history shows every restock, dispense, expiry, disposal and correction.</li>
+    <li>Choose <b>This week / This month / This year</b> or a custom date range.</li>
+  </ol>
+</section>
+
+<section class="card manual" id="portal">
+  <h2>8. Patient portal accounts</h2>
+  <ol>
+    <li>On the patient's page, under <b>Account settings</b>, check their valid ID and create the account. Hand over the username and temporary password shown — it appears once.</li>
+    <li>Patients see their appointments, medicines, immunization card and records. The portal is view-only: bookings and corrections are done at the clinic.</li>
+    <li>A patient who forgot their password: <b>Account settings → Reset password</b>, with their valid ID in hand.</li>
+  </ol>
+</section>
+
+<section class="card manual" id="admin">
+  <h2>9. For the admin</h2>
+  <ol>
+    <li><b>Staff accounts:</b> add staff, change roles, deactivate accounts. <b>Password requests</b> appear at the top — approve or reject each one.</li>
+    <li><b>Activity log:</b> every sign-in, change and deletion, with who and when.</li>
+    <li><b>Download backup</b> (Staff accounts): a full copy of the clinic's data. It holds every patient record — keep it on the clinic's own storage, never in email or a public folder.</li>
+    <li><b>Reminders:</b> email status, a test button, and the log of every reminder sent, filterable by the day it was sent.</li>
+  </ol>
+</section>
+
+<section class="card manual" id="help">
+  <h2>10. When something goes wrong</h2>
+  <ol>
+    <li>Read the message on the screen — it usually says what to fix.</li>
+    <li>Ask <b>Ate Sam</b>, the <b>Tulong</b> button at the bottom right.</li>
+    <li>Refresh, or sign out and back in. "Form expired" means the page was open too long.</li>
+    <li>The first page of the day can take a few seconds while the server wakes up.</li>
+    <li>Still broken: write down the page, what you pressed, what it said and the time, and tell the admin.</li>
+  </ol>
+</section>

@@ -3,7 +3,13 @@
     <h1>Staff accounts</h1>
     <div class="sub"><%= staff.length %> account<%= staff.length === 1 ? "" : "s" %></div>
   </div>
-  <a class="btn" href="/admin/users/new">+ Add staff</a>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <%# A full copy of the clinic's data. It holds every patient record, so it
+        belongs on the clinic's own storage — never email, never a public
+        folder. See docs/OPERATIONS.md. %>
+    <a class="mini-btn" href="/admin/backup" title="Downloads every record as one file. Keep it on the clinic's own storage.">Download backup</a>
+    <a class="btn" href="/admin/users/new">+ Add staff</a>
+  </div>
 </div>
 
 <% if (flash) { %>

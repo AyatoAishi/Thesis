@@ -1809,3 +1809,13 @@ body { font-size: 15px; }
   background: var(--surface-2); padding: 10px 12px; font: inherit; font-size: 15px; color: var(--ink);
   resize: vertical;
 }
+
+/* The user's manual: a readable column, numbered steps with room between them. */
+.manual h2 { font-size: 18px; margin: 0 0 10px; }
+.manual ol { margin: 0; padding-left: 22px; line-height: 1.65; }
+.manual li { margin-bottom: 8px; }
+.manual-toc ol { margin: 8px 0 0; padding-left: 22px; columns: 2; line-height: 1.8; }
+.manual-toc a { color: var(--accent-strong); font-weight: 600; text-decoration: none; }
+.manual-toc a:hover { text-decoration: underline; }
+@media (max-width: 640px) { .manual-toc ol { columns: 1; } }
+section.manual { scroll-margin-top: 16px; }

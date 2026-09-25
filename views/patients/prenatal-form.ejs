@@ -34,6 +34,17 @@
       <label class="field"><span>Occupation</span>
         <input type="text" name="occupation" value="<%= r.occupation || '' %>" />
       </label>
+      <%# Weight, height and PhilHealth sit top-right on the paper form; they
+          were missing here (the professors' review: "kulang ng part na to"). %>
+      <label class="field"><span>Weight <span class="muted">(kg)</span></span>
+        <input type="number" name="weight_kg" step="0.1" min="20" max="250" value="<%= r.weight_kg ?? '' %>" data-bmi-w />
+      </label>
+      <label class="field"><span>Height <span class="muted">(cm)</span></span>
+        <input type="number" name="height_cm" step="0.1" min="100" max="220" value="<%= r.height_cm ?? '' %>" data-bmi-h />
+      </label>
+      <label class="field"><span>PhilHealth no.</span>
+        <input type="text" name="philhealth_no" value="<%= r.philhealth_no || '' %>" maxlength="20" placeholder="12-digit PIN" inputmode="numeric" />
+      </label>
       <label class="field"><span>Gravida (G)</span>
         <input type="number" name="gravida" min="0" step="1" value="<%= r.gravida ?? '' %>" />
       </label>
@@ -53,6 +64,13 @@
       <label class="field"><span>BP at intake</span>
         <input type="text" name="bp_at_intake" value="<%= r.bp_at_intake || '' %>" placeholder="e.g. 120/70" />
       </label>
+      <label class="field"><span>Pregnancy test result</span>
+        <select name="pregnancy_test_result">
+          <% [["", "—"], ["positive", "Positive (+)"], ["negative", "Negative (−)"]].forEach(function (o) { %>
+            <option value="<%= o[0] %>" <%= (r.pregnancy_test_result || "") === o[0] ? "selected" : "" %>><%= o[1] %></option>
+          <% }) %>
+        </select>
+      </label>
       <label class="field"><span>Pregnancy test date</span>
         <input type="date" name="pregnancy_test_date" value="<%= fmt(r.pregnancy_test_date) %>" />
       </label>
@@ -62,11 +80,32 @@
   <div class="card">
     <div class="panel-title" style="margin-bottom:14px">Lab results</div>
     <div class="form-grid">
+      <label class="field"><span>VDRL result</span>
+        <select name="vdrl_result">
+          <% [["", "—"], ["non-reactive", "Non-reactive"], ["reactive", "Reactive"], ["pending", "Pending"]].forEach(function (o) { %>
+            <option value="<%= o[0] %>" <%= (r.vdrl_result || "") === o[0] ? "selected" : "" %>><%= o[1] %></option>
+          <% }) %>
+        </select>
+      </label>
       <label class="field"><span>VDRL date</span>
         <input type="date" name="vdrl_date" value="<%= fmt(r.vdrl_date) %>" />
       </label>
+      <label class="field"><span>HBsAg result</span>
+        <select name="hbsag_result">
+          <% [["", "—"], ["non-reactive", "Non-reactive"], ["reactive", "Reactive"], ["pending", "Pending"]].forEach(function (o) { %>
+            <option value="<%= o[0] %>" <%= (r.hbsag_result || "") === o[0] ? "selected" : "" %>><%= o[1] %></option>
+          <% }) %>
+        </select>
+      </label>
       <label class="field"><span>HBsAg date</span>
         <input type="date" name="hbsag_date" value="<%= fmt(r.hbsag_date) %>" />
+      </label>
+      <label class="field"><span>HIV screening result</span>
+        <select name="hiv_result">
+          <% [["", "—"], ["non-reactive", "Non-reactive"], ["reactive", "Reactive"], ["pending", "Pending"]].forEach(function (o) { %>
+            <option value="<%= o[0] %>" <%= (r.hiv_result || "") === o[0] ? "selected" : "" %>><%= o[1] %></option>
+          <% }) %>
+        </select>
       </label>
       <label class="field"><span>HIV screening date</span>
         <input type="date" name="hiv_screening_date" value="<%= fmt(r.hiv_screening_date) %>" />
@@ -74,8 +113,14 @@
       <label class="field"><span>OGTT / FBS / HbA1c</span>
         <input type="text" name="ogtt_fbs_hba1c" value="<%= r.ogtt_fbs_hba1c || '' %>" placeholder="result / date" />
       </label>
+      <label class="field"><span>CBC result</span>
+        <input type="text" name="cbc_result" value="<%= r.cbc_result || '' %>" maxlength="80" placeholder="e.g. Hgb 11.2, normal" />
+      </label>
       <label class="field"><span>CBC date</span>
         <input type="date" name="cbc_date" value="<%= fmt(r.cbc_date) %>" />
+      </label>
+      <label class="field"><span>Urinalysis result</span>
+        <input type="text" name="urinalysis_result" value="<%= r.urinalysis_result || '' %>" maxlength="80" placeholder="e.g. normal" />
       </label>
       <label class="field"><span>Urinalysis date</span>
         <input type="date" name="urinalysis_date" value="<%= fmt(r.urinalysis_date) %>" />
@@ -104,7 +149,8 @@
         <input type="text" name="fh_others" value="<%= r.fh_others || '' %>" placeholder="e.g. heart disease" />
       </label>
       <label class="field"><span>BMI</span>
-        <input type="number" name="bmi" step="0.1" min="0" value="<%= r.bmi ?? '' %>" />
+        <input type="number" name="bmi" step="0.1" min="0" value="<%= r.bmi ?? '' %>" data-bmi />
+        <span class="muted" style="font-size:12.5px">Worked out from weight and height when both are filled in.</span>
       </label>
     </div>
   </div>
@@ -120,8 +166,49 @@
     </div>
   </div>
 
+  <%# The first block of checkboxes on the paper form, at intake — separate
+      from the same list on each check-up visit — with the handwritten notes
+      that sit beside it (medicines started, referrals, remarks). %>
+  <div class="card">
+    <div class="panel-title" style="margin-bottom:14px">Symptoms at intake &amp; notes</div>
+    <div class="sx-grid">
+      <% [
+           ["sx_abdominal_contractions", "Abdominal contractions"],
+           ["sx_vaginal_spotting", "Vaginal spotting"],
+           ["sx_vaginal_discharge", "Vaginal discharge"],
+           ["sx_dysuria", "Dysuria"],
+           ["sx_low_back_pain", "Low back pain"],
+           ["sx_hypogastric_pain", "Hypogastric pain"],
+           ["sx_edema", "Edema"],
+         ].forEach(function (x) { %>
+        <label class="check"><input type="checkbox" name="<%= x[0] %>" <%= r[x[0]] ? "checked" : "" %> /> <span><%= x[1] %></span></label>
+      <% }) %>
+    </div>
+    <label class="field" style="margin-top:14px"><span>Notes</span>
+      <textarea name="intake_notes" rows="4" maxlength="1000" placeholder="e.g. started ferrous sulfate + folic acid; advised ultrasound"><%= r.intake_notes || '' %></textarea>
+    </label>
+  </div>
+
   <button type="submit" class="btn"><%= isEdit ? "Save changes" : "Start prenatal record" %></button>
 </form>
+
+<script>
+  // BMI from weight and height, the way it is worked out on paper. Only
+  // written while the BMI box is empty or was last filled by this script — a
+  // number the nurse typed herself is never overwritten.
+  (function () {
+    var w = document.querySelector("[data-bmi-w]"), h = document.querySelector("[data-bmi-h]"), b = document.querySelector("[data-bmi]");
+    if (!w || !h || !b) return;
+    var auto = !b.value;
+    b.addEventListener("input", function () { auto = !b.value; });
+    function calc() {
+      var kg = parseFloat(w.value), cm = parseFloat(h.value);
+      if (!auto || !(kg > 0) || !(cm > 0)) return;
+      b.value = (kg / Math.pow(cm / 100, 2)).toFixed(1);
+    }
+    w.addEventListener("input", calc); h.addEventListener("input", calc);
+  })();
+</script>
 
 <script>
   (function () {

@@ -93,7 +93,51 @@ function readIntakeForm(body) {
     tt3_date: body.tt3_date || null,
     tt4_date: body.tt4_date || null,
     tt5_date: body.tt5_date || null,
+    // ---- the parts of the paper intake form that were missing ----------
+    weight_kg: toNumOrNull(body.weight_kg),
+    height_cm: toNumOrNull(body.height_cm),
+    philhealth_no: (body.philhealth_no || "").replace(/[^0-9-]/g, "").slice(0, 20) || null,
+    pregnancy_test_result: ["positive", "negative"].includes(body.pregnancy_test_result) ? body.pregnancy_test_result : null,
+    vdrl_result: SCREEN_RESULTS.includes(body.vdrl_result) ? body.vdrl_result : null,
+    hbsag_result: SCREEN_RESULTS.includes(body.hbsag_result) ? body.hbsag_result : null,
+    hiv_result: SCREEN_RESULTS.includes(body.hiv_result) ? body.hiv_result : null,
+    cbc_result: (body.cbc_result || "").trim().slice(0, 80) || null,
+    urinalysis_result: (body.urinalysis_result || "").trim().slice(0, 80) || null,
+    ...Object.fromEntries(INTAKE_SYMPTOMS.map((k) => [k, body[k] === "on"])),
+    intake_notes: (body.intake_notes || "").trim().slice(0, 1000) || null,
   };
+}
+
+// The screening results the paper form writes beside each test date.
+const SCREEN_RESULTS = ["non-reactive", "reactive", "pending"];
+const INTAKE_SYMPTOMS = [
+  "sx_abdominal_contractions", "sx_vaginal_spotting", "sx_vaginal_discharge", "sx_dysuria",
+  "sx_low_back_pain", "sx_hypogastric_pain", "sx_edema",
+];
+
+// The fields added on 2026-09-25 are written by this second statement rather
+// than by widening the big INSERT/UPDATE above — those carry 27 positional
+// parameters, and threading nine more through them is how a value lands in
+// the wrong column without anyone noticing. This one names every column it
+// writes. BMI is worked out from weight and height when it was left blank.
+async function saveIntakeExtras(prenatalId, p) {
+  const bmi = p.bmi == null && p.weight_kg && p.height_cm
+    ? Math.round((p.weight_kg / Math.pow(p.height_cm / 100, 2)) * 10) / 10
+    : null;
+  await db.query(
+    `UPDATE prenatal_records SET
+       weight_kg=$1, height_cm=$2, philhealth_no=$3, pregnancy_test_result=$4,
+       vdrl_result=$5, hbsag_result=$6, hiv_result=$7, cbc_result=$8, urinalysis_result=$9,
+       sx_abdominal_contractions=$10, sx_vaginal_spotting=$11, sx_vaginal_discharge=$12,
+       sx_dysuria=$13, sx_low_back_pain=$14, sx_hypogastric_pain=$15, sx_edema=$16,
+       intake_notes=$17, bmi=coalesce($18, bmi), updated_at=now()
+     WHERE prenatal_id=$19`,
+    [p.weight_kg, p.height_cm, p.philhealth_no, p.pregnancy_test_result,
+     p.vdrl_result, p.hbsag_result, p.hiv_result, p.cbc_result, p.urinalysis_result,
+     p.sx_abdominal_contractions, p.sx_vaginal_spotting, p.sx_vaginal_discharge,
+     p.sx_dysuria, p.sx_low_back_pain, p.sx_hypogastric_pain, p.sx_edema,
+     p.intake_notes, bmi, prenatalId]
+  );
 }
 
 // isDate() only proves a date is real, not that it is possible. That is how a
@@ -130,6 +174,11 @@ function validateIntake(p) {
   // Gravida is total pregnancies, para is deliveries carried to term, so para
   // can never exceed gravida. The pair is also bounded: a count above 20 is a
   // typo, not a medical history.
+  // Weight and height bound the same way as the dates above: a real adult,
+  // not a slipped decimal point.
+  if (p.weight_kg != null && (p.weight_kg < 20 || p.weight_kg > 250)) errors.push("Weight looks wrong — expected 20 to 250 kg.");
+  if (p.height_cm != null && (p.height_cm < 100 || p.height_cm > 220)) errors.push("Height looks wrong — expected 100 to 220 cm.");
+
   const g = p.gravida, pa = p.para;
   if (g !== null && (g < 0 || g > 20)) errors.push("Gravida (pregnancies) looks wrong — expected 0 to 20.");
   if (pa !== null && (pa < 0 || pa > 20)) errors.push("Para (deliveries) looks wrong — expected 0 to 20.");
@@ -232,6 +281,7 @@ router.post("/patients/:id/prenatal", async (req, res, next) => {
         p.fh_others, p.bmi, p.tt1_date, p.tt2_date, p.tt3_date, p.tt4_date, p.tt5_date, req.session.user.user_id,
       ]
     );
+    await saveIntakeExtras(rows[0].prenatal_id, p);
     audit.log(req.session.user.user_id, "create", "prenatal", rows[0].prenatal_id, `started for ${patient.full_name}`);
     res.redirect(`/patients/${patient.patient_id}/prenatal/${rows[0].prenatal_id}`);
   } catch (e) {
@@ -328,6 +378,7 @@ router.post("/patients/:id/prenatal/:prenatalId", async (req, res, next) => {
         p.tt1_date, p.tt2_date, p.tt3_date, p.tt4_date, p.tt5_date, existing.prenatal_id,
       ]
     );
+    await saveIntakeExtras(existing.prenatal_id, p);
     audit.log(req.session.user.user_id, "update", "prenatal", existing.prenatal_id, `updated for ${patient.full_name}`);
     res.redirect(`/patients/${patient.patient_id}/prenatal/${existing.prenatal_id}`);
   } catch (e) {

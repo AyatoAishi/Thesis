@@ -39,6 +39,9 @@
   <dl class="kv">
     <div><dt>Husband's name</dt><dd><%= r.husband_name || "—" %></dd></div>
     <div><dt>Occupation</dt><dd><%= r.occupation || "—" %></dd></div>
+    <div><dt>Weight / height</dt><dd><%= r.weight_kg != null ? Number(r.weight_kg) + " kg" : "—" %> · <%= r.height_cm != null ? Number(r.height_cm) + " cm" : "—" %></dd></div>
+    <div><dt>PhilHealth no.</dt><dd class="mono"><%= r.philhealth_no || "—" %></dd></div>
+    <div><dt>Pregnancy test</dt><dd><%= r.pregnancy_test_result === "positive" ? "Positive (+)" : r.pregnancy_test_result === "negative" ? "Negative (−)" : "—" %><%= r.pregnancy_test_date ? " · " + fmtDate(r.pregnancy_test_date) : "" %></dd></div>
     <div><dt>Gravida / Para</dt><dd>G<%= r.gravida ?? "—" %> P<%= r.para ?? "—" %></dd></div>
     <div><dt>LMP</dt><dd><%= fmtDate(r.lmp) %></dd></div>
     <div><dt>EDD</dt><dd><%= fmtDate(r.edd) %></dd></div>
@@ -51,12 +54,32 @@
 <div class="card">
   <div class="panel-title" style="margin-bottom:12px">Lab results</div>
   <dl class="kv">
-    <div><dt>VDRL</dt><dd><%= fmtDate(r.vdrl_date) %></dd></div>
-    <div><dt>HBsAg</dt><dd><%= fmtDate(r.hbsag_date) %></dd></div>
-    <div><dt>HIV screening</dt><dd><%= fmtDate(r.hiv_screening_date) %></dd></div>
+    <%# Result and date together, the way the paper form writes them:
+        "VDRL / DATE". A date alone said the test happened and not what it
+        found. A reactive result is shown in red, because that is the one line
+        on this card somebody must not miss. %>
+    <% const res = (v) => v ? (v === "reactive" ? '<span class="badge bad">Reactive</span>' : v === "non-reactive" ? '<span class="badge ok">Non-reactive</span>' : '<span class="badge warn">Pending</span>') : ""; %>
+    <div><dt>VDRL</dt><dd><%- res(r.vdrl_result) %> <%= fmtDate(r.vdrl_date) %></dd></div>
+    <div><dt>HBsAg</dt><dd><%- res(r.hbsag_result) %> <%= fmtDate(r.hbsag_date) %></dd></div>
+    <div><dt>HIV screening</dt><dd><%- res(r.hiv_result) %> <%= fmtDate(r.hiv_screening_date) %></dd></div>
     <div><dt>OGTT/FBS/HbA1c</dt><dd><%= r.ogtt_fbs_hba1c || "—" %></dd></div>
-    <div><dt>CBC</dt><dd><%= fmtDate(r.cbc_date) %></dd></div>
-    <div><dt>Urinalysis</dt><dd><%= fmtDate(r.urinalysis_date) %></dd></div>
+    <div><dt>CBC</dt><dd><%= r.cbc_result ? r.cbc_result + " · " : "" %><%= fmtDate(r.cbc_date) %></dd></div>
+    <div><dt>Urinalysis</dt><dd><%= r.urinalysis_result ? r.urinalysis_result + " · " : "" %><%= fmtDate(r.urinalysis_date) %></dd></div>
+  </dl>
+</div>
+
+<%
+  const intakeSx = [
+    ["sx_abdominal_contractions", "Abdominal contractions"], ["sx_vaginal_spotting", "Vaginal spotting"],
+    ["sx_vaginal_discharge", "Vaginal discharge"], ["sx_dysuria", "Dysuria"], ["sx_low_back_pain", "Low back pain"],
+    ["sx_hypogastric_pain", "Hypogastric pain"], ["sx_edema", "Edema"],
+  ].filter(x => r[x[0]]).map(x => x[1]);
+%>
+<div class="card">
+  <div class="panel-title" style="margin-bottom:12px">Symptoms at intake &amp; notes</div>
+  <dl class="kv">
+    <div style="grid-column:1/-1"><dt>Symptoms</dt><dd><%= intakeSx.length ? intakeSx.join(", ") : "None recorded" %></dd></div>
+    <div style="grid-column:1/-1"><dt>Notes</dt><dd style="white-space:pre-line"><%= r.intake_notes || "—" %></dd></div>
   </dl>
 </div>
 

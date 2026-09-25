@@ -56,14 +56,117 @@
   <div class="card" style="background:var(--accent-softer);border-color:var(--accent-soft)"><%= flash %></div>
 <% } %>
 
+<% if (typeof err !== "undefined" && err) { %>
+  <div class="page-alert bad"><%= err %></div>
+<% } %>
+<%
+  const soon = (() => { const t = new Date(today + "T00:00:00Z"); t.setUTCDate(t.getUTCDate() + soonDays); return t.toISOString().slice(0, 10); })();
+  const dStr = (d) => d ? (d instanceof Date ? d.toLocaleDateString("en-CA", { timeZone: "Asia/Manila" }) : String(d).slice(0, 10)) : null;
+  const fmtD = (d) => d ? new Date(d + "T00:00:00+08:00").toLocaleDateString("en-PH", { timeZone: "Asia/Manila", year: "numeric", month: "short", day: "numeric" }) : "—";
+  const awaiting = batches.filter(b => !b.disposed_at && b.expired_quantity > 0).reduce((n, b) => n + b.expired_quantity, 0);
+  const expiringSoon = batches.filter(b => !b.disposed_at && b.quantity_remaining > 0 && dStr(b.expiry_date) && dStr(b.expiry_date) <= soon).reduce((n, b) => n + b.quantity_remaining, 0);
+%>
+
 <div class="card">
   <div class="panel-title" style="margin-bottom:12px">Stock</div>
   <dl class="kv">
-    <div><dt>Stock quantity</dt><dd style="<%= low ? 'color:var(--bad-ink);font-weight:700' : '' %>"><%= m.stock_quantity %> <%= m.unit || "" %></dd></div>
+    <div><dt>Usable stock</dt><dd style="font-weight:700<%= low ? ';color:var(--bad-ink)' : '' %>"><%= m.stock_quantity %> <%= m.unit || "" %></dd></div>
     <div><dt>Low-stock threshold</dt><dd><%= m.low_stock_threshold %></dd></div>
-    <div><dt>Source</dt><dd><%= m.source || "—" %></dd></div>
+    <div><dt>Expiring within <%= soonDays %> days</dt><dd style="<%= expiringSoon ? 'color:var(--warn-ink);font-weight:700' : '' %>"><%= expiringSoon %> <%= m.unit || "" %></dd></div>
+    <div><dt>Expired, waiting to be disposed of</dt><dd style="<%= awaiting ? 'color:var(--bad-ink);font-weight:700' : '' %>"><%= awaiting %> <%= m.unit || "" %></dd></div>
   </dl>
 </div>
+
+<%# "When will the expired medicines be removed?" — the day after the date on
+    the box, automatically: a batch past its expiry leaves usable stock and
+    can no longer be dispensed. What remains is the physical box on the
+    shelf, listed here until somebody presses Dispose to record that it is
+    gone. %>
+<div class="card">
+  <div class="svc-head" style="flex-wrap:wrap;gap:8px">
+    <span class="panel-title">Batches</span>
+    <span class="muted" style="font-size:13px">Dispensing always takes from the batch that expires first.</span>
+  </div>
+  <% if (!batches.length) { %>
+    <p class="muted" style="margin:6px 2px 0">No stock has been received for this medicine yet.</p>
+  <% } else { %>
+    <div style="overflow-x:auto;padding-bottom:4px">
+      <table class="tbl">
+        <thead><tr><th>Received</th><th>Expiry</th><th>Usable</th><th>Status</th><th>Source / note</th><th></th></tr></thead>
+        <tbody>
+          <% batches.forEach(b => { %>
+            <%
+              const exp = dStr(b.expiry_date);
+              let st = ["ok", "In use"];
+              if (b.disposed_at) st = ["info", "Disposed"];
+              else if (b.expired_quantity > 0) st = ["bad", b.expired_quantity + " expired — dispose"];
+              else if (!b.quantity_remaining) st = ["info", "Used up"];
+              else if (!exp) st = ["warn", "Expiry not recorded"];
+              else if (exp <= soon) st = ["warn", "Expires soon"];
+            %>
+            <tr>
+              <td style="white-space:nowrap"><%= fmtD(dStr(b.received_at)) %></td>
+              <td style="white-space:nowrap"><%= exp ? fmtD(exp) : "—" %></td>
+              <td><b><%= b.quantity_remaining %></b> <span class="muted">/ <%= b.quantity_received %></span></td>
+              <td><span class="badge <%= st[0] %>"><%= st[1] %></span></td>
+              <td class="muted" style="font-size:13px"><%= b.source || (b.note ? b.note.slice(0, 48) : "—") %></td>
+              <td style="text-align:right">
+                <% if (!b.disposed_at) { %>
+                  <details class="batch-actions">
+                    <summary class="mini-btn">Manage</summary>
+                    <div class="batch-menu">
+                      <% if (!exp) { %>
+                        <form method="POST" action="/inventory/batches/<%= b.batch_id %>/expiry"><%- include("../partials/csrf") %>
+                          <label class="field"><span>Expiry on the box</span><input type="date" name="expiry_date" required /></label>
+                          <button type="submit" class="mini-btn">Save expiry</button>
+                        </form>
+                      <% } %>
+                      <% if (b.quantity_remaining > 0 || !b.expired_quantity) { %>
+                        <form method="POST" action="/inventory/batches/<%= b.batch_id %>/correct"><%- include("../partials/csrf") %>
+                          <label class="field"><span>Counted on the shelf</span><input type="number" name="counted" min="0" step="1" value="<%= b.quantity_remaining %>" required /></label>
+                          <label class="field"><span>Why it changed</span><input type="text" name="reason" maxlength="120" placeholder="e.g. physical count, broken bottle" required /></label>
+                          <button type="submit" class="mini-btn">Correct count</button>
+                        </form>
+                      <% } %>
+                      <%
+                        const parts = [];
+                        if (b.expired_quantity) parts.push(b.expired_quantity + " expired");
+                        if (b.quantity_remaining) parts.push(b.quantity_remaining + " still-usable");
+                      %>
+                      <form method="POST" action="/inventory/batches/<%= b.batch_id %>/dispose"
+                            data-confirm-title="Dispose of this batch?"
+                            data-confirm="<%= parts.join(" and ") %> unit(s) are recorded as leaving the shelf. | This cannot be undone."
+                            data-confirm-yes="Yes, record disposal" data-confirm-no="Cancel"><%- include("../partials/csrf") %>
+                        <label class="field"><span>Note <span class="muted">(optional)</span></span><input type="text" name="note" maxlength="120" placeholder="e.g. returned to the city health office" /></label>
+                        <button type="submit" class="logout-btn">Dispose</button>
+                      </form>
+                    </div>
+                  </details>
+                <% } else { %>
+                  <span class="muted" style="font-size:12.5px"><%= b.disposed_by_name ? "by " + b.disposed_by_name : "" %></span>
+                <% } %>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+
+  <% if (!m.archived_at) { %>
+    <details class="restock-box" <%= batches.length ? "" : "open" %>>
+      <summary>+ Restock (new delivery)</summary>
+      <form method="POST" action="/inventory/<%= m.medicine_id %>/restock" class="form-grid" style="margin-top:12px"><%- include("../partials/csrf") %>
+        <label class="field"><span>Quantity received *</span><input type="number" name="quantity" min="1" step="1" required /></label>
+        <label class="field"><span>Expiry date *</span><input type="date" name="expiry_date" required min="<%= today %>" /></label>
+        <label class="field"><span>Source</span><input type="text" name="source" maxlength="150" placeholder="e.g. City Health Office" /></label>
+        <label class="field"><span>Note</span><input type="text" name="note" maxlength="200" placeholder="optional" /></label>
+        <button type="submit" class="btn" style="align-self:flex-end">Add batch</button>
+      </form>
+    </details>
+  <% } %>
+</div>
+
 
 <div class="card">
   <div class="svc-head">
@@ -87,5 +190,38 @@
         <% }) %>
       </tbody>
     </table>
+  <% } %>
+</div>
+
+<%# The ledger the review asked for: every restock, dispense, expiry,
+    disposal, correction, archive and restore, with what it did to usable
+    stock and what stock was right after. Exportable from Reports. %>
+<div class="card">
+  <div class="svc-head">
+    <span class="panel-title">Stock history</span>
+    <a class="mini-btn" href="/reports/stock-movements?medicine_id=<%= m.medicine_id %>">Full history &amp; export</a>
+  </div>
+  <% if (!movements.length) { %>
+    <p class="muted" style="margin:6px 2px 0">No stock movements yet.</p>
+  <% } else { %>
+    <% const kindLabel = { opening: ["info", "Opening"], restock: ["ok", "Restock"], dispense: ["info", "Dispensed"], expire: ["bad", "Expired"], dispose: ["warn", "Disposed"], adjust: ["warn", "Correction"], archive: ["info", "Archived"], restore: ["info", "Restored"] }; %>
+    <div class="scroll-box" style="max-height:380px">
+      <table class="tbl">
+        <thead><tr><th>When</th><th>What</th><th>Change</th><th>Stock after</th><th>By</th><th>Note</th></tr></thead>
+        <tbody>
+          <% movements.forEach(mv => { %>
+            <% const kl = kindLabel[mv.kind] || ["info", mv.kind]; %>
+            <tr>
+              <td class="mono" style="font-size:12.5px;white-space:nowrap"><%= fmt(mv.at) %></td>
+              <td><span class="badge <%= kl[0] %>"><%= kl[1] %></span></td>
+              <td class="mono" style="<%= mv.stock_delta < 0 ? 'color:var(--bad-ink)' : mv.stock_delta > 0 ? 'color:var(--ok-ink)' : '' %>"><%= mv.stock_delta > 0 ? "+" : "" %><%= mv.stock_delta %></td>
+              <td class="mono"><%= mv.stock_after %></td>
+              <td style="font-size:13px"><%= mv.by_name || "—" %></td>
+              <td class="muted" style="font-size:12.5px"><%= mv.note || "" %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
   <% } %>
 </div>

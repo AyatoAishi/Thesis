@@ -53,12 +53,26 @@
       <label class="field" style="grid-column:1/-1"><span>Description</span>
         <input type="text" name="description" value="<%= m.description || '' %>" />
       </label>
-      <label class="field"><span>Stock quantity *</span>
-        <input type="number" name="stock_quantity" min="0" step="1" value="<%= m.stock_quantity ?? 0 %>" required />
-        <% if (isEdit) { %>
-          <span class="muted" style="font-size:11.5px">This overwrites the running count. Dispensing already subtracts stock on its own — only correct this after a physical count or a delivery.</span>
-        <% } %>
-      </label>
+      <%# Stock is typed here once, when the medicine is first added — and it
+          arrives as the medicine's first batch, with its own expiry. After
+          that it only moves through the medicine's page: Restock for a
+          delivery, Correct count after a physical count, Dispose for expired
+          or damaged boxes. Each of those writes a line in the stock ledger;
+          a number typed over the total here would not. %>
+      <% if (!isEdit) { %>
+        <label class="field"><span>Opening stock *</span>
+          <input type="number" name="stock_quantity" min="0" step="1" value="<%= m.stock_quantity ?? 0 %>" required />
+        </label>
+        <label class="field"><span>Expiry date <span class="muted">(of this stock)</span></span>
+          <input type="date" name="expiry_date" value="<%= m.expiry_date || '' %>" />
+          <span class="muted" style="font-size:12.5px">From the box. Later deliveries get their own date.</span>
+        </label>
+      <% } else { %>
+        <div class="field"><span>Stock</span>
+          <div style="font-size:15px;padding:8px 0"><b><%= m.stock_quantity %></b> <%= m.unit || "" %> usable</div>
+          <span class="muted" style="font-size:12.5px">Changed from the medicine's page — Restock, Correct count, or Dispose — so every change is recorded.</span>
+        </div>
+      <% } %>
       <label class="field"><span>Low-stock threshold *</span>
         <input type="number" name="low_stock_threshold" min="0" step="1" value="<%= m.low_stock_threshold ?? 10 %>" required />
         <span class="muted" style="font-size:11.5px">Flagged “Low” on the list once stock drops below this.</span>

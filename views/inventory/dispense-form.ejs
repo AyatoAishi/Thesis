@@ -14,7 +14,7 @@
   // one empty row, or one row pre-filled when arriving from a medicine's page.
   const rows = (typeof lines !== "undefined" && lines && lines.length)
     ? lines
-    : [{ medicine_id: medicine ? medicine.medicine_id : (dispense.medicine_id || ""), quantity: dispense.quantity || "" }];
+    : [{ medicine_id: medicine ? medicine.medicine_id : (dispense.medicine_id || ""), quantity: dispense.quantity || "", instructions: "" }];
 %>
 <div class="page-head">
   <h1>Dispense medicine</h1>
@@ -81,6 +81,14 @@
               <input type="number" name="line_quantity" min="1" step="1"
                      value="<%= ln.quantity || "" %>" required />
             </label>
+            <%# "Mag add tayo ng space don para matype ng staff/nurse kung gano
+                kadalas ittake ung meds pero make it optional nalang." One per
+                medicine, because two medicines from one visit are rarely taken
+                the same way. It shows on the patient's own portal. %>
+            <label class="field dispense-how"><span<%= i ? ' class="sr-only"' : "" %>>How often <span class="muted">(optional)</span></span>
+              <input type="text" name="line_instructions" maxlength="160"
+                     value="<%= ln.instructions || "" %>" placeholder="e.g. 1 tablet, 3x a day after meals" />
+            </label>
             <%# Hidden on the first row: removing the only line would leave a
                 form that cannot be submitted, and a button that sometimes does
                 nothing is worse than one that is not there. %>
@@ -99,9 +107,9 @@
     <div class="form-grid">
       <label class="field" style="grid-column:1/-1"><span>Notes <span class="muted">(optional)</span></span>
         <input type="text" name="notes" value="<%= dispense.notes || '' %>" maxlength="255"
-               placeholder="e.g. for fever, 3x a day after meals" />
+               placeholder="e.g. for fever — follow up in one week" />
         <span class="muted" style="font-size:11.5px;font-weight:500">
-          Isinusulat sa lahat ng gamot sa listahan.
+          For the whole visit. How often to take each medicine goes on its own line above.
         </span>
       </label>
     </div>

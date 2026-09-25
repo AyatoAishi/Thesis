@@ -242,7 +242,9 @@ app.use(async (req, res, next) => {
       `SELECT
          (SELECT count(*)::int FROM appointments WHERE appointment_date=$1) AS today_appts,
          (SELECT count(*)::int FROM appointments WHERE appointment_date=$1 AND status='scheduled') AS today_waiting,
-         (SELECT count(*)::int FROM medicines WHERE stock_quantity < low_stock_threshold) AS low_stock,
+         (SELECT count(*)::int FROM medicines WHERE archived_at IS NULL AND stock_quantity < low_stock_threshold) AS low_stock,
+         (SELECT count(DISTINCT b.medicine_id)::int FROM medicine_batches b JOIN medicines m ON m.medicine_id = b.medicine_id
+           WHERE b.disposed_at IS NULL AND b.expired_quantity > 0) AS expired_meds,
          ${imm.overdueChildrenSql({ names: "$3", doses: "$4", weeks: "$5", today: "$1", maxAge: "$6" })} AS imm_overdue,
          (SELECT role   FROM users WHERE user_id=$2) AS live_role,
          (SELECT status FROM users WHERE user_id=$2) AS live_status,
@@ -282,6 +284,12 @@ app.use(async (req, res, next) => {
         roles: ["nurse", "facilitator", "recorder", "admin"] },
       { key: "low_stock", n: c.low_stock, href: "/inventory?low=1",
         label: `${c.low_stock} medicine${c.low_stock === 1 ? "" : "s"} low on stock`,
+        roles: ["nurse", "admin"] },
+      // Expired boxes still on the shelf. They are already out of usable stock
+      // (lib/stock.js), so this is about the physical box: somebody has to
+      // take it off the shelf and record it, or it gets handed out by hand.
+      { key: "expired", n: c.expired_meds, href: "/inventory?expired=1",
+        label: `${c.expired_meds} medicine${c.expired_meds === 1 ? " has" : "s have"} expired stock to dispose of`,
         roles: ["nurse", "admin"] },
     ];
     res.locals.alerts = all.filter((a) => a.n > 0 && a.roles.includes(role));

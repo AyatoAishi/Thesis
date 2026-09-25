@@ -3,7 +3,11 @@
     <h1>Inventory</h1>
     <div class="sub"><%= medicines.length %> shown<%= q ? ` matching “${q}”` : "" %><%= lowOnly ? " · low stock only" : "" %></div>
   </div>
-  <a class="btn" href="/inventory/new">+ Add medicine</a>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <%# "Printable or exportable copy of inventory." %>
+    <a class="mini-btn" href="/reports/inventory">Report &amp; export</a>
+    <a class="btn" href="/inventory/new">+ Add medicine</a>
+  </div>
 </div>
 
 <% if (flash) { %>
@@ -16,6 +20,9 @@
     <a href="/inventory?low=1" style="text-decoration:none">
       <span class="sum-pill <%= lowCount ? 'bad' : '' %>"><b><%= lowCount %></b> low stock</span>
     </a>
+    <a href="/inventory?expired=1" style="text-decoration:none">
+      <span class="sum-pill <%= medicines.some(m => m.expired_waiting) || expiredOnly ? 'bad' : '' %>">expired to dispose of</span>
+    </a>
     <%# Only shown once something is actually in there. A permanent "0 archived"
         pill is a control that does nothing 99% of the time and teaches the eye
         to skip that row. %>
@@ -24,7 +31,7 @@
         <span class="sum-pill"><b><%= archivedCount %></b> archived</span>
       </a>
     <% } %>
-    <% if (lowOnly || archivedOnly) { %><a class="mini-btn" href="/inventory">Clear filter</a><% } %>
+    <% if (lowOnly || archivedOnly || expiredOnly) { %><a class="mini-btn" href="/inventory">Clear filter</a><% } %>
   </div>
 
   <% if (archivedOnly) { %>
@@ -46,12 +53,12 @@
 
   <% if (!medicines.length) { %>
     <p class="muted" style="padding:8px 2px">
-      <% if (q || lowOnly) { %>No medicines match this filter.<% } else { %>No medicines yet. Click <b>Add medicine</b> to create the first one.<% } %>
+      <% if (q || lowOnly || expiredOnly) { %>No medicines match this filter.<% } else { %>No medicines yet. Click <b>Add medicine</b> to create the first one.<% } %>
     </p>
   <% } else { %>
     <table class="tbl">
       <thead>
-        <tr><th>Name</th><th>Unit</th><th>Stock</th><th>Source</th><th></th></tr>
+        <tr><th>Name</th><th>Unit</th><th>Usable stock</th><th>Next expiry</th><th>Source</th><th></th></tr>
       </thead>
       <tbody>
         <% medicines.forEach(m => { %>
@@ -67,6 +74,14 @@
               <span style="<%= low ? 'color:var(--bad-ink);font-weight:700' : '' %>"><%= m.stock_quantity %></span>
               <span class="muted" style="font-size:11px"> / <%= m.low_stock_threshold %> min</span>
               <% if (low) { %><span class="badge bad" style="margin-left:6px">Low</span><% } %>
+              <% if (m.expired_waiting) { %><span class="badge bad" style="margin-left:6px" title="Expired units still on the shelf"><%= m.expired_waiting %> expired</span><% } %>
+            </td>
+            <%
+              const ne = m.next_expiry ? (m.next_expiry instanceof Date ? m.next_expiry.toLocaleDateString("en-CA", { timeZone: "Asia/Manila" }) : String(m.next_expiry).slice(0, 10)) : null;
+              const soon = ne && (() => { const t = new Date(today + "T00:00:00Z"); t.setUTCDate(t.getUTCDate() + 30); return ne <= t.toISOString().slice(0, 10); })();
+            %>
+            <td style="white-space:nowrap;<%= soon ? 'color:var(--warn-ink);font-weight:700' : '' %>">
+              <%= ne ? new Date(ne + "T00:00:00+08:00").toLocaleDateString("en-PH", { timeZone: "Asia/Manila", year: "numeric", month: "short", day: "numeric" }) : (m.stock_quantity ? "not recorded" : "—") %>
             </td>
             <td><%= m.source || "—" %></td>
             <td style="text-align:right"><a href="/inventory/<%= m.medicine_id %>/edit" class="muted">Edit</a></td>

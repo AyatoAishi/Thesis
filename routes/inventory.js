@@ -22,6 +22,8 @@
 const express = require("express");
 const db = require("../db");
 const audit = require("../lib/audit");
+const stock = require("../lib/stock");
+const F = require("../lib/format");
 const { UNITS, optionsFor, isKnown } = require("../lib/medicineUnits");
 const { splitDose, dosageNeedsUnit } = require("../lib/medicineName");
 
@@ -44,6 +46,9 @@ function readMedicineForm(body) {
     low_stock_threshold: toInt(body.low_stock_threshold, 10),
     source: (body.source || "").trim() || null,
     is_family_planning: body.is_family_planning === "on" || body.is_family_planning === "true",
+    // Only read when a medicine is first added: its opening stock is its first
+    // batch, and a batch carries its own expiry (lib/stock.js).
+    expiry_date: /^\d{4}-\d{2}-\d{2}$/.test(body.expiry_date || "") ? body.expiry_date : null,
   };
 }
 
@@ -98,6 +103,9 @@ function validateDispense(body, medicines) {
 
   const ids = asArray(body.line_medicine_id);
   const qtys = asArray(body.line_quantity);
+  // How often to take it — optional, one per line, because two medicines in
+  // one visit are rarely taken the same way.
+  const howOften = asArray(body.line_instructions);
   const byId = new Map((medicines || []).map((m) => [m.medicine_id, m]));
 
   const lines = [];
@@ -108,7 +116,7 @@ function validateDispense(body, medicines) {
     // A row left completely blank is somebody who pressed "add" and changed
     // their mind. Dropped quietly rather than turned into an error.
     if (!medicine_id && !quantity) return;
-    lines.push({ medicine_id, quantity });
+    lines.push({ medicine_id, quantity, instructions: String(howOften[i] || "").trim().slice(0, 160) || null });
 
     const where = ids.length > 1 ? ` (row ${lines.length})` : "";
     const med = byId.get(medicine_id);
@@ -160,7 +168,7 @@ async function rerenderDispenseForm(res, { body, medicine, errors }) {
   }
   if (!patient) {
     patients = (
-      await db.query("SELECT patient_id, patient_number, full_name FROM patients ORDER BY full_name LIMIT 500")
+      await db.query("SELECT patient_id, patient_number, full_name FROM patients WHERE deceased_at IS NULL ORDER BY full_name LIMIT 500")
     ).rows;
   }
   // The medicine list is always needed now: every line is its own dropdown, so
@@ -176,7 +184,8 @@ async function rerenderDispenseForm(res, { body, medicine, errors }) {
   // makes people stop using a form and go back to paper.
   const ids = asArray(body.line_medicine_id);
   const qtys = asArray(body.line_quantity);
-  const lines = ids.map((id, i) => ({ medicine_id: id, quantity: qtys[i] }));
+  const how = asArray(body.line_instructions);
+  const lines = ids.map((id, i) => ({ medicine_id: id, quantity: qtys[i], instructions: how[i] || "" }));
 
   return res.status(400).render("inventory/dispense-form", {
     title: "Dispense medicine · Sampaguita HC",
@@ -194,8 +203,10 @@ async function rerenderDispenseForm(res, { body, medicine, errors }) {
 // ---- LIST  GET /inventory  (search + low-stock filter + summary pills) ----
 router.get("/inventory", async (req, res, next) => {
   try {
+    await stock.expireDue();
     const q = (req.query.q || "").trim();
     const lowOnly = req.query.low === "1";
+    const expiredOnly = req.query.expired === "1";
     // Archived medicines are off the shelf, so they are off the list — but
     // reachable, because the only reason to archive by accident is that the
     // undo was hidden.
@@ -207,12 +218,17 @@ router.get("/inventory", async (req, res, next) => {
       conds.push(`name ILIKE $${params.length}`);
     }
     if (lowOnly) conds.push("stock_quantity < low_stock_threshold");
+    if (expiredOnly) conds.push("EXISTS (SELECT 1 FROM medicine_batches b WHERE b.medicine_id = medicines.medicine_id AND b.disposed_at IS NULL AND b.expired_quantity > 0)");
     const where = `WHERE ${conds.join(" AND ")}`;
 
     const [{ rows }, totalQ, lowQ, archivedQ] = await Promise.all([
       db.query(
         `SELECT medicine_id, name, description, unit, dosage, stock_quantity, low_stock_threshold,
-                source, is_family_planning
+                source, is_family_planning,
+                (SELECT min(b.expiry_date) FROM medicine_batches b
+                  WHERE b.medicine_id = medicines.medicine_id AND b.quantity_remaining > 0) AS next_expiry,
+                (SELECT coalesce(sum(b.expired_quantity), 0)::int FROM medicine_batches b
+                  WHERE b.medicine_id = medicines.medicine_id AND b.disposed_at IS NULL) AS expired_waiting
            FROM medicines ${where}
           ORDER BY name LIMIT 500`,
         params
@@ -228,7 +244,9 @@ router.get("/inventory", async (req, res, next) => {
       medicines: rows,
       q,
       lowOnly,
+      expiredOnly,
       archivedOnly,
+      today: F.manilaToday(),
       total: totalQ.rows[0].n,
       lowCount: lowQ.rows[0].n,
       archivedCount: archivedQ.rows[0].n,
@@ -299,13 +317,40 @@ router.post("/inventory", async (req, res, next) => {
         dupId: dup.medicine_id,
       });
     }
-    const { rows } = await db.query(
-      `INSERT INTO medicines
-         (name, description, unit, dosage, stock_quantity, low_stock_threshold, source, is_family_planning)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-       RETURNING medicine_id`,
-      [m.name, m.description, m.unit, m.dosage, m.stock_quantity, m.low_stock_threshold, m.source, m.is_family_planning]
-    );
+    if (m.stock_quantity > 0 && m.expiry_date && m.expiry_date < F.manilaToday()) {
+      return res.status(400).render("inventory/form", {
+        title: "Add medicine · Sampaguita HC", active: "inventory", mode: "new",
+        medicine: m, unitOptions: optionsFor(m.unit),
+        errors: ["That expiry date has already passed — expired stock cannot be added as usable stock."],
+      });
+    }
+    // The medicine starts at zero and its opening stock arrives as its first
+    // batch, through the same function every later delivery uses, so the
+    // invariant (stock == sum of batches) holds from the first second.
+    const client = await db.getClient();
+    let rows;
+    try {
+      await client.query("BEGIN");
+      ({ rows } = await client.query(
+        `INSERT INTO medicines
+           (name, description, unit, dosage, stock_quantity, low_stock_threshold, source, is_family_planning)
+         VALUES ($1,$2,$3,$4,0,$5,$6,$7)
+         RETURNING medicine_id`,
+        [m.name, m.description, m.unit, m.dosage, m.low_stock_threshold, m.source, m.is_family_planning]
+      ));
+      if (m.stock_quantity > 0) {
+        await stock.restock({
+          client, medicineId: rows[0].medicine_id, quantity: m.stock_quantity,
+          expiryDate: m.expiry_date, source: m.source, note: "Opening stock", userId: req.session.user.user_id,
+        });
+      }
+      await client.query("COMMIT");
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
     audit.log(
       req.session.user.user_id, "create", "medicine", rows[0].medicine_id,
       `${m.name} added with stock ${m.stock_quantity}`
@@ -357,7 +402,7 @@ router.get("/inventory/dispense/new", async (req, res, next) => {
     }
     if (!patient) {
       patients = (
-        await db.query("SELECT patient_id, patient_number, full_name FROM patients ORDER BY full_name LIMIT 500")
+        await db.query("SELECT patient_id, patient_number, full_name FROM patients WHERE deceased_at IS NULL ORDER BY full_name LIMIT 500")
       ).rows;
     }
 
@@ -396,6 +441,9 @@ router.get("/inventory/dispense/new", async (req, res, next) => {
 // ---- CREATE DISPENSE  POST /inventory/dispense -----------------------------
 router.post("/inventory/dispense", async (req, res, next) => {
   try {
+    // Anything that expired since the last check leaves usable stock first, so
+    // the totals checked below are the ones that can actually be handed over.
+    await stock.expireDue();
     const all = (await db.query("SELECT * FROM medicines WHERE archived_at IS NULL ORDER BY name")).rows;
     const { errors, value } = validateDispense(req.body, all);
     if (errors.length) return rerenderDispenseForm(res, { body: req.body, errors });
@@ -413,31 +461,34 @@ router.post("/inventory/dispense", async (req, res, next) => {
       // reach it.
       for (const line of value.lines) {
         const med = all.find((m) => m.medicine_id === line.medicine_id);
-        const upd = await client.query(
-          `UPDATE medicines SET stock_quantity = stock_quantity - $1, updated_at = now()
-            WHERE medicine_id = $2 AND stock_quantity >= $1`,
-          [line.quantity, line.medicine_id]
+        // One row per medicine, not one per basket: the dispense history, the
+        // consumption report and the patient's own portal all read this table
+        // per medicine, and none of them would survive a combined row.
+        const ins = await client.query(
+          `INSERT INTO medicine_dispenses
+             (patient_id, medicine_id, quantity, dispensed_by, notes, instructions)
+           VALUES ($1,$2,$3,$4,$5,$6) RETURNING dispense_id`,
+          [value.patient_id, line.medicine_id, line.quantity, req.session.user.user_id, value.notes, line.instructions]
         );
-        if (!upd.rowCount) {
+        // Taken from the batch that expires soonest (lib/stock.js). null means
+        // the usable batches could not cover it — somebody else dispensed the
+        // last of it while this form was open, or it expired — and the whole
+        // basket is rolled back, dispense rows included.
+        const taken = await stock.allocate(client, {
+          medicineId: line.medicine_id, quantity: line.quantity,
+          dispenseId: ins.rows[0].dispense_id, userId: req.session.user.user_id,
+        });
+        if (!taken) {
           await client.query("ROLLBACK");
           return rerenderDispenseForm(res, {
             body: req.body,
             errors: [
-              `${med ? med.name : "That medicine"} ran out while this form was open — ` +
-              "somebody else may have just dispensed some. Nothing was dispensed. " +
+              `${med ? med.name : "That medicine"} does not have ${line.quantity} usable ${med && med.unit ? med.unit : "unit"}(s) left — ` +
+              "somebody else may have just dispensed some, or part of it has expired. Nothing was dispensed. " +
               "Refresh to see the current stock and try again.",
             ],
           });
         }
-        // One row per medicine, not one per basket: the dispense history, the
-        // consumption report and the patient's own portal all read this table
-        // per medicine, and none of them would survive a combined row.
-        await client.query(
-          `INSERT INTO medicine_dispenses
-             (patient_id, medicine_id, quantity, dispensed_by, notes)
-           VALUES ($1,$2,$3,$4,$5)`,
-          [value.patient_id, line.medicine_id, line.quantity, req.session.user.user_id, value.notes]
-        );
       }
 
       await client.query("COMMIT");
@@ -460,8 +511,28 @@ router.post("/inventory/dispense", async (req, res, next) => {
 // ---- VIEW  GET /inventory/:id ----------------------------------------------
 router.get("/inventory/:id", async (req, res, next) => {
   try {
+    await stock.expireDue();
     const { rows } = await db.query("SELECT * FROM medicines WHERE medicine_id=$1", [req.params.id]);
     if (!rows[0]) return next();
+
+    const [batchQ, moveQ] = await Promise.all([
+      db.query(
+        `SELECT b.*, ru.full_name AS received_by_name, du.full_name AS disposed_by_name
+           FROM medicine_batches b
+           LEFT JOIN users ru ON ru.user_id = b.received_by
+           LEFT JOIN users du ON du.user_id = b.disposed_by
+          WHERE b.medicine_id = $1
+          ORDER BY (b.disposed_at IS NOT NULL), b.expiry_date NULLS LAST, b.received_at`,
+        [req.params.id]
+      ),
+      db.query(
+        `SELECT s.*, u.full_name AS by_name
+           FROM stock_movements s LEFT JOIN users u ON u.user_id = s.by_user
+          WHERE s.medicine_id = $1
+          ORDER BY s.at DESC, s.movement_id DESC LIMIT 60`,
+        [req.params.id]
+      ),
+    ]);
 
     const { rows: dispenses } = await db.query(
       `SELECT d.dispense_id, d.quantity, d.dispensed_at, d.notes,
@@ -480,6 +551,11 @@ router.get("/inventory/:id", async (req, res, next) => {
       title: `${rows[0].name} · Sampaguita HC`,
       active: "inventory",
       medicine: rows[0],
+      batches: batchQ.rows,
+      movements: moveQ.rows,
+      today: F.manilaToday(),
+      soonDays: stock.EXPIRING_SOON_DAYS,
+      err: req.query.err || null,
       dispenses,
       flash: req.query.flash || null,
     });
@@ -508,6 +584,7 @@ router.post("/inventory/:id/archive", async (req, res, next) => {
       [req.params.id]
     );
     if (!rows[0]) return next();
+    await stock.noteArchive({ medicineId: rows[0].medicine_id, restored: restore, userId: req.session.user.user_id });
 
     // Said out loud in the audit line, because stock that is still on the
     // shelf when the medicine leaves the list is how a count goes wrong
@@ -533,6 +610,89 @@ router.post("/inventory/:id/archive", async (req, res, next) => {
     next(e);
   }
 });
+
+// ---- STOCK ACTIONS -------------------------------------------------------------
+// Every one of these goes through lib/stock.js, which changes the batch and the
+// medicine's total together and writes the ledger line. The page they return
+// to shows the batch table they just changed.
+const intOf = (v) => (/^\d+$/.test(String(v || "").trim()) ? parseInt(v, 10) : NaN);
+const back = (res, id, msg, key = "flash") => res.redirect(`/inventory/${id}?${key}=${encodeURIComponent(msg)}`);
+
+router.post("/inventory/:id/restock", async (req, res, next) => {
+  const id = parseInt(req.params.id, 10);
+  try {
+    const { rows } = await db.query("SELECT medicine_id, name, unit, archived_at FROM medicines WHERE medicine_id=$1", [id]);
+    const m = rows[0];
+    if (!m) return next();
+    if (m.archived_at) return back(res, id, "This medicine is archived. Restore it before adding stock.", "err");
+    const qty = intOf(req.body.quantity);
+    const expiry = /^\d{4}-\d{2}-\d{2}$/.test(req.body.expiry_date || "") ? req.body.expiry_date : null;
+    if (!Number.isInteger(qty) || qty <= 0) return back(res, id, "Enter how many arrived — a whole number above zero.", "err");
+    if (expiry && expiry < F.manilaToday()) return back(res, id, "That expiry date has already passed. Expired stock cannot be added as usable stock.", "err");
+    await stock.restock({
+      medicineId: id, quantity: qty, expiryDate: expiry,
+      source: (req.body.source || "").trim().slice(0, 150) || null,
+      note: (req.body.note || "").trim().slice(0, 255) || null,
+      userId: req.session.user.user_id,
+    });
+    audit.log(req.session.user.user_id, "update", "medicine", id,
+      `${m.name}: restocked ${qty}${m.unit ? " " + m.unit : ""}${expiry ? `, expires ${expiry}` : ", no expiry recorded"}`);
+    back(res, id, `Added ${qty}${m.unit ? " " + m.unit : ""} as a new batch.`);
+  } catch (e) {
+    next(e);
+  }
+});
+
+async function batchAction(req, res, next, fn) {
+  const batchId = parseInt(req.params.batchId, 10);
+  const { rows } = await db.query(
+    "SELECT b.medicine_id, m.name FROM medicine_batches b JOIN medicines m ON m.medicine_id = b.medicine_id WHERE b.batch_id=$1",
+    [batchId]
+  );
+  if (!rows[0]) return next();
+  try {
+    const msg = await fn(batchId, rows[0]);
+    back(res, rows[0].medicine_id, msg);
+  } catch (e) {
+    // lib/stock.js throws plain sentences for things a person did wrong —
+    // recounting a disposed batch, disposing an empty one. Those go back to the
+    // page; anything else is a real fault.
+    if (e && typeof e.message === "string" && !e.code) return back(res, rows[0].medicine_id, e.message, "err");
+    next(e);
+  }
+}
+
+router.post("/inventory/batches/:batchId/correct", (req, res, next) =>
+  batchAction(req, res, next, async (batchId, m) => {
+    const counted = intOf(req.body.counted);
+    if (!Number.isInteger(counted)) throw new Error("Enter the number actually counted on the shelf.");
+    const r = await stock.correctBatch({ batchId, newRemaining: counted, reason: req.body.reason, userId: req.session.user.user_id });
+    audit.log(req.session.user.user_id, "update", "medicine", m.medicine_id,
+      `${m.name}: batch #${batchId} recounted (${r.delta >= 0 ? "+" : ""}${r.delta}) — ${String(req.body.reason || "").trim()}`);
+    return r.delta ? `Count corrected (${r.delta > 0 ? "+" : ""}${r.delta}).` : "The count already matched — nothing changed.";
+  })
+);
+
+router.post("/inventory/batches/:batchId/expiry", (req, res, next) =>
+  batchAction(req, res, next, async (batchId, m) => {
+    const d = req.body.expiry_date;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d || "")) throw new Error("Choose the expiry date printed on the box.");
+    await stock.setExpiry({ batchId, expiryDate: d, userId: req.session.user.user_id });
+    audit.log(req.session.user.user_id, "update", "medicine", m.medicine_id, `${m.name}: batch #${batchId} expiry set to ${d}`);
+    return d < F.manilaToday()
+      ? "Expiry saved. That date has passed, so the batch has been moved out of usable stock — dispose of it when it leaves the shelf."
+      : "Expiry saved.";
+  })
+);
+
+router.post("/inventory/batches/:batchId/dispose", (req, res, next) =>
+  batchAction(req, res, next, async (batchId, m) => {
+    const r = await stock.disposeBatch({ batchId, note: (req.body.note || "").trim(), userId: req.session.user.user_id });
+    audit.log(req.session.user.user_id, "update", "medicine", m.medicine_id,
+      `${m.name}: batch #${batchId} disposed (${r.expired} expired${r.usable ? `, ${r.usable} usable` : ""})`);
+    return `Disposal recorded — ${r.expired + r.usable} unit(s) off the shelf.`;
+  })
+);
 
 // ---- EDIT form  GET /inventory/:id/edit ------------------------------------
 router.get("/inventory/:id/edit", async (req, res, next) => {
@@ -600,11 +760,15 @@ router.post("/inventory/:id", async (req, res, next) => {
     const seenAt = Date.parse(req.body.seen_at || "");
     const guarded = Number.isFinite(seenAt);
     const { rowCount } = await db.query(
+      // stock_quantity is deliberately NOT written here any more. Stock only
+      // moves through lib/stock.js — a delivery, a dispense, a count
+      // correction, an expiry or a disposal — each with a line in the ledger.
+      // A number typed over the total would break stock == sum of batches.
       `UPDATE medicines SET
-         name=$1, description=$2, unit=$3, dosage=$4, stock_quantity=$5, low_stock_threshold=$6,
-         source=$7, is_family_planning=$8, updated_at=now()
-       WHERE medicine_id=$9 ${guarded ? "AND date_trunc('milliseconds', updated_at) = $10" : ""}`,
-      [m.name, m.description, m.unit, m.dosage, m.stock_quantity, m.low_stock_threshold,
+         name=$1, description=$2, unit=$3, dosage=$4, low_stock_threshold=$5,
+         source=$6, is_family_planning=$7, updated_at=now()
+       WHERE medicine_id=$8 ${guarded ? "AND date_trunc('milliseconds', updated_at) = $9" : ""}`,
+      [m.name, m.description, m.unit, m.dosage, m.low_stock_threshold,
        m.source, m.is_family_planning, req.params.id,
        ...(guarded ? [new Date(seenAt)] : [])]
     );
@@ -628,7 +792,7 @@ router.post("/inventory/:id", async (req, res, next) => {
 
     audit.log(
       req.session.user.user_id, "update", "medicine", req.params.id,
-      `${m.name} — stock set to ${m.stock_quantity}`
+      `${m.name} — details updated`
     );
     res.redirect(`/inventory/${req.params.id}`);
   } catch (e) {

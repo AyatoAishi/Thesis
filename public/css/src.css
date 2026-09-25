@@ -1348,7 +1348,8 @@ body {
 
 .dispense-line {
   display: grid;
-  grid-template-columns: 1fr 120px auto;
+  /* medicine | quantity | how often | remove */
+  grid-template-columns: minmax(0, 1.3fr) 110px minmax(0, 1fr) auto;
   gap: 10px;
   align-items: end;
   padding: 10px 0;
@@ -1371,8 +1372,9 @@ body {
 @media (max-width: 620px) {
   /* Stacked, with the remove button pushed to the right under its own row —
      three columns in 360px leaves the quantity box too narrow to read. */
-  .dispense-line { grid-template-columns: 1fr auto; }
+  .dispense-line { grid-template-columns: 110px 1fr; }
   .dispense-line .field:first-child { grid-column: 1 / -1; }
+  .dispense-line .dispense-drop { grid-column: 1 / -1; justify-self: end; }
 }
 
 /* Visually hidden but still read aloud. The repeated "Medicine" and "Quantity"
@@ -1707,3 +1709,23 @@ body { font-size: 15px; }
   box-shadow: 0 1px 0 var(--border);
 }
 .scroll-box .tbl td, .scroll-box .tbl th { padding-left: 12px; padding-right: 12px; }
+
+/* Batch actions sit behind "Manage" so the table stays a table; opening one
+   shows its small forms in a panel under the button. */
+.batch-actions { display: inline-block; text-align: left; position: relative; }
+.batch-actions > summary { list-style: none; cursor: pointer; }
+.batch-actions > summary::-webkit-details-marker { display: none; }
+.batch-menu {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 20;
+  width: 280px; padding: 12px;
+  background: var(--surface); border: 1px solid var(--border-strong); border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  display: grid; gap: 12px;
+}
+.batch-menu form { display: grid; gap: 8px; margin: 0; padding-bottom: 12px; border-bottom: 1px dashed var(--border); }
+.batch-menu form:last-child { border-bottom: 0; padding-bottom: 0; }
+.batch-menu .field { margin: 0; }
+.restock-box { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.restock-box > summary { cursor: pointer; font-weight: 700; color: var(--accent-strong); list-style: none; }
+.restock-box > summary::-webkit-details-marker { display: none; }
+@media (max-width: 640px) { .batch-menu { position: static; width: auto; margin-top: 8px; } }

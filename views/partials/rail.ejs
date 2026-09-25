@@ -36,7 +36,9 @@
     <span class="rail-label">Inventory</span>
   </a>
 
-  <% if (typeof user !== "undefined" && user && ['nurse','recorder','admin'].includes(user.role)) { %>
+  <%# Every clinic role since the medicine reports opened to all of them; the
+      /reports route sends each role to the first report it can open. %>
+  <% if (typeof user !== "undefined" && user) { %>
   <a class="rail-item <%= a === 'reports' ? 'active' : '' %>" href="/reports" title="Reports" aria-label="Reports">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l3-4 3 3 5-6"/></svg>
     <span class="rail-label">Reports</span>

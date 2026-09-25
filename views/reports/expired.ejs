@@ -1,0 +1,55 @@
+<div class="page-head" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+  <div>
+    <h1>Reports</h1>
+    <div class="sub">Expired medicines</div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <a class="mini-btn" href="/reports/expired?<%= period ? "period=" + period : "from=" + from + "&to=" + to %>&format=csv">Export CSV (Excel)</a>
+    <button type="button" class="mini-btn" onclick="window.print()">Print</button>
+  </div>
+</div>
+
+<div class="card">
+  <%- include("../partials/reports-tabbar", { active: "expired", from, to, period }) %>
+
+  <%# The answer to "when will the expired medicines be removed": from usable
+      stock, automatically the day after the date on the box; from the
+      shelf, when somebody records the disposal. What is listed as "awaiting
+      disposal" is physically still in the clinic. %>
+  <% if (waitingCount) { %>
+    <div class="page-alert bad" style="margin-top:8px">
+      <span>
+        <b><%= waitingUnits %> expired unit<%= waitingUnits === 1 ? "" : "s" %> in <%= waitingCount %> batch<%= waitingCount === 1 ? "" : "es" %> still on the shelf.</b>
+        They are already out of usable stock and cannot be dispensed. Open each medicine and press
+        <b>Manage → Dispose</b> once they have been removed.
+      </span>
+    </div>
+  <% } else { %>
+    <p class="muted" style="margin:8px 2px 14px">Nothing expired is waiting to be disposed of.</p>
+  <% } %>
+
+  <div class="panel-title" style="margin:10px 0 6px">Disposed batches, by expiry date</div>
+  <%- include("../partials/reports-filter", { action: "/reports/expired", from, to, period }) %>
+
+  <% if (!items.length) { %>
+    <p class="muted" style="padding:8px 2px">No expired batches in this range.</p>
+  <% } else { %>
+    <div style="overflow-x:auto">
+      <table class="tbl">
+        <thead><tr><th>Medicine</th><th>Expiry date</th><th>Units expired</th><th>Status</th><th>Disposed</th><th>Note</th></tr></thead>
+        <tbody>
+          <% items.forEach(i => { %>
+            <tr>
+              <td><a href="/inventory/<%= i.medicine_id %>"><%= i.name %></a><% if (i.dosage) { %> <span class="muted"><%= i.dosage %></span><% } %><% if (i.archived_at) { %> <span class="badge info">archived</span><% } %></td>
+              <td style="white-space:nowrap"><%= i.expiry ? longDate(i.expiry) : "—" %></td>
+              <td><b><%= i.expired_quantity %></b> <%= i.unit || "" %></td>
+              <td><% if (i.disposed_at) { %><span class="badge info">Disposed</span><% } else { %><span class="badge bad">Awaiting disposal</span><% } %></td>
+              <td style="font-size:13px"><%= i.disposed ? longDate(i.disposed) : "—" %><%= i.disposed_by_name ? " · " + i.disposed_by_name : "" %></td>
+              <td class="muted" style="font-size:13px"><%= i.disposed_note || "" %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>

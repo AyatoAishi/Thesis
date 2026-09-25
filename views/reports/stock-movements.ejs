@@ -1,0 +1,68 @@
+<%
+  const qs = (period ? "period=" + period : "from=" + from + "&to=" + to) +
+             (medicineId ? "&medicine_id=" + medicineId : "") + (kind ? "&kind=" + kind : "");
+  const badge = { opening: "info", restock: "ok", dispense: "info", expire: "bad", dispose: "warn", adjust: "warn", archive: "info", restore: "info" };
+%>
+<div class="page-head" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+  <div>
+    <h1>Reports</h1>
+    <div class="sub">Stock history — every restock, dispense, expiry, disposal and correction</div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <a class="mini-btn" href="/reports/stock-movements?<%= qs %>&format=csv">Export CSV (Excel)</a>
+    <button type="button" class="mini-btn" onclick="window.print()">Print</button>
+  </div>
+</div>
+
+<div class="card">
+  <%- include("../partials/reports-tabbar", { active: "stock-movements", from, to, period }) %>
+
+  <%- include("../partials/reports-filter", {
+        action: "/reports/stock-movements", from, to, period,
+        extra: (medicineId ? "&medicine_id=" + medicineId : "") + (kind ? "&kind=" + kind : "") }) %>
+
+  <form method="GET" action="/reports/stock-movements" class="form-grid" style="align-items:flex-end;margin-bottom:14px">
+    <% if (period) { %><input type="hidden" name="period" value="<%= period %>" /><% } else { %>
+      <input type="hidden" name="from" value="<%= from %>" /><input type="hidden" name="to" value="<%= to %>" /><% } %>
+    <label class="field"><span>Medicine</span>
+      <select name="medicine_id" onchange="this.form.submit()">
+        <option value="">All medicines</option>
+        <% medicines.forEach(m => { %>
+          <option value="<%= m.medicine_id %>" <%= medicineId === m.medicine_id ? "selected" : "" %>><%= m.name %><%= m.dosage ? " " + m.dosage : "" %></option>
+        <% }) %>
+      </select>
+    </label>
+    <label class="field"><span>Movement</span>
+      <select name="kind" onchange="this.form.submit()">
+        <option value="">All movements</option>
+        <% Object.keys(kinds).forEach(k => { %>
+          <option value="<%= k %>" <%= kind === k ? "selected" : "" %>><%= kinds[k] %></option>
+        <% }) %>
+      </select>
+    </label>
+  </form>
+
+  <% if (!moves.length) { %>
+    <p class="muted" style="padding:8px 2px">No stock movements match.</p>
+  <% } else { %>
+    <p class="muted" style="font-size:13px;margin:0 2px 8px"><%= moves.length %> movement<%= moves.length === 1 ? "" : "s" %><%= moves.length >= 2000 ? " (the latest 2,000 — narrow the range to see more)" : "" %>.</p>
+    <div class="scroll-box" style="max-height:560px">
+      <table class="tbl">
+        <thead><tr><th>When</th><th>Medicine</th><th>Movement</th><th>Change</th><th>Stock after</th><th>By</th><th>Note</th></tr></thead>
+        <tbody>
+          <% moves.forEach(mv => { %>
+            <tr>
+              <td class="mono" style="font-size:12.5px;white-space:nowrap"><%= new Date(mv.at).toLocaleString("en-PH", { timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) %></td>
+              <td><a href="/inventory/<%= mv.medicine_id %>"><%= mv.name %></a><% if (mv.dosage) { %> <span class="muted"><%= mv.dosage %></span><% } %></td>
+              <td><span class="badge <%= badge[mv.kind] || "info" %>"><%= kinds[mv.kind] || mv.kind %></span></td>
+              <td class="mono" style="<%= mv.stock_delta < 0 ? 'color:var(--bad-ink)' : mv.stock_delta > 0 ? 'color:var(--ok-ink)' : '' %>"><%= mv.stock_delta > 0 ? "+" : "" %><%= mv.stock_delta %></td>
+              <td class="mono"><%= mv.stock_after %></td>
+              <td style="font-size:13px"><%= mv.by_name || "—" %></td>
+              <td class="muted" style="font-size:12.5px"><%= mv.note || "" %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>

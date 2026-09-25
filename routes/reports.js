@@ -22,6 +22,13 @@ const { requireRole } = require("../middleware/auth");
 
 const router = express.Router();
 const REPORT_ROLES = ["nurse", "recorder", "admin"];
+// "Inventory reports should be available for all clinic side accounts." — the
+// professors' review. The medicine reports (inventory, expired, stock history,
+// consumption) open to every clinic role; the patient reports keep the
+// narrower list, because they are about people rather than shelves.
+const INVENTORY_ROLES = ["nurse", "facilitator", "recorder", "admin"];
+const stock = require("../lib/stock");
+const { sendCsv } = require("../lib/csv");
 
 // Shape AND calendar validity (rejects e.g. "2020-02-31" — that only reaches
 // here via a hand-edited URL, since a native <input type="date"> can't submit
@@ -99,7 +106,13 @@ async function loadServices() {
 }
 
 // ---- landing  GET /reports  -> first tab -----------------------------------
-router.get("/reports", (req, res) => res.redirect("/reports/attendance"));
+// Where "Reports" lands depends on who is asking: a facilitator can open the
+// medicine reports but not the patient ones, and landing them on a 403 would
+// read as the whole Reports section being broken.
+router.get("/reports", (req, res) => {
+  const role = req.session.user && req.session.user.role;
+  res.redirect(REPORT_ROLES.includes(role) ? "/reports/attendance" : "/reports/inventory");
+});
 
 // ---- ATTENDANCE SUMMARY  GET /reports/attendance ---------------------------
 router.get("/reports/attendance", requireRole(...REPORT_ROLES), async (req, res, next) => {
@@ -366,14 +379,42 @@ router.get("/reports/trend", requireRole(...REPORT_ROLES), async (req, res, next
 });
 
 // ---- INVENTORY REPORT  GET /reports/inventory ------------------------------
-router.get("/reports/inventory", requireRole(...REPORT_ROLES), async (req, res, next) => {
+// "Printable or exportable copy of inventory" and "Inventory reports should be
+// available for all clinic side accounts" — the professors' review. Every
+// clinic role can open this now, facilitators included. ?format=csv exports
+// the current inventory; ?format=pdf keeps the older dispensing summary.
+router.get("/reports/inventory", requireRole(...INVENTORY_ROLES), async (req, res, next) => {
   try {
+    await stock.expireDue();
     const { from, to, period } = dateRange(req.query);
-    const [lowQ, dispensedQ] = await Promise.all([
+    const today = F.manilaToday();
+    const soon = F.addDays(today, stock.EXPIRING_SOON_DAYS);
+    const [currentQ, lowQ, dispensedQ] = await Promise.all([
+      // The whole active inventory, one row per medicine, with the expiry
+      // facts summed from its batches. Archived medicines are off the shelf and
+      // off this list ("archived medicines dapat hindi na nasasama sa count").
+      db.query(
+        `SELECT m.medicine_id, m.name, m.dosage, m.unit, m.stock_quantity, m.low_stock_threshold,
+                m.source, m.is_family_planning,
+                (SELECT min(b.expiry_date) FROM medicine_batches b
+                  WHERE b.medicine_id = m.medicine_id AND b.quantity_remaining > 0) AS next_expiry,
+                (SELECT coalesce(sum(b.quantity_remaining), 0)::int FROM medicine_batches b
+                  WHERE b.medicine_id = m.medicine_id AND b.quantity_remaining > 0
+                    AND b.expiry_date IS NOT NULL AND b.expiry_date <= $1::date) AS expiring_soon,
+                (SELECT coalesce(sum(b.expired_quantity), 0)::int FROM medicine_batches b
+                  WHERE b.medicine_id = m.medicine_id AND b.disposed_at IS NULL) AS expired_waiting,
+                (SELECT coalesce(sum(b.quantity_remaining), 0)::int FROM medicine_batches b
+                  WHERE b.medicine_id = m.medicine_id AND b.quantity_remaining > 0
+                    AND b.expiry_date IS NULL) AS no_expiry
+           FROM medicines m
+          WHERE m.archived_at IS NULL
+          ORDER BY lower(m.name), m.dosage`,
+        [soon]
+      ),
       db.query(
         `SELECT medicine_id, name, unit, stock_quantity, low_stock_threshold
            FROM medicines
-          WHERE stock_quantity < low_stock_threshold
+          WHERE archived_at IS NULL AND stock_quantity < low_stock_threshold
           ORDER BY name`
       ),
       db.query(
@@ -381,19 +422,40 @@ router.get("/reports/inventory", requireRole(...REPORT_ROLES), async (req, res, 
                 count(*)::int AS dispense_count,
                 sum(d.quantity)::int AS total_qty
            FROM medicine_dispenses d JOIN medicines m ON m.medicine_id = d.medicine_id
-          WHERE d.dispensed_at::date BETWEEN $1 AND $2
+          WHERE (d.dispensed_at AT TIME ZONE 'Asia/Manila')::date BETWEEN $1 AND $2
           GROUP BY m.medicine_id, m.name, m.unit
           ORDER BY total_qty DESC`,
         [from, to]
       ),
     ]);
+    const current = currentQ.rows.map((m) => ({
+      ...m,
+      next_expiry: m.next_expiry ? manilaDateStr(m.next_expiry) : null,
+      status: m.stock_quantity < m.low_stock_threshold ? "Low" : "OK",
+    }));
+
+    if (req.query.format === "csv") {
+      return sendCsv(res, `inventory-${today}.csv`,
+        ["Medicine", "Dosage", "Unit", "Usable stock", "Low-stock threshold", "Status", "Next expiry",
+         `Expiring within ${stock.EXPIRING_SOON_DAYS} days`, "Expired, awaiting disposal", "Stock with no expiry recorded",
+         "Family planning", "Source"],
+        current.map((m) => [m.name, m.dosage || "", m.unit || "", m.stock_quantity, m.low_stock_threshold, m.status,
+          m.next_expiry || "", m.expiring_soon, m.expired_waiting, m.no_expiry, m.is_family_planning ? "Yes" : "", m.source || ""]));
+    }
 
     if (req.query.format === "pdf") {
       return sendReportPdf(res, `inventory-${from}_to_${to}.pdf`, {
         title: "Inventory report",
-        subtitle: `Dispensing activity ${F.longDate(from)} – ${F.longDate(to)}`,
+        subtitle: `As of ${F.longDate(today)} · dispensing ${F.longDate(from)} – ${F.longDate(to)}`,
         generatedBy: req.session.user.full_name,
         sections: [
+          {
+            title: "Current inventory",
+            headers: ["Medicine", "Usable", "Next expiry", "Expired"],
+            rows: current.map((m) => [`${m.name}${m.dosage ? " " + m.dosage : ""}`, `${m.stock_quantity} ${m.unit || ""}`.trim(),
+              m.next_expiry ? F.longDate(m.next_expiry) : "—", m.expired_waiting || "—"]),
+            widths: [200, 100, 120, 75],
+          },
           {
             title: "Low stock",
             headers: ["Medicine", "Unit", "Stock", "Threshold"],
@@ -402,9 +464,9 @@ router.get("/reports/inventory", requireRole(...REPORT_ROLES), async (req, res, 
           },
           {
             title: "Dispensed in range",
-            headers: ["Medicine", "Dispenses", "Total qty", "Pending approval"],
-            rows: dispensedQ.rows.map((m) => [m.name, m.dispense_count, `${m.total_qty} ${m.unit || ""}`.trim(), m.pending_count]),
-            widths: [200, 90, 110, 95],
+            headers: ["Medicine", "Dispenses", "Total qty"],
+            rows: dispensedQ.rows.map((m) => [m.name, m.dispense_count, `${m.total_qty} ${m.unit || ""}`.trim()]),
+            widths: [240, 120, 135],
           },
         ],
       });
@@ -416,8 +478,117 @@ router.get("/reports/inventory", requireRole(...REPORT_ROLES), async (req, res, 
       from,
       to,
       period,
+      today,
+      soonDays: stock.EXPIRING_SOON_DAYS,
+      current,
       lowStock: lowQ.rows,
       dispensed: dispensedQ.rows,
+      longDate: F.longDate,
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ---- EXPIRED MEDICINES  GET /reports/expired --------------------------------
+// "Expired medicines should belong to reports too … It should be trackable,
+// and exportable." Every batch that has expired: when its date passed, how
+// many units, and whether it has been disposed of and by whom. Everything
+// still waiting to be disposed of is always shown; disposed batches are
+// filtered by the date range of their expiry.
+router.get("/reports/expired", requireRole(...INVENTORY_ROLES), async (req, res, next) => {
+  try {
+    await stock.expireDue();
+    const { from, to, period } = dateRange(req.query);
+    const { rows } = await db.query(
+      `SELECT b.batch_id, b.expiry_date, b.expired_at, b.expired_quantity, b.quantity_received, b.source,
+              b.disposed_at, b.disposed_note, du.full_name AS disposed_by_name,
+              m.medicine_id, m.name, m.dosage, m.unit, m.archived_at
+         FROM medicine_batches b
+         JOIN medicines m ON m.medicine_id = b.medicine_id
+         LEFT JOIN users du ON du.user_id = b.disposed_by
+        WHERE b.expired_quantity > 0
+          AND (b.disposed_at IS NULL OR b.expiry_date BETWEEN $1 AND $2)
+        ORDER BY (b.disposed_at IS NOT NULL), b.expiry_date, lower(m.name)`,
+      [from, to]
+    );
+    const items = rows.map((r) => ({
+      ...r,
+      expiry: r.expiry_date ? manilaDateStr(r.expiry_date) : null,
+      disposed: r.disposed_at ? manilaDateStr(r.disposed_at) : null,
+    }));
+    const waiting = items.filter((i) => !i.disposed_at);
+
+    if (req.query.format === "csv") {
+      return sendCsv(res, `expired-medicines-${from}_to_${to}.csv`,
+        ["Medicine", "Dosage", "Unit", "Batch", "Expiry date", "Units expired", "Status", "Disposed on", "Disposed by", "Note", "Source"],
+        items.map((i) => [i.name, i.dosage || "", i.unit || "", i.batch_id, i.expiry || "", i.expired_quantity,
+          i.disposed_at ? "Disposed" : "Awaiting disposal", i.disposed || "", i.disposed_by_name || "", i.disposed_note || "", i.source || ""]));
+    }
+
+    res.render("reports/expired", {
+      title: "Expired medicines · Sampaguita HC",
+      active: "reports",
+      from, to, period,
+      items,
+      waitingUnits: waiting.reduce((n, i) => n + i.expired_quantity, 0),
+      waitingCount: waiting.length,
+      longDate: F.longDate,
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ---- STOCK MOVEMENTS  GET /reports/stock-movements --------------------------
+// The ledger, filterable and exportable: every restock, dispense, expiry,
+// disposal, count correction, archive and restore in the range, with what it
+// did to usable stock and what stock was right after.
+const MOVEMENT_KINDS = {
+  opening: "Opening balance", restock: "Restock", dispense: "Dispensed", expire: "Expired",
+  dispose: "Disposed", adjust: "Correction", archive: "Archived", restore: "Restored",
+};
+router.get("/reports/stock-movements", requireRole(...INVENTORY_ROLES), async (req, res, next) => {
+  try {
+    const { from, to, period } = dateRange(req.query);
+    const medicineId = parseInt(req.query.medicine_id, 10) || null;
+    const kind = MOVEMENT_KINDS[req.query.kind] ? req.query.kind : "";
+    const [moves, meds] = await Promise.all([
+      db.query(
+        `SELECT s.movement_id, s.at, s.kind, s.quantity, s.stock_delta, s.stock_after, s.note, s.batch_id,
+                m.medicine_id, m.name, m.dosage, m.unit, u.full_name AS by_name
+           FROM stock_movements s
+           JOIN medicines m ON m.medicine_id = s.medicine_id
+           LEFT JOIN users u ON u.user_id = s.by_user
+          WHERE (s.at AT TIME ZONE 'Asia/Manila')::date BETWEEN $1 AND $2
+            AND ($3::int IS NULL OR s.medicine_id = $3)
+            AND ($4 = '' OR s.kind = $4)
+          ORDER BY s.at DESC, s.movement_id DESC
+          LIMIT 2000`,
+        [from, to, medicineId, kind]
+      ),
+      db.query("SELECT medicine_id, name, dosage FROM medicines ORDER BY lower(name), dosage"),
+    ]);
+
+    if (req.query.format === "csv") {
+      return sendCsv(res, `stock-movements-${from}_to_${to}.csv`,
+        ["When (Manila)", "Medicine", "Dosage", "Unit", "Movement", "Units", "Change to usable stock", "Stock after", "Batch", "By", "Note"],
+        moves.rows.map((mv) => [
+          new Date(mv.at).toLocaleString("en-PH", { timeZone: "Asia/Manila" }),
+          mv.name, mv.dosage || "", mv.unit || "", MOVEMENT_KINDS[mv.kind] || mv.kind, mv.quantity,
+          mv.stock_delta, mv.stock_after, mv.batch_id || "", mv.by_name || "", mv.note || "",
+        ]));
+    }
+
+    res.render("reports/stock-movements", {
+      title: "Stock history · Sampaguita HC",
+      active: "reports",
+      from, to, period,
+      moves: moves.rows,
+      medicines: meds.rows,
+      medicineId,
+      kind,
+      kinds: MOVEMENT_KINDS,
     });
   } catch (e) {
     next(e);
@@ -431,7 +602,7 @@ router.get("/reports/inventory", requireRole(...REPORT_ROLES), async (req, res, 
 // (completed, or approved if it needed doctor sign-off) — a still-pending
 // request was never consumed. Signature is the staff member who dispensed it,
 // the digital equivalent of the pen signature on the paper version.
-router.get("/reports/consumption", requireRole(...REPORT_ROLES), async (req, res, next) => {
+router.get("/reports/consumption", requireRole(...INVENTORY_ROLES), async (req, res, next) => {
   try {
     const { from, to, period } = dateRange(req.query);
     const { rows } = await db.query(

@@ -1,33 +1,49 @@
 <div class="page-head" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
   <div>
     <h1>Reports</h1>
-    <div class="sub">Inventory report</div>
+    <div class="sub">Inventory report — as of <%= longDate(today) %></div>
   </div>
-  <a class="mini-btn" href="/reports/inventory?from=<%= from %>&to=<%= to %>&format=pdf" target="_blank">Export PDF</a>
+  <%# "Printable or exportable copy of inventory." CSV opens in Excel; Print
+      uses the page itself, without the menu. %>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <a class="mini-btn" href="/reports/inventory?format=csv">Export CSV (Excel)</a>
+    <a class="mini-btn" href="/reports/inventory?from=<%= from %>&to=<%= to %>&format=pdf" target="_blank">Export PDF</a>
+    <button type="button" class="mini-btn" onclick="window.print()">Print</button>
+  </div>
 </div>
 
 <div class="card">
   <%- include("../partials/reports-tabbar", { active: "inventory", from, to, period }) %>
 
-  <%- include("../partials/reports-filter", { action: "/reports/inventory", from, to, period }) %>
-
-  <div class="panel-title" style="margin-bottom:10px">Dispensed in this range</div>
-  <% if (!dispensed.length) { %>
-    <p class="muted" style="padding:8px 2px 20px">No medicines dispensed in this range.</p>
+  <div class="svc-head" style="margin-top:6px">
+    <span class="panel-title">Current inventory</span>
+    <span class="muted" style="font-size:13px">Active medicines only — archived ones are not counted.</span>
+  </div>
+  <% if (!current.length) { %>
+    <p class="muted" style="padding:8px 2px 20px">No medicines in the inventory.</p>
   <% } else { %>
-    <table class="tbl" style="margin-bottom:24px">
-      <thead><tr><th>Medicine</th><th>Dispenses</th><th>Total qty</th><th>Still pending approval</th></tr></thead>
-      <tbody>
-        <% dispensed.forEach(d => { %>
-          <tr>
-            <td><a href="/inventory/<%= d.medicine_id %>"><%= d.name %></a></td>
-            <td><%= d.dispense_count %></td>
-            <td><%= d.total_qty %> <%= d.unit || "" %></td>
-            <td><%= d.pending_count || "—" %></td>
-          </tr>
-        <% }) %>
-      </tbody>
-    </table>
+    <div style="overflow-x:auto;margin-bottom:24px">
+      <table class="tbl">
+        <thead>
+          <tr><th>Medicine</th><th>Usable stock</th><th>Threshold</th><th>Next expiry</th>
+              <th>Expiring ≤ <%= soonDays %> days</th><th>Expired, to dispose of</th></tr>
+        </thead>
+        <tbody>
+          <% current.forEach(m => { %>
+            <tr>
+              <td><a href="/inventory/<%= m.medicine_id %>"><%= m.name %></a><% if (m.dosage) { %> <span class="muted"><%= m.dosage %></span><% } %></td>
+              <td style="<%= m.status === 'Low' ? 'color:var(--bad-ink);font-weight:700' : 'font-weight:600' %>">
+                <%= m.stock_quantity %> <%= m.unit || "" %><% if (m.status === "Low") { %> <span class="badge bad">Low</span><% } %>
+              </td>
+              <td><%= m.low_stock_threshold %></td>
+              <td style="white-space:nowrap"><%= m.next_expiry ? longDate(m.next_expiry) : (m.no_expiry ? "not recorded" : "—") %></td>
+              <td style="<%= m.expiring_soon ? 'color:var(--warn-ink);font-weight:700' : '' %>"><%= m.expiring_soon || "—" %></td>
+              <td style="<%= m.expired_waiting ? 'color:var(--bad-ink);font-weight:700' : '' %>"><%= m.expired_waiting || "—" %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
   <% } %>
 
   <div class="svc-head">
@@ -35,9 +51,9 @@
     <a class="mini-btn" href="/inventory?low=1">Open inventory →</a>
   </div>
   <% if (!lowStock.length) { %>
-    <p class="muted" style="padding:8px 2px">Nothing is below its threshold right now.</p>
+    <p class="muted" style="padding:8px 2px 20px">Nothing is below its threshold right now.</p>
   <% } else { %>
-    <table class="tbl">
+    <table class="tbl" style="margin-bottom:24px">
       <thead><tr><th>Medicine</th><th>Stock</th><th>Threshold</th></tr></thead>
       <tbody>
         <% lowStock.forEach(m => { %>
@@ -45,6 +61,25 @@
             <td><a href="/inventory/<%= m.medicine_id %>"><%= m.name %></a></td>
             <td style="color:var(--bad-ink);font-weight:700"><%= m.stock_quantity %> <%= m.unit || "" %></td>
             <td><%= m.low_stock_threshold %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+
+  <div class="panel-title" style="margin-bottom:6px">Dispensed in a date range</div>
+  <%- include("../partials/reports-filter", { action: "/reports/inventory", from, to, period }) %>
+  <% if (!dispensed.length) { %>
+    <p class="muted" style="padding:8px 2px">No medicines dispensed in this range.</p>
+  <% } else { %>
+    <table class="tbl">
+      <thead><tr><th>Medicine</th><th>Dispenses</th><th>Total qty</th></tr></thead>
+      <tbody>
+        <% dispensed.forEach(d => { %>
+          <tr>
+            <td><a href="/inventory/<%= d.medicine_id %>"><%= d.name %></a></td>
+            <td><%= d.dispense_count %></td>
+            <td><%= d.total_qty %> <%= d.unit || "" %></td>
           </tr>
         <% }) %>
       </tbody>

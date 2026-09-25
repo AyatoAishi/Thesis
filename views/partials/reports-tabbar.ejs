@@ -1,14 +1,22 @@
 <%
-  const tabs = [
-    ["attendance", "Attendance"],
-    ["no-shows", "No-shows"],
-    ["trend", "Seasonal trend"],
-    ["inventory", "Inventory"],
-    ["consumption", "Consumption"],
-    ["senior-citizen", "Senior citizen"],
-    ["family-planning", "Family planning"],
-    ["analytics", "Analytics"],
+  // Third item: open to every clinic role (the medicine reports), or only to
+  // the report roles. A tab somebody cannot open is not shown to them — a tab
+  // that leads to "Access denied" reads as a broken page.
+  const allTabs = [
+    ["attendance", "Attendance", false],
+    ["no-shows", "No-shows", false],
+    ["trend", "Seasonal trend", false],
+    ["inventory", "Inventory", true],
+    ["expired", "Expired medicines", true],
+    ["stock-movements", "Stock history", true],
+    ["consumption", "Consumption", true],
+    ["senior-citizen", "Senior citizen", false],
+    ["family-planning", "Family planning", false],
+    ["analytics", "Analytics", false],
   ];
+  const _role = typeof user !== "undefined" && user ? user.role : "";
+  const _full = ["nurse", "recorder", "admin"].includes(_role);
+  const tabs = allTabs.filter(t => t[2] || _full);
   // Carry whichever filter is in effect across tabs, so switching report
   // doesn't silently reset "This month" back to the default 30 days.
   const qs = (typeof period !== "undefined" && period)

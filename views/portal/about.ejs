@@ -1,0 +1,70 @@
+<%# The About page the professors asked for, and the "how to make an
+    appointment" instruction with it. Written for a patient, in Tagalog, and
+    short — every paragraph answers one question somebody at the door would
+    actually ask. Public, so it works before an account exists. %>
+<div class="page-head about-head">
+  <span class="about-seal"><%- include("../partials/logo", { logoSize: 72 }) %></span>
+  <div>
+    <h1>Sampaguita Health Clinic</h1>
+    <div class="sub">Barangay Health Station · Barangay Sampaguita, San Pedro, Laguna</div>
+  </div>
+</div>
+
+<div class="portal-pair">
+  <div class="card">
+    <div class="panel-title" style="margin-bottom:10px">Ano ang ginagawa ng clinic</div>
+    <ul class="about-list">
+      <li><b>Bakuna</b> para sa mga bata, ayon sa schedule ng DOH</li>
+      <li><b>Prenatal checkup</b> para sa mga buntis</li>
+      <li><b>Pamimigay ng gamot</b>, kasama ang family planning</li>
+      <li><b>Konsultasyon</b> at pagkuha ng BP, timbang at iba pa</li>
+    </ul>
+  </div>
+
+  <div class="card about-book">
+    <div class="panel-title" style="margin-bottom:10px">Paano magpa-appointment?</div>
+    <ol class="about-steps">
+      <li><b>Pumunta sa clinic</b> — walk-in lang.</li>
+      <li><b>8:00 AM hanggang 5:00 PM.</b> Sarado 12:00–1:00 para sa tanghalian.</li>
+      <li><b>Dalhin ang patient number mo</b> (nasa itaas ng portal mo) o isang valid ID.</li>
+      <li><b>Ang staff ang maglalagay ng schedule</b> — lalabas ito dito sa portal mo.</li>
+    </ol>
+  </div>
+</div>
+
+<div class="portal-pair">
+  <div class="card">
+    <div class="panel-title" style="margin-bottom:10px">Ano ang patient portal?</div>
+    <p style="margin:0 0 10px;line-height:1.6">
+      Dito mo makikita ang sarili mong <b>appointment, gamot, bakuna at records</b> —
+      pati ang sa mga anak mong menor de edad.
+    </p>
+    <p class="muted" style="margin:0;font-size:13.5px;line-height:1.6">
+      Pang-tingin lang ito. Ang pag-book, pagpalit ng schedule at pag-ayos ng record
+      ay sa clinic mismo, para iisa lang ang kalendaryo at walang magkadoble.
+    </p>
+  </div>
+
+  <div class="card">
+    <div class="panel-title" style="margin-bottom:10px">Paano magkaroon ng account?</div>
+    <p style="margin:0 0 10px;line-height:1.6">
+      Ang clinic ang gumagawa ng account. Hingin sa staff sa susunod mong pagpunta —
+      dala ang valid ID.
+    </p>
+    <p class="muted" style="margin:0;font-size:13.5px;line-height:1.6">
+      Pansamantala ang unang password. <b>Palitan ito agad</b> pagka-sign in mo.
+    </p>
+  </div>
+</div>
+
+<div class="card">
+  <div class="panel-title" style="margin-bottom:8px">Ang records mo ay pribado</div>
+  <p style="margin:0;line-height:1.6">
+    Protektado ito ng <b>Data Privacy Act of 2012 (RA 10173)</b>.
+    Basahin ang <a class="legal-link" href="/privacy">Privacy Notice</a> at ang
+    <a class="legal-link" href="/terms">Terms of Service</a>.
+  </p>
+  <p class="muted" style="margin:10px 0 0;font-size:13.5px">
+    <b>Hindi ito para sa emergency.</b> Kung emergency, pumunta sa pinakamalapit na ospital o tumawag sa <b>911</b>.
+  </p>
+</div>

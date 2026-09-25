@@ -24,10 +24,17 @@
       </div>
     </div>
     <div class="portal-top-right">
-      <span class="portal-me"><%= me.full_name %></span>
-      <form method="POST" action="/portal/logout" style="margin:0"><%- include("partials/csrf") %>
-        <button type="submit" class="logout-btn">Log out</button>
-      </form>
+      <%# "Add an 'About' button in the header in patient portal." %>
+      <a class="portal-about-link" href="/portal/about">About</a>
+      <% if (typeof me !== "undefined" && me) { %>
+        <a class="portal-home-link" href="/portal">Home</a>
+        <span class="portal-me"><%= me.full_name %></span>
+        <form method="POST" action="/portal/logout" style="margin:0"><%- include("partials/csrf") %>
+          <button type="submit" class="logout-btn">Log out</button>
+        </form>
+      <% } else { %>
+        <a class="btn" href="/portal/login">Mag-sign in</a>
+      <% } %>
     </div>
   </header>
   <main class="portal-main">
@@ -38,8 +45,11 @@
   </footer>
   <%# Ate Sam, portal side. Six answers of her own — the staff list would
       be worse than nothing here. See routes/portal.js. %>
-  <%- include("partials/help", { helpBase: "/portal/help" }) %>
+  <%# Ate Sam's portal answers sit behind the patient sign-in, so she only
+      appears for somebody signed in — on the public About page a bubble whose
+      every question failed would be worse than no bubble. %>
+  <% if (typeof me !== "undefined" && me) { %><%- include("partials/help", { helpBase: "/portal/help" }) %><% } %>
   <script src="/js/app.js"></script>
-  <script src="/js/help.js"></script>
+  <% if (typeof me !== "undefined" && me) { %><script src="/js/help.js"></script><% } %>
 </body>
 </html>

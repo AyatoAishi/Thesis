@@ -1729,3 +1729,75 @@ body { font-size: 15px; }
 .restock-box > summary { cursor: pointer; font-weight: 700; color: var(--accent-strong); list-style: none; }
 .restock-box > summary::-webkit-details-marker { display: none; }
 @media (max-width: 640px) { .batch-menu { position: static; width: auto; margin-top: 8px; } }
+/* ===========================================================================
+   Patient portal, second pass (2026-09-25 review).
+
+   Wider, because two boxes now sit side by side and 760px left each one too
+   narrow for a table. Pairs collapse to one column on a phone.
+
+   The next-appointment panel goes from a tinted card to a SOLID green block:
+   "yung color ng box ng appointments is something na makakuha ng atensyon."
+   It is the only filled block on the page, so it is the first thing seen —
+   which is the point, since "when do I come back" is the question the portal
+   is opened to answer. The empty state stays quiet on purpose.
+   =========================================================================== */
+.portal-main { max-width: 1080px; }
+
+.portal-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: stretch;
+  margin-bottom: 16px;
+}
+.portal-pair > .card, .portal-pair > .portal-pair-cell { margin-bottom: 0; min-width: 0; }
+.portal-pair-cell > .card { height: 100%; margin-bottom: 0; }
+@media (max-width: 760px) {
+  .portal-pair { grid-template-columns: 1fr; }
+}
+
+.hero-appt:not(.is-empty) {
+  background: var(--accent);
+  border-color: var(--accent);
+  border-left-width: 1px;
+  color: var(--on-accent);
+  box-shadow: 0 10px 28px rgba(46, 125, 50, .28);
+}
+.hero-appt:not(.is-empty) .panel-title,
+.hero-appt:not(.is-empty) .hero-appt-date { color: var(--on-accent); }
+.hero-appt:not(.is-empty) .hero-appt-sub { color: rgba(255, 255, 255, .92); }
+.hero-appt:not(.is-empty) .hero-appt-date { font-size: 26px; }
+.hero-appt-note { margin-top: 6px; font-size: 14px; opacity: .92; }
+.hero-appt-foot { margin: 10px 0 0; font-size: 13.5px; opacity: .9; }
+
+/* How to make an appointment — a note under the appointment, readable on the
+   green as well as on the empty card. */
+.how-to-book {
+  margin-top: 14px; padding: 11px 13px;
+  border-radius: 10px;
+  font-size: 13.5px; line-height: 1.55;
+  background: var(--surface-2); color: var(--ink-2);
+}
+.hero-appt:not(.is-empty) .how-to-book { background: rgba(255, 255, 255, .14); color: var(--on-accent); }
+.how-to-book b { display: inline; }
+
+.med-how { font-size: 13px; color: var(--accent-strong); font-weight: 600; margin-top: 3px; }
+
+.portal-temp-pw { display: block; text-decoration: none; }
+.portal-temp-pw:hover { filter: brightness(.98); }
+
+.portal-about-link, .portal-home-link {
+  font-size: 14px; font-weight: 700; color: var(--accent-strong); text-decoration: none;
+  padding: 6px 10px; border-radius: 8px;
+}
+.portal-about-link:hover, .portal-home-link:hover { background: var(--accent-softer); }
+@media (max-width: 560px) {
+  .portal-me { display: none; }
+  .portal-top-right { gap: 6px; }
+}
+
+.about-head { display: flex; align-items: center; gap: 16px; }
+.about-seal { flex: none; width: 72px; height: 72px; }
+.about-list, .about-steps { margin: 0; padding-left: 20px; line-height: 1.7; }
+.about-list li, .about-steps li { margin-bottom: 4px; }
+.about-book { border-color: var(--accent-soft); background: var(--accent-softer); }

@@ -5,13 +5,12 @@
   const _who = typeof who !== "undefined" && who ? who : "My";
 %>
 <div class="card">
-  <div class="panel-title" style="margin-bottom:4px">💉 <%= _who %> immunization card</div>
-  <p class="muted" style="font-size:12.5px;margin:0 0 12px">
-    The same "Todo Ligtas" card the clinic keeps on paper. Empty boxes are doses not yet recorded here —
-    ask the staff on your next visit if one is already due.
+  <div class="panel-title" style="margin-bottom:4px">💉 Immunization card</div>
+  <p class="muted" style="font-size:13px;margin:0 0 12px">
+    Kapareho ng "Todo Ligtas" card. Kulang ang isang box? Itanong sa clinic.
   </p>
   <% if (!immCategories.length && !immOther.length) { %>
-    <p class="muted" style="margin:0">No vaccines recorded yet.</p>
+    <p class="muted" style="margin:0">Wala pang naitalang bakuna.</p>
   <% } else { %>
     <% immCategories.forEach(cat => { %>
       <div class="sub" style="margin:14px 0 6px;font-weight:700"><%= cat.label %></div>

@@ -389,7 +389,7 @@ router.get("/portal/household/:id", requirePatient, async (req, res, next) => {
         [childId]
       ),
       db.query(
-        `SELECT d.dispensed_at, d.quantity, m.name AS medicine_name, m.dosage, m.unit
+        `SELECT d.dispensed_at, d.quantity, d.instructions, m.name AS medicine_name, m.dosage, m.unit
            FROM medicine_dispenses d JOIN medicines m ON m.medicine_id = d.medicine_id
           WHERE d.patient_id = $1
           ORDER BY d.dispensed_at DESC
@@ -507,7 +507,7 @@ router.get("/portal", requirePatient, async (req, res, next) => {
 
     // Fresh account + patient (verification may have changed since login).
     const acctQ = await db.query(
-      `SELECT a.account_id, a.username, a.is_verified, a.created_at,
+      `SELECT a.account_id, a.username, a.is_verified, a.created_at, a.password_changed_at,
               p.patient_id, p.patient_number, p.full_name, p.birthdate, p.sex,
               p.address, p.contact_number, p.email
          FROM patient_accounts a
@@ -551,7 +551,7 @@ router.get("/portal", requirePatient, async (req, res, next) => {
       // on a doctor's approval hasn't been handed over yet.
       me.is_verified
         ? db.query(
-            `SELECT d.dispensed_at, d.quantity, m.name AS medicine_name, m.dosage, m.unit
+            `SELECT d.dispensed_at, d.quantity, d.instructions, m.name AS medicine_name, m.dosage, m.unit
                FROM medicine_dispenses d JOIN medicines m ON m.medicine_id = d.medicine_id
               WHERE d.patient_id = $1
               ORDER BY d.dispensed_at DESC
@@ -697,6 +697,20 @@ router.post("/portal/help/unanswered", requirePatient, (req, res) => {
     audit.log(null, "help_unanswered", "help", null, `portal: ${q}`);
   }
   res.json({ ok: true });
+});
+
+// ---- ABOUT  GET /portal/about ---------------------------------------------------
+// "Add an 'About' button in the header in patient portal" and "Add an
+// instruction on how to do an appointment (can reach out to the clinic via
+// phone number, or do walk in)" — the professors' review. Public on purpose:
+// the people who most need to know how the clinic works are the ones who do
+// not have an account yet, and the portal sign-in page links here too.
+router.get("/portal/about", (req, res) => {
+  res.render("portal/about", {
+    title: "About · Sampaguita HC",
+    layout: "portal-layout",
+    me: req.session.patient || null,
+  });
 });
 
 module.exports = router;

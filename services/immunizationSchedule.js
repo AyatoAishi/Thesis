@@ -164,6 +164,7 @@ async function autoSchedule({ today, horizonDays = HORIZON_DAYS, dryRun = false 
              AND lower(r.vaccine_name) = lower(due.vaccine_name)
              AND r.dose_number = due.dose_number
       WHERE p.birthdate IS NOT NULL
+        AND p.deceased_at IS NULL            -- never schedule a dose for a child who has died
         AND r.imm_id IS NULL
         AND p.birthdate > ($4::date - make_interval(years => $6::int))
         AND (p.birthdate + due.weeks * 7) <= $5::date

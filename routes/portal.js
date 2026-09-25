@@ -108,7 +108,8 @@ router.post("/portal/login", async (req, res, next) => {
       `SELECT a.account_id, a.patient_id, a.password_hash, p.full_name
          FROM patient_accounts a
          JOIN patients p ON p.patient_id = a.patient_id
-        WHERE lower(a.username) = $1`,
+        WHERE lower(a.username) = $1
+          AND p.deceased_at IS NULL`,
       [username]
     );
     const acct = rows[0];

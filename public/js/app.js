@@ -180,6 +180,10 @@
             idInput.value = item.id;
             search.value = display(item);
             results.hidden = true;
+            // Announced, so a form can react to WHO was picked — the booking
+            // form hides prenatal for a male patient this way. Setting .value
+            // from script fires nothing on its own.
+            idInput.dispatchEvent(new Event("change", { bubbles: true }));
           });
           results.appendChild(btn);
         });
@@ -188,7 +192,10 @@
     }
 
     search.addEventListener("input", function () {
-      idInput.value = ""; // typing invalidates any prior selection
+      if (idInput.value) {
+        idInput.value = ""; // typing invalidates any prior selection
+        idInput.dispatchEvent(new Event("change", { bubbles: true }));
+      }
       var q = search.value.trim().toLowerCase();
       if (!q) {
         results.hidden = true;

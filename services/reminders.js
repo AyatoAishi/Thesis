@@ -116,7 +116,8 @@ async function sendBookingConfirmation(appointment_id, kind = "booked") {
        FROM appointments a
        JOIN services s ON s.service_id = a.service_id
        JOIN patients p ON p.patient_id = a.patient_id
-      WHERE a.appointment_id = $1`,
+      WHERE a.appointment_id = $1
+        AND p.deceased_at IS NULL`,
     [appointment_id]
   );
   const appt = rows[0];
@@ -206,6 +207,7 @@ async function processReminders({ date, force = false, only = null } = {}) {
        JOIN services s ON s.service_id = a.service_id
        JOIN patients p ON p.patient_id = a.patient_id
       WHERE a.appointment_date = $1 AND a.status = 'scheduled'
+        AND p.deceased_at IS NULL           -- a reminder to a family in mourning is the worst possible message
       ORDER BY a.service_id, p.full_name`,
     [target]
   );

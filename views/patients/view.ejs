@@ -34,10 +34,16 @@
 <% if (typeof pageNote !== "undefined" && pageNote) { %>
   <div class="page-alert warn"><%= pageNote %></div>
 <% } %>
+<% if (typeof pageFlash !== "undefined" && pageFlash) { %>
+  <div class="page-alert ok"><%= pageFlash %></div>
+<% } %>
+<% const isDeceased = !!p.deceased_at; %>
+<% const canMarkDeceased = typeof user !== "undefined" && user && ["admin", "nurse"].includes(user.role); %>
 <div class="page-head" style="display:flex;align-items:center;justify-content:space-between">
   <div>
     <h1><%= p.full_name %>
       <% if (p.is_minor) { %><span class="badge info" style="vertical-align:middle">Minor</span><% } %>
+      <% if (isDeceased) { %><span class="badge bad" style="vertical-align:middle">Deceased</span><% } %>
     </h1>
     <div class="sub mono"><%= p.patient_number %></div>
   </div>
@@ -58,6 +64,46 @@
     <a class="back-link" href="/patients" style="display:inline-flex;align-items:center">Back</a>
   </div>
 </div>
+
+<% if (isDeceased) { %>
+  <div class="card" style="border-color:var(--bad);background:var(--bad-bg)">
+    <b style="color:var(--bad-ink)">Deceased — <%= new Date(p.deceased_at).toLocaleDateString("en-PH", { timeZone: "Asia/Manila", year: "numeric", month: "long", day: "numeric" }) %></b>
+    <p style="margin:6px 0 0;font-size:13.5px;color:var(--ink-2);line-height:1.55">
+      This record is kept. No appointments can be booked, no reminders are sent,
+      no vaccine doses are scheduled, and their portal account no longer signs in.
+      <% if (p.deceased_note) { %><br /><b>Note:</b> <%= p.deceased_note %><% } %>
+    </p>
+    <% if (typeof user !== "undefined" && user && user.role === "admin") { %>
+      <form method="POST" action="/patients/<%= p.patient_id %>/deceased/undo" style="margin:10px 0 0"
+            data-confirm-title="Remove the deceased mark?"
+            data-confirm="Only do this if the mark was a mistake. | Appointments that were cancelled when it was set stay cancelled."
+            data-confirm-yes="Yes, remove the mark"
+            data-confirm-no="Keep it"><%- include("../partials/csrf") %>
+        <button type="submit" class="mini-btn">Remove the mark (mistake)</button>
+      </form>
+    <% } %>
+  </div>
+<% } else if (canMarkDeceased) { %>
+  <%# A <details>, not a button that opens a dialog: this should take a deliberate
+      extra step, and it works with scripts off. The confirm on submit is the
+      second step. %>
+  <details class="card deceased-box">
+    <summary>Mark as deceased</summary>
+    <form method="POST" action="/patients/<%= p.patient_id %>/deceased" class="form-grid" style="margin-top:12px"
+          data-confirm-title="Mark <%= p.full_name %> as deceased?"
+          data-confirm="Every upcoming appointment is cancelled. | Reminders and vaccine scheduling stop. | Their portal account stops signing in. | The medical record itself is kept."
+          data-confirm-yes="Yes, mark as deceased"
+          data-confirm-no="Cancel"><%- include("../partials/csrf") %>
+      <label class="field"><span>Date of death *</span>
+        <input type="date" name="deceased_at" required max="<%= new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date()) %>" />
+      </label>
+      <label class="field"><span>Note <span class="muted">(optional)</span></span>
+        <input type="text" name="deceased_note" maxlength="255" placeholder="e.g. reported by family on …" />
+      </label>
+      <button type="submit" class="logout-btn" style="align-self:flex-end">Mark as deceased</button>
+    </form>
+  </details>
+<% } %>
 
 <%
   // Overdue, stated in days, at the top of the page. It used to be knowable
@@ -194,7 +240,7 @@
 <div class="card">
   <div class="svc-head">
     <span class="panel-title">Appointments</span>
-    <a class="mini-btn" href="/appointments/new?patient_id=<%= p.patient_id %>">+ Book appointment</a>
+    <% if (!isDeceased) { %><a class="mini-btn" href="/appointments/new?patient_id=<%= p.patient_id %>">+ Book appointment</a><% } %>
   </div>
   <% if (!appointments.length) { %>
     <p class="muted" style="margin:6px 2px 0">No appointments yet.</p>

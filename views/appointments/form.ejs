@@ -35,6 +35,7 @@
           <p class="muted" style="margin:6px 0 0">No patients registered yet. <a href="/patients/new">Add one first →</a></p>
         <% } else { %>
           <%- include("../partials/patient-picker", { patients, selectedId: appt.patient_id }) %>
+          <script type="application/json" id="maleIds"><%- JSON.stringify(patients.filter(p => String(p.sex || "").toLowerCase() === "male").map(p => p.patient_id)) %></script>
         <% } %>
       </label>
 
@@ -46,8 +47,16 @@
         <select name="service_id" id="svcSelect" required
                 data-other-id="<%= otherSvc ? otherSvc.service_id : '' %>">
           <option value="">— choose —</option>
+          <%
+            // "If the patient is male, there should be no way, in any way,
+            // they can set an appointment for a prenatal." Not offered when the
+            // patient is known here; disabled by the script when one is picked
+            // below; refused by the server regardless (lib/booking.js).
+            const knownMale = patient && String(patient.sex || "").toLowerCase() === "male";
+          %>
           <% services.forEach(s => { %>
-            <option value="<%= s.service_id %>" <%= String(appt.service_id) === String(s.service_id) ? 'selected' : '' %>>
+            <% if (knownMale && s.name === "prenatal") return; %>
+            <option value="<%= s.service_id %>" data-svc="<%= s.name %>" <%= String(appt.service_id) === String(s.service_id) ? 'selected' : '' %>>
               <%= pretty(s.name) %>
             </option>
           <% }) %>
@@ -58,8 +67,25 @@
         <input type="date" name="appointment_date" id="dateInput" value="<%= appt.appointment_date || '' %>" min="<%= today %>" required />
       </label>
 
-      <label class="field"><span>Time <span class="muted">(optional)</span></span>
-        <input type="time" name="appointment_time" value="<%= appt.appointment_time || '' %>" />
+      <%# A list of one-hour slots, not a free time box — 8 to 5, with lunch
+          12–1 left out (lib/booking.js). Slots that have already ended today
+          are disabled by the script below and refused by the server either way.
+          A saved time that is not a slot (older bookings had 00:10, 19:58)
+          still shows, marked, so rescheduling one is a choice rather than a
+          silent change. %>
+      <% const curTime = appt.appointment_time ? String(appt.appointment_time).slice(0, 5) : ""; %>
+      <% const curIsSlot = slots.some(s => s.value === curTime); %>
+      <label class="field"><span>Time slot *</span>
+        <select name="appointment_time" id="slotSelect" required data-now="<%= nowHHMM %>" data-today="<%= today %>">
+          <option value="">— choose a time —</option>
+          <% if (curTime && !curIsSlot) { %>
+            <option value="<%= curTime %>" selected><%= curTime %> — not a clinic slot, choose one below</option>
+          <% } %>
+          <% slots.forEach(s => { %>
+            <option value="<%= s.value %>" data-end="<%= s.end %>" <%= curTime === s.value ? "selected" : "" %>><%= s.label %></option>
+          <% }) %>
+        </select>
+        <span class="muted" style="font-size:12.5px;font-weight:500" data-slot-hint></span>
       </label>
 
       <label class="field" style="grid-column:1/-1">
@@ -99,6 +125,67 @@
       else notes.removeAttribute("aria-required");
     }
     svc.addEventListener("change", sync);
+    sync();
+  })();
+</script>
+
+<script>
+  // Slots that have already ended today are disabled, live — a form opened at
+  // 9:55 and submitted at 10:05 should not still offer 9–10. Manila time is
+  // read from the browser with an explicit timezone rather than the device's
+  // own, which on a borrowed laptop may be anything.
+  (function () {
+    var sel = document.getElementById("slotSelect");
+    var date = document.getElementById("dateInput");
+    var hint = document.querySelector("[data-slot-hint]");
+    if (!sel || !date) return;
+    var today = sel.getAttribute("data-today");
+    function manilaNow() {
+      try {
+        return new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Manila", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+          .format(new Date());
+      } catch (e) { return sel.getAttribute("data-now"); }
+    }
+    function sync() {
+      var now = manilaNow();
+      var isToday = date.value === today;
+      var closed = 0;
+      Array.prototype.forEach.call(sel.options, function (o) {
+        var end = o.getAttribute("data-end");
+        if (!end) return;
+        var over = isToday && end <= now;
+        o.disabled = over;
+        if (over) closed++;
+        if (over && o.selected) sel.value = "";
+      });
+      if (hint) hint.textContent = isToday && closed
+        ? closed + " slot" + (closed === 1 ? " has" : "s have") + " already ended today."
+        : "";
+    }
+    date.addEventListener("change", sync);
+    sync();
+    setInterval(sync, 60000);
+  })();
+
+  // A male patient picked from the list: prenatal is disabled, and cleared if
+  // it was already chosen.
+  (function () {
+    var svc = document.getElementById("svcSelect");
+    var idsEl = document.getElementById("maleIds");
+    var picker = document.querySelector("[data-picker-id]");
+    if (!svc || !idsEl || !picker) return;
+    var male = JSON.parse(idsEl.textContent || "[]").map(String);
+    function sync() {
+      var isMale = male.indexOf(String(picker.value)) !== -1;
+      Array.prototype.forEach.call(svc.options, function (o) {
+        if (o.getAttribute("data-svc") !== "prenatal") return;
+        if (!o.hasAttribute("data-label")) o.setAttribute("data-label", o.textContent.trim());
+        o.disabled = isMale;
+        o.textContent = o.getAttribute("data-label") + (isMale ? " (not for a male patient)" : "");
+        if (isMale && o.selected) svc.value = "";
+      });
+    }
+    picker.addEventListener("change", sync);
     sync();
   })();
 </script>

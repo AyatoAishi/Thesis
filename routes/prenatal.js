@@ -39,6 +39,19 @@ function toNumOrNull(v) {
   return Number.isFinite(n) ? n : null;
 }
 
+// "If the patient is male, there should be no way, in any way, they can set an
+// appointment for a prenatal." The same holds for the prenatal RECORD itself:
+// the patient page never shows the Prenatal button to a male patient, and this
+// refuses the pages behind it for anyone who types the address.
+function refusedForMale(patient, res) {
+  if (patient && String(patient.sex || "").toLowerCase() === "male") {
+    res.redirect(`/patients/${patient.patient_id}?err=` +
+      encodeURIComponent("Prenatal records cannot be created for a male patient."));
+    return true;
+  }
+  return false;
+}
+
 async function loadPatient(id) {
   const { rows } = await db.query("SELECT patient_id, full_name, patient_number, birthdate, sex FROM patients WHERE patient_id=$1", [id]);
   return rows[0] || null;
@@ -171,6 +184,7 @@ router.get("/patients/:id/prenatal/new", async (req, res, next) => {
   try {
     const patient = await loadPatient(req.params.id);
     if (!patient) return next();
+    if (refusedForMale(patient, res)) return;
     res.render("patients/prenatal-form", {
       title: `New prenatal record — ${patient.full_name} · Sampaguita HC`,
       active: "patients",
@@ -189,6 +203,7 @@ router.post("/patients/:id/prenatal", async (req, res, next) => {
   try {
     const patient = await loadPatient(req.params.id);
     if (!patient) return next();
+    if (refusedForMale(patient, res)) return;
     const p = readIntakeForm(req.body);
     if (!p.edd && p.lmp) p.edd = suggestEdd(p.lmp);
     const errors = validateIntake(p);

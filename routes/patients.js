@@ -9,6 +9,7 @@ const db = require("../db");
 const F = require("../lib/format");
 const { ID_TYPES, UNVERIFIED: NO_ID } = require("../lib/idTypes");
 const { buildCard, overdueCounts } = require("../lib/immunizationCard");
+const { endOtherPatientSessions } = require("../lib/sessions");
 const audit = require("../lib/audit");
 const { requireRole } = require("../middleware/auth");
 
@@ -41,7 +42,8 @@ const RELATIONS = [
 // deliberately wide: 7 covers a bare landline, 15 is the E.164 maximum, so
 // every legitimate way of writing a number passes and only junk is rejected.
 const digitsOnly = (s) => (s || "").replace(/\D/g, "");
-const isPhone = (s) => /^\d{7,15}$/.test(s || "");
+// 11 digits, 09xxxxxxxxx, per the professors' review — see lib/phone.js.
+const { normalizeMobile, isMobile, mobileError } = require("../lib/phone");
 
 // "Other" on the relation dropdown means "read the free-text box beside it".
 function readRelation(body) {
@@ -180,7 +182,7 @@ function readForm(body) {
     sex: body.sex || null,
     address: (body.address || "").trim() || null,
     no_own_phone: noOwnPhone,
-    contact_number: noOwnPhone ? null : digitsOnly(body.contact_number) || null,
+    contact_number: noOwnPhone ? null : normalizeMobile(body.contact_number) || null,
     email: (body.email || "").trim().toLowerCase() || null,
     family_number: (body.family_number || "").trim() || null,
     // Relatives queued on the form but not yet in any household — resolved by
@@ -189,7 +191,7 @@ function readForm(body) {
     family_join_ids: (body.family_join_ids || "").trim(),
     family_contact_name: (body.family_contact_name || "").trim() || null,
     family_contact_relation: readRelation(body),
-    family_contact_number: digitsOnly(body.family_contact_number) || null,
+    family_contact_number: normalizeMobile(body.family_contact_number) || null,
     family_email: (body.family_email || "").trim().toLowerCase() || null,
     // How this patient wants to be reminded. Defaults to both so an existing
     // record that predates the field behaves exactly as it always did.
@@ -261,10 +263,10 @@ function validate(p) {
   // Every record must carry ONE reachable number — the patient's own, or the
   // emergency contact's for anyone without a phone (infants, most elderly).
   // Requiring the patient's own outright would dead-end those registrations.
-  if (p.contact_number && !isPhone(p.contact_number))
-    errors.push("Patient contact # must be 7–15 digits, numbers only (e.g. 09171234567).");
-  if (p.family_contact_number && !isPhone(p.family_contact_number))
-    errors.push("Emergency contact # must be 7–15 digits, numbers only (e.g. 09171234567).");
+  if (p.contact_number && !isMobile(p.contact_number))
+    errors.push(mobileError("Mobile contact #", p.contact_number));
+  if (p.family_contact_number && !isMobile(p.family_contact_number))
+    errors.push(mobileError("Emergency contact #", p.family_contact_number));
   if (!p.contact_number && !p.family_contact_number)
     errors.push("A contact number is required — either the patient's own, or the emergency contact's.");
   // Ticking the box moves the requirement rather than removing it. Saying
@@ -594,6 +596,7 @@ router.get("/patients/:id", async (req, res, next) => {
       // acctErr, which renders inside the portal-account card far down the
       // page — a refused delete shown there looked like nothing happened.
       pageErr: req.query.err || null,
+      pageFlash: req.query.flash || null,
       // Not an error — something staff asked for that only partly happened
       // (e.g. a relative who already belongs to another household).
       pageNote: req.query.fam_note || null,
@@ -727,6 +730,94 @@ router.post("/patients/:id", async (req, res, next) => {
         )}`
       : "";
     res.redirect(`/patients/${req.params.id}${note}`);
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ---- MARK AS DECEASED  POST /patients/:id/deceased --------------------------
+// "Add a 'Mark as deceased'" — the professors' review. A date and who
+// recorded it; the record itself stays, because it is still a medical record.
+// What stops, all in one place so none of it depends on anybody remembering:
+//   - every future appointment still scheduled is cancelled (in this same
+//     transaction), so the day's list does not call a name that will not come
+//   - reminders skip them (services/reminders.js)
+//   - the immunization auto-scheduler skips them (services/immunizationSchedule.js)
+//   - overdue counts and the bell skip them (lib/immunizationCard.js)
+//   - their portal account stops signing in, and any open portal session ends
+//   - new bookings are refused (lib/booking.js)
+// Nurses and the admin only: it is a clinical fact, recorded by someone who
+// would know it.
+router.post("/patients/:id/deceased", requireRole("admin", "nurse"), async (req, res, next) => {
+  const id = parseInt(req.params.id, 10);
+  const date = String(req.body.deceased_at || "").trim();
+  const note = String(req.body.deceased_note || "").trim().slice(0, 255) || null;
+  const back = (msg, key = "err") => res.redirect(`/patients/${id}?${key}=${encodeURIComponent(msg)}`);
+  try {
+    const { rows } = await db.query("SELECT full_name, birthdate, deceased_at FROM patients WHERE patient_id=$1", [id]);
+    const p = rows[0];
+    if (!p) return next();
+    if (p.deceased_at) return back("This patient is already marked as deceased.");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return back("Enter the date of death.");
+    if (date > F.manilaToday()) return back("The date of death cannot be in the future.");
+    if (p.birthdate && date < String(p.birthdate).slice(0, 10))
+      return back("The date of death cannot be before the birthdate.");
+
+    const client = await db.getClient();
+    let cancelled = 0;
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `UPDATE patients SET deceased_at=$1, deceased_recorded_by=$2, deceased_note=$3, updated_at=now()
+          WHERE patient_id=$4`,
+        [date, req.session.user.user_id, note, id]
+      );
+      const c = await client.query(
+        `UPDATE appointments SET status='cancelled', updated_at=now()
+          WHERE patient_id=$1 AND status='scheduled' AND appointment_date >= $2::date`,
+        [id, F.manilaToday()]
+      );
+      cancelled = c.rowCount;
+      await client.query("COMMIT");
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+
+    // Ends any portal session belonging to this patient. keepSid is this staff
+    // member's own session, which never holds a patient, so nothing is kept.
+    await endOtherPatientSessions(id, req.sessionID);
+
+    audit.log(req.session.user.user_id, "update", "patient", id,
+      `marked ${p.full_name} as deceased (${date})` +
+      (cancelled ? `; ${cancelled} upcoming appointment${cancelled === 1 ? "" : "s"} cancelled` : ""));
+    back(
+      "Marked as deceased." +
+        (cancelled ? ` ${cancelled} upcoming appointment${cancelled === 1 ? " was" : "s were"} cancelled.` : ""),
+      "flash"
+    );
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Undoing it is the admin's alone — a mistaken mark is rare, and reversing a
+// death record should be a deliberate act by whoever owns the system.
+// Cancelled appointments stay cancelled: nothing records which of them were
+// cancelled BECAUSE of the mark, so re-opening them would be a guess.
+router.post("/patients/:id/deceased/undo", requireRole("admin"), async (req, res, next) => {
+  const id = parseInt(req.params.id, 10);
+  try {
+    const { rows } = await db.query(
+      `UPDATE patients SET deceased_at=NULL, deceased_recorded_by=NULL, deceased_note=NULL, updated_at=now()
+        WHERE patient_id=$1 AND deceased_at IS NOT NULL RETURNING full_name`,
+      [id]
+    );
+    if (!rows[0]) return res.redirect(`/patients/${id}`);
+    audit.log(req.session.user.user_id, "update", "patient", id, `removed the deceased mark from ${rows[0].full_name}`);
+    res.redirect(`/patients/${id}?flash=${encodeURIComponent("The deceased mark was removed. Book any appointments they still need again.")}`);
   } catch (e) {
     next(e);
   }

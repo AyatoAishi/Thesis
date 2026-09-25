@@ -44,8 +44,13 @@
       </main>
     </div>
   </div>
-  <%- include("partials/help") %>
+  <%# "Remove chatbot in IT/ADMIN side." The admin set the system up and runs
+      it; Ate Sam's answers are for the people learning it, and on the admin's
+      screen she was a button covering the corner of every table. She stays for
+      nurses, recorders and facilitators, and on the patient portal. %>
+  <% const showSam = !(typeof user !== "undefined" && user && user.role === "admin"); %>
+  <% if (showSam) { %><%- include("partials/help") %><% } %>
   <script src="/js/app.js"></script>
-  <script src="/js/help.js"></script>
+  <% if (showSam) { %><script src="/js/help.js"></script><% } %>
 </body>
 </html>

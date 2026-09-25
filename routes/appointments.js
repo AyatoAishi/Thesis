@@ -12,6 +12,7 @@
 // ============================================================================
 const express = require("express");
 const db = require("../db");
+const booking = require("../lib/booking");
 const F = require("../lib/format");
 const audit = require("../lib/audit");
 const { sendBookingConfirmation } = require("../services/reminders");
@@ -83,6 +84,14 @@ function validateAppt(body, services) {
 
   if (isDate(date) && date < F.manilaToday()) errors.push("That date is in the past.");
 
+  // A time slot, not a free time. Required: the review asked for the list, and
+  // an appointment with no time cannot be ordered on the day's schedule.
+  if (!time) errors.push("Choose a time slot.");
+  else if (!booking.slotFor(time))
+    errors.push("Choose one of the listed time slots (8 AM to 5 PM, no appointments during lunch 12–1).");
+  else if (isDate(date) && booking.slotHasEnded(date, time, F.manilaToday(), booking.manilaNowHHMM()))
+    errors.push(`The ${booking.slotLabel(time)} slot today has already ended. Choose a later slot or another day.`);
+
   // "Other" exists so a visit that is not one of the three regular services
   // can still be recorded honestly — vitals, a blood pressure check, a
   // dressing change. Which means the note is the entire content of the
@@ -96,7 +105,19 @@ function validateAppt(body, services) {
 
   // Services are no longer locked to a fixed weekday (v1 update) — staff choose
   // the service and the date independently.
-  return { errors, value: { patient_id, service_id, date, time, notes } };
+  return { errors, value: { patient_id, service_id, date, time: booking.toHHMM(time), notes } };
+}
+
+// The checks that need the patient row. Server-side and unconditional: the
+// form hides prenatal for a male patient, but a hidden option is a courtesy,
+// and "no way, in any way" means the request itself is refused.
+async function patientErrors(patientId, serviceId, services) {
+  if (!patientId) return [];
+  const { rows } = await db.query(
+    "SELECT sex, deceased_at FROM patients WHERE patient_id=$1", [patientId]
+  );
+  const service = services.find((s) => s.service_id === serviceId) || null;
+  return booking.patientRules(rows[0] || null, service);
 }
 
 // Re-render the form after a validation failure (keeps the user's input).
@@ -105,7 +126,7 @@ async function rerenderForm(res, { mode, body, services, errors, appointment_id 
   let patients = null;
   if (body.patient_id) {
     const r = await db.query(
-      "SELECT patient_id, patient_number, full_name FROM patients WHERE patient_id=$1",
+      "SELECT patient_id, patient_number, full_name, sex, deceased_at FROM patients WHERE patient_id=$1",
       [parseInt(body.patient_id, 10) || 0]
     );
     patient = r.rows[0] || null;
@@ -113,7 +134,7 @@ async function rerenderForm(res, { mode, body, services, errors, appointment_id 
   if (!patient) {
     patients = (
       await db.query(
-        "SELECT patient_id, patient_number, full_name FROM patients ORDER BY full_name LIMIT 500"
+        "SELECT patient_id, patient_number, full_name, sex FROM patients WHERE deceased_at IS NULL ORDER BY full_name LIMIT 500"
       )
     ).rows;
   }
@@ -129,6 +150,8 @@ async function rerenderForm(res, { mode, body, services, errors, appointment_id 
     errors,
     pretty: F.prettyService,
     today: F.manilaToday(),
+    slots: booking.SLOTS,
+    nowHHMM: booking.manilaNowHHMM(),
   });
 }
 
@@ -239,7 +262,7 @@ router.get("/appointments/new", async (req, res, next) => {
     let patient = null;
     if (req.query.patient_id) {
       const r = await db.query(
-        "SELECT patient_id, patient_number, full_name FROM patients WHERE patient_id=$1",
+        "SELECT patient_id, patient_number, full_name, sex, deceased_at FROM patients WHERE patient_id=$1",
         [parseInt(req.query.patient_id, 10) || 0]
       );
       patient = r.rows[0] || null;
@@ -260,7 +283,7 @@ router.get("/appointments/new", async (req, res, next) => {
       ? null
       : (
           await db.query(
-            "SELECT patient_id, patient_number, full_name FROM patients ORDER BY full_name LIMIT 500"
+            "SELECT patient_id, patient_number, full_name, sex FROM patients WHERE deceased_at IS NULL ORDER BY full_name LIMIT 500"
           )
         ).rows;
 
@@ -276,6 +299,8 @@ router.get("/appointments/new", async (req, res, next) => {
       errors: [],
       pretty: F.prettyService,
       today: F.manilaToday(),
+      slots: booking.SLOTS,
+      nowHHMM: booking.manilaNowHHMM(),
     });
   } catch (e) {
     next(e);
@@ -287,6 +312,7 @@ router.post("/appointments", async (req, res, next) => {
   try {
     const services = await loadServices();
     const { errors, value } = validateAppt(req.body, services);
+    errors.push(...(await patientErrors(value.patient_id, value.service_id, services)));
 
     if (!errors.length) {
       const dup = await db.query(
@@ -352,6 +378,8 @@ router.get("/appointments/:id/edit", async (req, res, next) => {
       errors: [],
       pretty: F.prettyService,
       today: F.manilaToday(),
+      slots: booking.SLOTS,
+      nowHHMM: booking.manilaNowHHMM(),
     });
   } catch (e) {
     next(e);
@@ -393,6 +421,7 @@ router.post("/appointments/:id", async (req, res, next) => {
   try {
     const services = await loadServices();
     const { errors, value } = validateAppt(req.body, services);
+    errors.push(...(await patientErrors(value.patient_id, value.service_id, services)));
 
     if (!errors.length) {
       const dup = await db.query(

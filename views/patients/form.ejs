@@ -93,7 +93,7 @@
       </label>
       <label class="field"><span>Mobile contact # *</span>
         <input type="tel" name="contact_number" value="<%= p.contact_number || '' %>" placeholder="09xxxxxxxxx"
-               inputmode="numeric" maxlength="15" data-digits data-phone-primary required />
+               inputmode="numeric" maxlength="16" pattern="09[0-9]{9}" title="11 digits: 09xxxxxxxxx" data-digits data-phone-primary required />
         <%# Silent while the field is simply required. It only speaks up once the
             emergency contact # below has taken over the requirement, because
             that is the moment the asterisk here stops being true. %>
@@ -168,7 +168,7 @@
       </label>
       <label class="field"><span>Contact #</span>
         <input type="tel" name="family_contact_number" value="<%= p.family_contact_number || '' %>" placeholder="09xxxxxxxxx"
-               inputmode="numeric" maxlength="15" data-digits data-phone-fallback />
+               inputmode="numeric" maxlength="16" pattern="09[0-9]{9}" title="11 digits: 09xxxxxxxxx" data-digits data-phone-fallback />
       </label>
       <label class="field"><span>Emergency contact email <span class="muted">(optional)</span></span>
         <input type="email" name="family_email" value="<%= p.family_email || '' %>" placeholder="name@gmail.com" />
@@ -236,9 +236,16 @@
   // pasted "(0917) 123-4567" cleans itself up instead of bouncing back as a
   // validation error the person has to re-read.
   (function () {
+    // Digits only, a pasted +63 folded to a leading 0, and capped at 11 — the
+    // same rule lib/phone.js applies on the server, so what the box shows is
+    // what gets saved. maxlength is 16 rather than 11 on purpose: the browser
+    // would truncate "+639171234567" to 11 characters BEFORE this runs and
+    // lose the last two digits.
     document.querySelectorAll("[data-digits]").forEach(function (input) {
       input.addEventListener("input", function () {
         var cleaned = input.value.replace(/\D/g, "");
+        if (cleaned.length >= 12 && cleaned.indexOf("639") === 0) cleaned = "0" + cleaned.slice(2);
+        if (cleaned.length > 11) cleaned = cleaned.slice(0, 11);
         if (cleaned !== input.value) {
           var drop = input.value.length - cleaned.length;
           var pos = Math.max(0, (input.selectionStart || 0) - drop);

@@ -79,7 +79,7 @@ for (const g of ["#ffffff", "#c0c0c0", "#808080", "#111111"]) {
 // ---- 2) nothing a form can send survives unvalidated ------------------------
 const hostile = t.normalize({ mode: "<script>", font: "'; DROP TABLE users;--", accent: "javascript:alert(1)", preset: "../../etc" });
 check("rubbish falls back to the defaults",
-  hostile.mode === "light" && hostile.font === "jakarta" && hostile.accent === "#3b6cf5" && hostile.preset === "sampaguita",
+  hostile.mode === "light" && hostile.font === "jakarta" && hostile.accent === t.DEFAULT_ACCENT && hostile.preset === "sampaguita",
   JSON.stringify(hostile));
 check("an unchecked animations box means off", t.fromForm({}).animations === false);
 check("a checked one means on", t.fromForm({ animations: "on" }).animations === true);
@@ -88,36 +88,42 @@ check("a preset wins over a stale accent field",
 check("choosing custom keeps the colour",
   t.fromForm({ preset: "custom", accent: "#f5c518" }).accent === "#f5c518");
 
-// ---- 3) the settings page renders each font in its own face -----------------
+// ---- 3) one look for everybody (2026-09-25) ---------------------------------
+// The professors asked for the change-theme option to go and for green to be
+// the default. The settings page and its previews are gone, so what matters
+// now is the opposite of what used to be tested here: that NOTHING a staff
+// member saved before can still change what the system looks like.
+const saved = [
+  {},
+  { mode: "dark", preset: "ube", font: "mono", animations: false },
+  { mode: "auto", preset: "custom", accent: "#716392", font: "lato" },
+  { mode: "<script>", accent: "javascript:alert(1)" },
+];
+for (const prefs of saved) {
+  const th = t.forUser(prefs);
+  check(`saved ${JSON.stringify(prefs).slice(0, 48)} still gets the clinic look`,
+    th.mode === "light" && th.prefs.accent === t.DEFAULT_ACCENT && th.prefs.font === "jakarta" && th.animations === true,
+    JSON.stringify(th.prefs));
+}
+check("the clinic accent is green", /^#2e7d32$/i.test(t.DEFAULT_ACCENT));
+const green = t.accentRamp(t.DEFAULT_ACCENT, false);
+check("white text on the clinic green passes 4.5:1",
+  t.contrast(t.hexToRgb(green["--accent"]), t.hexToRgb("#ffffff")) >= 4.5,
+  t.contrast(t.hexToRgb(green["--accent"]), t.hexToRgb("#ffffff")).toFixed(2));
+
+// The stylesheet has to agree, because the sign-in, landing and legal pages
+// never receive the inline theme block and draw straight from these tokens.
+const css = fs.readFileSync(path.join(__dirname, "..", "public", "css", "src.css"), "utf8");
+check("src.css root accent is the same green", css.includes(`--accent: ${green["--accent"]};`));
+
+// And the page that used to hold the settings no longer offers them.
 const view = path.join(__dirname, "..", "views", "account.ejs");
 const html = ejs.render(fs.readFileSync(view, "utf8"), {
-  user: { full_name: "Test", username: "test", role: "admin" },
-  errors: [], notice: null,
-  prefs: t.normalize({}), presets: t.PRESETS, fonts: t.FONTS,
-  ramp: (hex, dark) => t.accentRamp(hex, dark),
-  csrfToken: "test",
+  user: { full_name: "Test", username: "test", role: "nurse" },
+  errors: [], notice: null, csrfToken: "test",
+  pendingPassword: null, needsApproval: true,
 }, { filename: view });
-
-// The bug: &amp;quot; reaches the browser as the literal text &quot;, which is
-// not a font name, so the whole declaration is dropped.
-check("no font-family was escaped twice", !/font-family:[^"]*&amp;/.test(html),
-  (html.match(/font-family:[^"]*&amp;[^"]*/) || [])[0]);
-
-for (const font of t.FONTS) {
-  const name = font.stack.split(",")[0].replace(/"/g, "");
-  // &#34; is what EJS writes for a quote, and the HTML parser turns it back
-  // into one inside an attribute — that form is correct.
-  const wanted = font.stack.replace(/"/g, "&#34;");
-  check(`${font.label} is previewed in ${name}`, html.includes(`font-family:${wanted}`));
-}
-
-// ---- 4) the selected option is marked, and only one of it -------------------
-for (const [group, cls] of [["mode", "pref-opt"], ["preset", "swatch"], ["font", "fontopt"]]) {
-  const lit = (html.match(new RegExp(`class="${cls} is-on"`, "g")) || []).length;
-  check(`exactly one ${group} starts selected`, lit === 1, `${lit} marked`);
-}
-// The colour field is only for people who chose their own colour.
-check("the colour picker starts hidden on a preset", /class="pref-custom" hidden/.test(html));
+check("the account page has no appearance form", !/account\/preferences|data-prefs/.test(html));
 
 // ---- report ----------------------------------------------------------------
 console.log(`\n  ${pass} passed, ${failures.length} failed\n`);
@@ -125,4 +131,4 @@ if (failures.length) {
   console.log(failures.join("\n"));
   process.exit(1);
 }
-console.log("  Whatever they pick, it stays readable — and the previews tell the truth.\n");
+console.log("  One green look for everyone, and it stays readable.\n");

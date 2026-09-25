@@ -6,6 +6,55 @@
   <a class="btn" href="/admin/users/new">+ Add staff</a>
 </div>
 
+<% if (flash) { %>
+  <div class="card" style="border-color:var(--ok);background:var(--ok-bg)"><%= flash %></div>
+<% } %>
+
+<%# Shown once. The temporary password exists in plain text only in this one
+    render; the session copy was deleted before the page was drawn. %>
+<% if (issued) { %>
+  <div class="card" style="border-color:var(--accent);background:var(--accent-softer)">
+    <b>Temporary password for <%= issued.fullName %> (<span class="mono"><%= issued.username %></span>)</b>
+    <div class="mono" style="font-size:22px;font-weight:700;letter-spacing:.06em;margin:10px 0 6px;user-select:all"><%= issued.temp %></div>
+    <p class="muted" style="font-size:12.5px;margin:0">
+      Give this to them in person. It will not be shown again — leaving or
+      refreshing this page clears it. They can request their own password from
+      My account once they are signed in.
+    </p>
+  </div>
+<% } %>
+
+<% if (pending.length) { %>
+  <div class="card" style="border-color:var(--warn)">
+    <div class="panel-title" style="margin-bottom:10px">
+      Password requests <span class="badge warn"><%= pending.length %></span>
+    </div>
+    <div class="status-list">
+      <% pending.forEach(function (r) { %>
+        <div class="status-row">
+          <div class="status-label">
+            <b><%= r.full_name %></b> <span class="mono muted">(<%= r.username %>, <%= r.role %>)</span>
+            <small>
+              <%= r.kind === "forgot"
+                    ? "Forgot their password — approving gives you a temporary one to hand over."
+                    : "Wants to change their password. They already proved their current one." %>
+              · <%= new Date(r.requested_at).toLocaleString("en-PH", { timeZone: "Asia/Manila", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) %>
+            </small>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <form method="POST" action="/admin/password-requests/<%= r.request_id %>/approve" style="margin:0"><%- include("../partials/csrf") %>
+              <button type="submit" class="btn">Approve</button>
+            </form>
+            <form method="POST" action="/admin/password-requests/<%= r.request_id %>/reject" style="margin:0"><%- include("../partials/csrf") %>
+              <button type="submit" class="mini-btn">Reject</button>
+            </form>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  </div>
+<% } %>
+
 <div class="card">
   <div class="tabbar">
     <a href="/admin/users" class="tab active">Staff accounts</a>

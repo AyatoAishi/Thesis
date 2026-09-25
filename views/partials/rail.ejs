@@ -3,7 +3,13 @@
   const a = typeof active !== "undefined" ? active : "";
 %>
 <nav class="rail" aria-label="Primary">
-  <div class="rail-logo" title="Sampaguita Health Clinic"><%- include("logo", { logoSize: 38 }) %></div>
+  <%# The seal and the name together, as the one brand mark on a computer.
+      The topbar's copy is hidden there (see the rail section in src.css) — it
+      was the doubled icon on the review list. %>
+  <a class="rail-brand" href="/dashboard" aria-label="Sampaguita Health Clinic — dashboard">
+    <span class="rail-logo"><%- include("logo", { logoSize: 38 }) %></span>
+    <span class="rail-brand-text"><b>Sampaguita HC</b><span>Barangay Health Station</span></span>
+  </a>
 
   <a class="rail-item <%= a === 'dashboard' ? 'active' : '' %>" href="/dashboard" title="Dashboard" aria-label="Dashboard">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>

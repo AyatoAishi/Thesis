@@ -1,33 +1,24 @@
 <%
   // The clinic's mark, in one place. Included by the rail, the topbar, the
-  // landing page, both sign-in pages and the portal — so the badge can never
-  // again be a letter in one place and a flower in another.
+  // landing page, every sign-in page, the legal pages and the portal.
   //
-  // A sampaguita, with a health cross where the yellow centre used to be. The
-  // flower alone reads as decoration; the cross is what says "clinic" at 16px
-  // to somebody who has never seen this system before.
+  // 2026-09-25: the official Barangay Sampaguita seal, replacing the flower
+  // mark we drew ourselves. The professors asked for it by name ("Add logo",
+  // with the seal attached), and it is the right call: this is the barangay's
+  // own health station, and its seal is what residents already recognise on
+  // every paper form the clinic hands them — the prenatal record included.
   //
-  // Drawn with five overlapping circles rather than petal outlines on purpose:
-  // this is read at 16px in a browser tab, where any stroke thinner than about
-  // 2px disappears. Big solid shapes survive being made tiny; delicate ones
-  // turn to grey mush.
+  // One file per size rather than one big image scaled down in the browser, so
+  // a 30px badge does not download a 256px picture. srcset hands high-density
+  // screens the next size up, which is what keeps the small lettering on the
+  // ring legible on a phone.
   //
-  // `size` in px. `mono` fills the petals with currentColor instead of white,
-  // for the places that sit on a coloured chip already.
+  // `logoSize` in px. `logoMono` is accepted and ignored — the seal has fixed
+  // colours by definition, and a recoloured official seal is not the seal.
   const size = typeof logoSize !== "undefined" ? logoSize : 32;
-  const mono = typeof logoMono !== "undefined" && logoMono;
-%><svg viewBox="0 0 32 32" width="<%= size %>" height="<%= size %>"
-     role="img" aria-label="Sampaguita Health Clinic" focusable="false">
-  <rect width="32" height="32" rx="<%= size <= 20 ? 7 : 8 %>" fill="<%= mono ? "currentColor" : "var(--accent)" %>"/>
-  <g fill="<%= mono ? "var(--surface)" : "var(--on-accent, #fff)" %>" opacity=".92">
-    <circle cx="16" cy="9.2" r="4.9"/>
-    <circle cx="22.5" cy="13.9" r="4.9"/>
-    <circle cx="20" cy="21.5" r="4.9"/>
-    <circle cx="12" cy="21.5" r="4.9"/>
-    <circle cx="9.5" cy="13.9" r="4.9"/>
-  </g>
-  <g fill="<%= mono ? "currentColor" : "var(--accent-strong)" %>">
-    <rect x="14.6" y="11.6" width="2.8" height="8.8" rx="1.2"/>
-    <rect x="11.6" y="14.6" width="8.8" height="2.8" rx="1.2"/>
-  </g>
-</svg>
+  const one = size <= 32 ? 64 : size <= 80 ? 160 : 256;
+  const two = size <= 32 ? 160 : 256;
+%><img class="seal-img" src="/img/barangay-seal-<%= one %>.png"
+     srcset="/img/barangay-seal-<%= one %>.png 1x, /img/barangay-seal-<%= two %>.png 2x"
+     width="<%= size %>" height="<%= size %>"
+     alt="Barangay Sampaguita seal" decoding="async" />

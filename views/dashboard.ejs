@@ -128,7 +128,16 @@
              role="gridcell"
              href="/dashboard?m=<%= calendar.key %>&d=<%= c.date %>"
              aria-current="<%= c.isSelected ? "date" : "false" %>"
-             aria-label="<%= c.day %> — <%= c.count === 0 ? "walang appointment" : c.count + " appointment" %>">
+             <%
+               // The hover text the review asked for. The same words go in
+               // title= as well, which is what a long-press shows on a tablet.
+               const tip = c.count === 0 ? "No appointments"
+                         : c.count + " appointment" + (c.count === 1 ? "" : "s") +
+                           (c.missed ? " · " + c.missed + " missed" : "") +
+                           (c.scheduled && c.scheduled !== c.count ? " · " + c.scheduled + " still scheduled" : "");
+             %>
+             data-tip="<%= tip %>" title="<%= tip %>"
+             aria-label="<%= c.day %> — <%= tip %>">
             <span class="cal-day"><%= c.day %></span>
             <% if (c.count) { %>
               <%# The number, not a dot: "3" is the thing somebody is deciding

@@ -9,6 +9,7 @@ const db = require("../db");
 const audit = require("../lib/audit");
 const { endOtherStaffSessions, REASONS } = require("../lib/sessions");
 const guard = require("../lib/loginGuard");
+const pw = require("../lib/passwordRequests");
 
 const router = express.Router();
 
@@ -157,7 +158,8 @@ router.post("/login", async (req, res) => {
         role: u.role,
         // Appearance travels in the session so no page has to fetch it. It is
         // read on every render and changes only when its owner changes it,
-        // which /account/preferences writes back here as well as to the row.
+        // (the per-account appearance setting was removed 2026-09-25; the
+        // column is kept so nobody's stored choice is destroyed).
         preferences: u.preferences || {},
       };
 
@@ -201,6 +203,53 @@ router.post("/logout", (req, res) => {
     res.clearCookie("connect.sid");
     res.redirect("/login");
   });
+});
+
+// ---- STAFF FORGOT PASSWORD  GET/POST /forgot ---------------------------------
+// "Forgot password for staff, or reset pass / username." A staff password is
+// only ever changed by the admin now, so forgetting one files a request the
+// admin sees on Staff accounts; approving it gives them a temporary password
+// to hand over in person.
+//
+// The answer is the same sentence whether or not the username exists, whether
+// the account is deactivated, and whether a request was already waiting. Any
+// difference between those replies would let a stranger at this page test
+// which usernames are real.
+const FORGOT_ANSWER =
+  "If that username belongs to an active staff account, the admin now has a request to reset it. " +
+  "Ask them for your temporary password in person.";
+
+function renderForgot(res, extra) {
+  res.render("forgot", Object.assign({
+    title: "Forgot password · Sampaguita HC",
+    layout: false,
+    error: null,
+    done: null,
+    username: "",
+  }, extra));
+}
+
+router.get("/forgot", (req, res) => renderForgot(res));
+
+router.post("/forgot", async (req, res) => {
+  const username = String(req.body.username || "").trim().slice(0, 80);
+  if (!username) return renderForgot(res, { error: "Type your username." });
+  try {
+    const r = await pw.requestForgot(username, guard.addressOf(req));
+    if (r.throttled) {
+      return renderForgot(res, {
+        username,
+        error: "Too many requests from this computer. Try again later, or ask the admin directly.",
+      });
+    }
+    if (r.filed) {
+      audit.log(null, "password_change", "user", r.userId, "forgot-password request filed from the sign-in page");
+    }
+    renderForgot(res, { done: FORGOT_ANSWER });
+  } catch (e) {
+    console.error("[forgot]", e.message);
+    renderForgot(res, { username, error: "Something went wrong. Ask the admin directly." });
+  }
 });
 
 module.exports = router;

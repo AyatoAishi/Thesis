@@ -1,10 +1,3 @@
-<%
-  // Preview swatches are drawn from the SAME function that builds the live
-  // theme (lib/theme.js accentRamp), not from the raw hex in the preset list.
-  // Otherwise the dot on this page would be the colour somebody typed and the
-  // app would be the colour we computed, and they would not match.
-  const darkNow = prefs.mode === "dark";
-%>
 <div class="page-head">
   <h1>My account</h1>
   <div class="sub"><%= user.username %> · <%= user.role %></div>
@@ -31,126 +24,35 @@
   </form>
 </div>
 
-<!-- ===================== Appearance ===================== -->
-<section class="card" id="appearance">
-  <div class="panel-head" style="margin-bottom:4px">
-    <div>
-      <div class="panel-title">Appearance</div>
-      <div class="muted" style="font-size:12.5px;margin-top:3px">
-        Sa iyong account lang ito. Walang ibang makakakita ng pagbabago,
-        at susunod ito sa'yo kahit saang computer ka mag-sign in.
-      </div>
-    </div>
-  </div>
-
-  <form method="POST" action="/account/preferences" class="prefs" data-prefs><%- include("partials/csrf") %>
-
-    <!-- Mode -->
-    <div class="pref-block">
-      <div class="pref-label">Theme</div>
-      <div class="pref-choices">
-        <% [
-             ["light", "Maliwanag", "M12 3v2M12 19v2M5 5l1.5 1.5M17.5 17.5 19 19M3 12h2M19 12h2M5 19l1.5-1.5M17.5 6.5 19 5", true],
-             ["dark",  "Madilim",   "M20 14.5A8 8 0 0 1 9.5 4a8.2 8.2 0 1 0 10.5 10.5z", false],
-             ["auto",  "Auto",      "M12 3a9 9 0 0 0 0 18z", false]
-           ].forEach(function (m) { %>
-          <label class="pref-opt <%= prefs.mode === m[0] ? 'is-on' : '' %>">
-            <input type="radio" name="mode" value="<%= m[0] %>" <%= prefs.mode === m[0] ? "checked" : "" %> />
-            <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
-                 stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <% if (m[4]) { %><circle cx="12" cy="12" r="4"/><% } %>
-              <path d="<%= m[2] %>"/>
-            </svg>
-            <span><%= m[1] %></span>
-          </label>
-        <% }) %>
-      </div>
-      <div class="pref-note">
-        <b>Auto</b> ay susunod sa setting ng computer o telepono mo — maliwanag sa umaga,
-        madilim sa gabi, kusa.
-      </div>
-    </div>
-
-    <!-- Accent -->
-    <div class="pref-block">
-      <div class="pref-label">Kulay</div>
-      <div class="swatches">
-        <% presets.forEach(function (p) {
-             const r = ramp(p.hex, darkNow); %>
-          <label class="swatch <%= prefs.preset === p.id ? 'is-on' : '' %>" title="<%= p.label %>">
-            <input type="radio" name="preset" value="<%= p.id %>" <%= prefs.preset === p.id ? "checked" : "" %> />
-            <span class="swatch-dot" style="background:<%= r['--accent'] %>"></span>
-            <span class="swatch-name"><%= p.label %></span>
-          </label>
-        <% }) %>
-
-        <label class="swatch <%= prefs.preset === 'custom' ? 'is-on' : '' %>" title="Sarili mong kulay">
-          <input type="radio" name="preset" value="custom" <%= prefs.preset === "custom" ? "checked" : "" %> />
-          <span class="swatch-dot swatch-custom"
-                style="background:<%= prefs.preset === 'custom' ? ramp(prefs.accent, darkNow)['--accent'] : 'conic-gradient(#e1474d,#d99411,#18a571,#2c8fb8,#7b5cf0,#e1474d)' %>"></span>
-          <span class="swatch-name">Sarili ko</span>
-        </label>
-      </div>
-
-      <%# Hidden until "Sarili ko" is the chosen swatch — see .pref-custom in
-          the stylesheet. A colour field sitting there permanently invited
-          people to set a colour that then did nothing, because the preset
-          above it was still the one selected. The input is seeded with the
-          colour in force rather than the default, so opening it on blue while
-          the app is green cannot happen, and nudging the current colour
-          slightly is possible. %>
-      <div class="pref-custom"<%- prefs.preset === "custom" ? "" : " hidden" %>>
-        <label class="field">
-          <span>Ang kulay mo</span>
-          <input type="color" name="accent" value="<%= prefs.accent %>" data-accent-input />
-        </label>
-      </div>
-    </div>
-
-    <!-- Font -->
-    <div class="pref-block">
-      <div class="pref-label">Font</div>
-      <div class="fontlist">
-        <% fonts.forEach(function (f) { %>
-          <label class="fontopt <%= prefs.font === f.id ? 'is-on' : '' %>">
-            <input type="radio" name="font" value="<%= f.id %>" <%= prefs.font === f.id ? "checked" : "" %> />
-            <span class="fontopt-sample" style="font-family:<%= f.stack %>">Aa</span>
-            <span class="fontopt-meta">
-              <b style="font-family:<%= f.stack %>"><%= f.label %></b>
-              <small><%= f.note %></small>
-            </span>
-          </label>
-        <% }) %>
-      </div>
-      <div class="pref-note">
-        Ang <b>Atkinson Hyperlegible</b> ay ginawa ng Braille Institute para sa
-        mahina ang paningin — magkakaiba talaga ang hugis ng bawat letra.
-      </div>
-    </div>
-
-    <!-- Animations -->
-    <div class="pref-block">
-      <div class="pref-label">Galaw</div>
-      <label class="toggle">
-        <input type="checkbox" name="animations" value="on" <%= prefs.animations ? "checked" : "" %> />
-        <span class="toggle-track"><span class="toggle-knob"></span></span>
-        <span class="toggle-text">
-          <b>Buksan ang mga animation</b>
-          <small>Ang pag-slide ng kaliwang panel at ni Ate Sam, at ang paglutang ng bilog na pindutan.</small>
-        </span>
-      </label>
-      <div class="pref-note">
-        Patayin mo ito kung nakakahilo o mabagal sa lumang tablet. Gumagana pa
-        rin ang lahat — dumarating na lang agad sa halip na dumausdos.
-      </div>
-    </div>
-
-    <button type="submit" class="btn" style="align-self:flex-start">I-save ang hitsura</button>
-  </form>
-</section>
-
 <div class="card">
-  <div class="panel-title" style="margin-bottom:14px">Change password</div>
+  <div class="panel-title" style="margin-bottom:4px">Change password</div>
+  <% if (needsApproval) { %>
+    <%# Said BEFORE the form, not after submitting it. Somebody who types a new
+        password and is then told it will not work until tomorrow feels misled;
+        somebody told first can decide whether to bother now. %>
+    <p class="muted" style="font-size:12.5px;margin:0 0 12px">
+      The admin approves every staff password change. Your current password keeps
+      working until they do.
+    </p>
+  <% } else { %>
+    <p class="muted" style="font-size:12.5px;margin:0 0 12px">Takes effect immediately.</p>
+  <% } %>
+
+  <% if (pendingPassword) { %>
+    <div class="status-row" style="border:1px solid var(--warn);background:var(--warn-bg);border-radius:10px;padding:10px 12px;margin-bottom:12px">
+      <div class="status-label">
+        <b style="color:var(--warn-ink)">Waiting for the admin</b>
+        <small>
+          Requested <%= new Date(pendingPassword.requested_at).toLocaleString("en-PH", { timeZone: "Asia/Manila", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) %>.
+          Sending a new request replaces this one.
+        </small>
+      </div>
+      <form method="POST" action="/account/password/cancel" style="margin:0"><%- include("partials/csrf") %>
+        <button type="submit" class="mini-btn">Cancel request</button>
+      </form>
+    </div>
+  <% } %>
+
   <form method="POST" action="/account/password" class="form-grid"><%- include("partials/csrf") %>
     <label class="field"><span>Current password</span>
       <%- include("partials/password-field", { name: "current_password", autocomplete: "current-password" }) %>
@@ -161,6 +63,6 @@
     <label class="field"><span>Confirm new password</span>
       <%- include("partials/password-field", { name: "confirm_password", minlength: 8, autocomplete: "new-password" }) %>
     </label>
-    <button type="submit" class="btn" style="align-self:flex-end">Change password</button>
+    <button type="submit" class="btn" style="align-self:flex-end"><%= needsApproval ? "Send for approval" : "Change password" %></button>
   </form>
 </div>

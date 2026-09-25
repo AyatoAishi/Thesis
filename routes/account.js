@@ -1,72 +1,55 @@
 // ============================================================================
-// routes/account.js — staff self-service: update profile, change password (v1 update)
+// routes/account.js — staff self-service: update profile, change password.
 // Mounted after requireLogin in server.js.
+//
+// 2026-09-25, from the professors' review:
+//   - The Appearance section is gone ("remove the change theme"). Every account
+//     now gets the clinic green; see lib/theme.js.
+//   - A staff password change is a REQUEST that the admin approves ("should
+//     have an approval from the admin"). The admin, having nobody above them,
+//     still changes their own directly. See lib/passwordRequests.js.
 // ============================================================================
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const db = require("../db");
 const audit = require("../lib/audit");
 const { endOtherStaffSessions } = require("../lib/sessions");
-const themeLib = require("../lib/theme");
+const pw = require("../lib/passwordRequests");
+const { addressOf } = require("../lib/loginGuard");
 
 const router = express.Router();
 
-// Everything the page needs to draw itself, so the three render paths below
-// cannot drift apart on what they pass.
-function accountView(req, extra) {
+const isAdmin = (req) => req.session.user && req.session.user.role === "admin";
+
+// Everything the page needs to draw itself, so the render paths below cannot
+// drift apart on what they pass.
+async function accountView(req, extra) {
+  const pending = isAdmin(req) ? null : await pw.pendingFor(req.session.user.user_id);
   return Object.assign(
     {
       title: "My account · Sampaguita HC",
       active: "",
       errors: [],
       notice: null,
-      prefs: themeLib.normalize(req.session.user.preferences),
-      presets: themeLib.PRESETS,
-      fonts: themeLib.FONTS,
-      // Each preset previewed in the mode being looked at, so the swatches on
-      // the page are the colours that will actually be used rather than the
-      // raw hex somebody typed into this file.
-      ramp: (hex, dark) => themeLib.accentRamp(hex, dark),
-      // So each font option can be shown in its own face.
-      extraHead: `<link rel="stylesheet" href="${themeLib.allFontsHref()}" />`,
+      pendingPassword: pending,
+      needsApproval: !isAdmin(req),
     },
     extra
   );
 }
 
-router.get("/account", (req, res) => {
-  const ended = parseInt(req.query.ended, 10) || 0;
-  res.render("account", accountView(req, {
-    notice: req.query.saved
-      ? ended
-        ? `Saved. ${ended} other sign-in on this account ${ended === 1 ? "was" : "were"} signed out.`
-        : "Saved."
-      : null,
-  }));
-});
-
-// ---- POST /account/preferences --------------------------------------------
-// Appearance only. Nothing here touches a record, a role, or a password, so it
-// is the one setting a staff member can change about themselves with no
-// consequence to anybody else — which is exactly why it is worth having: the
-// alternative is a system that fights the person using it all day.
-router.post("/account/preferences", async (req, res, next) => {
-  // fromForm validates every field and falls back to a default rather than
-  // trusting the body. The accent in particular is a free-text hex from a
-  // colour input, and lib/theme.js computes the readable shades around it.
-  const prefs = themeLib.fromForm(req.body);
+router.get("/account", async (req, res, next) => {
   try {
-    await db.query(
-      "UPDATE users SET preferences=$1::jsonb, updated_at=now() WHERE user_id=$2",
-      [JSON.stringify(prefs), req.session.user.user_id]
-    );
-    // Written to the session too, or the change would not show until the next
-    // sign-in: the layout reads appearance from the session on every render.
-    req.session.user.preferences = prefs;
-    audit.log(req.session.user.user_id, "update", "user", req.session.user.user_id,
-      `changed appearance (${prefs.mode}, ${prefs.font}, ${prefs.accent}${prefs.animations ? "" : ", no animations"})`);
-    // Saved before redirecting, so the very next page already looks right.
-    req.session.save(() => res.redirect("/account?saved=1#appearance"));
+    const ended = parseInt(req.query.ended, 10) || 0;
+    let notice = null;
+    if (req.query.requested) notice = "Request sent. Your password changes once the admin approves it — until then, keep using the current one.";
+    else if (req.query.cancelled) notice = "Request cancelled. Your password is unchanged.";
+    else if (req.query.saved) {
+      notice = ended
+        ? `Saved. ${ended} other sign-in on this account ${ended === 1 ? "was" : "were"} signed out.`
+        : "Saved.";
+    }
+    res.render("account", await accountView(req, { notice }));
   } catch (e) {
     next(e);
   }
@@ -74,12 +57,12 @@ router.post("/account/preferences", async (req, res, next) => {
 
 router.post("/account/profile", async (req, res, next) => {
   const full_name = (req.body.full_name || "").trim();
-  if (!full_name) {
-    return res.status(400).render("account", accountView(req, {
-      errors: ["Full name is required."],
-    }));
-  }
   try {
+    if (!full_name) {
+      return res.status(400).render("account", await accountView(req, {
+        errors: ["Full name is required."],
+      }));
+    }
     await db.query("UPDATE users SET full_name=$1, updated_at=now() WHERE user_id=$2", [
       full_name,
       req.session.user.user_id,
@@ -96,36 +79,60 @@ router.post("/account/password", async (req, res, next) => {
   const current = req.body.current_password || "";
   const next_ = req.body.new_password || "";
   const confirm = req.body.confirm_password || "";
-  const fail = (msg) =>
-    res.status(400).render("account", accountView(req, { errors: [msg] }));
-
-  if (next_.length < 8) return fail("New password must be at least 8 characters.");
-  if (next_ !== confirm) return fail("New password and confirmation don't match.");
 
   try {
+    const fail = async (msg) =>
+      res.status(400).render("account", await accountView(req, { errors: [msg] }));
+
+    if (next_.length < 8) return fail("New password must be at least 8 characters.");
+    if (next_ !== confirm) return fail("New password and confirmation don't match.");
+
+    // The current password is checked for BOTH paths. Approval by the admin
+    // is a second lock, not a replacement for the first — without this, anyone
+    // at an unattended signed-in desk could queue a password of their choosing
+    // and simply wait for it to be waved through.
     const { rows } = await db.query("SELECT password_hash FROM users WHERE user_id=$1", [
       req.session.user.user_id,
     ]);
     const ok = rows[0] && (await bcrypt.compare(current, rows[0].password_hash));
     if (!ok) return fail("Current password is incorrect.");
+    if (await bcrypt.compare(next_, rows[0].password_hash))
+      return fail("The new password is the same as the current one.");
 
+    if (!isAdmin(req)) {
+      await pw.requestChange(req.session.user.user_id, next_, addressOf(req));
+      audit.log(req.session.user.user_id, "password_change", "user", req.session.user.user_id,
+        "requested a password change — waiting for admin approval");
+      return res.redirect("/account?requested=1");
+    }
+
+    // The admin: nobody above to approve, so the change applies now.
     const hash = await bcrypt.hash(next_, 10);
     await db.query("UPDATE users SET password_hash=$1, updated_at=now() WHERE user_id=$2", [
       hash,
       req.session.user.user_id,
     ]);
-    // Anyone else signed in on this account is signed out — including on
-    // another computer. Someone changing their password is usually doing it
-    // BECAUSE another person has been using the account, and leaving that
-    // browser inside with the old session would make the change meaningless.
+    // Anyone else signed in on this account is signed out. People change a
+    // password precisely when they think somebody else is using the account.
     const ended = await endOtherStaffSessions(req.session.user.user_id, req.sessionID);
-
     audit.log(
       req.session.user.user_id, "password_change", "user", req.session.user.user_id,
       ended ? `changed own password (${ended} other session${ended === 1 ? "" : "s"} signed out)`
             : "changed own password"
     );
     res.redirect(`/account?saved=1${ended ? `&ended=${ended}` : ""}`);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post("/account/password/cancel", async (req, res, next) => {
+  try {
+    if (await pw.cancelOwn(req.session.user.user_id)) {
+      audit.log(req.session.user.user_id, "password_change", "user", req.session.user.user_id,
+        "cancelled own password-change request");
+    }
+    res.redirect("/account?cancelled=1");
   } catch (e) {
     next(e);
   }

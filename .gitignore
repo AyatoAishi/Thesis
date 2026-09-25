@@ -13,3 +13,6 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 .vscode/
+
+# Local visual previews rendered with fake data. Never deployed.
+public/_preview/

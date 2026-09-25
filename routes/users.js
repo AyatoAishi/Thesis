@@ -8,6 +8,8 @@ const bcrypt = require("bcryptjs");
 const db = require("../db");
 const audit = require("../lib/audit");
 const { requireRole } = require("../middleware/auth");
+const pw = require("../lib/passwordRequests");
+const { endOtherStaffSessions, REASONS } = require("../lib/sessions");
 
 const router = express.Router();
 const ROLES = ["nurse", "facilitator", "recorder", "admin"];
@@ -21,14 +23,27 @@ router.use("/admin", requireRole("admin"));
 
 router.get("/admin/users", async (req, res, next) => {
   try {
-    const { rows } = await db.query(
-      `SELECT user_id, full_name, username, email, role, status, created_at
-         FROM users ORDER BY created_at DESC`
-    );
+    const [{ rows }, pending] = await Promise.all([
+      db.query(
+        `SELECT user_id, full_name, username, email, role, status, created_at
+           FROM users ORDER BY created_at DESC`
+      ),
+      pw.listPending(),
+    ]);
+
+    // A temporary password from an approved 'forgot' request, shown exactly
+    // once and then gone from the session. It is the only moment it exists in
+    // plain text; refreshing the page does not bring it back.
+    const issued = req.session.issuedTempPassword || null;
+    delete req.session.issuedTempPassword;
+
     res.render("users/list", {
       title: "Staff accounts · Sampaguita HC",
       active: "settings",
       staff: rows,
+      pending,
+      issued,
+      flash: req.query.flash || null,
     });
   } catch (e) {
     next(e);
@@ -123,6 +138,49 @@ router.post("/admin/users/:id/update", async (req, res, next) => {
       `set ${rows[0].username} to role=${role}, status=${status}`
     );
     res.redirect("/admin/users");
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ---- PASSWORD REQUESTS  POST /admin/password-requests/:id/(approve|reject) --
+router.post("/admin/password-requests/:id/approve", async (req, res, next) => {
+  try {
+    const done = await pw.approve(parseInt(req.params.id, 10), req.session.user.user_id);
+    if (!done) {
+      return res.redirect("/admin/users?flash=" +
+        encodeURIComponent("That request was already handled — nothing changed."));
+    }
+    // Every session on that account ends. Passing the ADMIN's own session id
+    // as the one to keep is deliberate: lib/sessions.js matches "sid <> $1",
+    // and a null there matches nothing at all, so no session would end.
+    const ended = await endOtherStaffSessions(done.userId, req.sessionID, REASONS.password);
+    audit.log(
+      req.session.user.user_id, "password_change", "user", done.userId,
+      done.kind === "forgot"
+        ? `approved a forgot-password request for ${done.username} and issued a temporary password`
+        : `approved ${done.username}'s password change` +
+          (ended ? ` (${ended} session${ended === 1 ? "" : "s"} signed out)` : "")
+    );
+    if (done.temp) {
+      req.session.issuedTempPassword = { username: done.username, fullName: done.fullName, temp: done.temp };
+      return req.session.save(() => res.redirect("/admin/users"));
+    }
+    res.redirect("/admin/users?flash=" + encodeURIComponent(`${done.fullName}'s new password is now active.`));
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post("/admin/password-requests/:id/reject", async (req, res, next) => {
+  try {
+    const done = await pw.reject(parseInt(req.params.id, 10), req.session.user.user_id, req.body.note);
+    if (done) {
+      audit.log(req.session.user.user_id, "password_change", "user", done.user_id,
+        `rejected a ${done.kind === "forgot" ? "forgot-password" : "password-change"} request`);
+    }
+    res.redirect("/admin/users?flash=" + encodeURIComponent(
+      done ? "Request rejected. The password is unchanged." : "That request was already handled — nothing changed."));
   } catch (e) {
     next(e);
   }

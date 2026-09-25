@@ -6,14 +6,21 @@
    Design tokens — mirror docs/DESIGN-SYSTEM.md (the Claude Design prototype)
    =========================================================================== */
 :root {
-  --accent: #3b6cf5; --accent-strong: #2c54d6; --accent-soft: #e9f0fe; --accent-softer: #f3f7ff;
-  --bg: #eef2fb; --surface: #ffffff; --surface-2: #f7f9fe; --border: #e6ebf5; --border-strong: #d6deec;
+  /* The clinic green (see DEFAULT_ACCENT in lib/theme.js). The ramp is the one
+     the theme engine computes for #2e7d32, pasted here so the pages that never
+     receive the inline theme block — sign-in, landing, legal — match the rest.
+     The neutrals lose their old blue cast for a faint green one; a blue-grey
+     page under a green accent reads as two designs stitched together. */
+  --accent: #2e7d32; --accent-strong: #225b25; --accent-soft: #e1f4e2; --accent-softer: #f2faf2;
+  --bg: #eff4ef; --surface: #ffffff; --surface-2: #f6f9f6; --border: #e2e9e3; --border-strong: #d2ddd4;
   --ink: #182338; --ink-2: #4a566e; --ink-3: #8893a8; --ink-4: #aab3c6;
   --ok: #18a571; --ok-bg: #e3f6ee; --ok-ink: #0d7a52;
   --warn: #d99411; --warn-bg: #fbf0d8; --warn-ink: #9c6a08;
   --bad: #e1474d; --bad-bg: #fce7e8; --bad-ink: #b22b30;
   --info: #2c8fb8; --info-bg: #e2f3fa; --info-ink: #1d6f90;
-  --violet: #7b5cf0;
+  /* Partner colour for the accent gradients. Was violet beside a blue accent;
+     beside the green it would read as a mistake, so it is a deeper teal-green. */
+  --violet: #1f6f5c;
   /* The colour of text that sits ON the accent. A token because dark mode
      flips the accent light and this to dark. See lib/theme.js. */
   --on-accent: #ffffff;
@@ -178,7 +185,9 @@ body {
 .family-chip[hidden] { display: none; }
 
 /* Content area */
-.content { padding: 22px; max-width: 1100px; }
+/* 1100px left a band of empty page to the right on every laptop. The review
+   asked for that space to be used; 1480px fills a 1440 screen beside the rail. */
+.content { padding: 22px 26px; max-width: 1480px; }
 .page-head { margin-bottom: 18px; flex-wrap: wrap; gap: 10px; }
 .page-head h1 { margin: 0; font-size: 22px; font-weight: 800; }
 .page-head .sub { margin-top: 2px; font-size: 13px; color: var(--ink-3); }
@@ -712,15 +721,14 @@ body {
   .stat-grid { grid-template-columns: 1fr; }
 }
 
-/* Responsive: topbar on a phone — the desktop version packs brand text, a
-   wide search box, a service pill, a notification icon, and a name+role chip
-   into one 60px row, which has no room to spare once the icon rail also takes
-   66px. Drop the decorative/secondary pieces so the search stays usable. */
+/* Responsive: topbar on a phone.
+   This used to HIDE today's count and every .icon-btn — the bell included — to
+   make room in a single 60px row beside a 62px icon rail. That is precisely the
+   bug the professors found: "Yung 'no appointments today' and Notif bell di
+   kita sa mobile view." The rail is now a bar along the bottom and the topbar
+   wraps onto two rows (see the rail section), so there is room, and nothing
+   that tells staff what needs doing is hidden any more. */
 @media (max-width: 640px) {
-  .topbar { gap: 8px; padding: 0 12px; }
-  .brand span:last-child { display: none; }
-  .pill, .icon-btn { display: none; }
-  .user-meta { display: none; }
   .user-chip { padding-left: 0; }
 }
 
@@ -959,148 +967,104 @@ body {
 }
 
 /* ===========================================================================
-   The rail, as a drawer that opens on hover.
+   The rail — always open on a computer, a bottom bar on a phone.
 
-   Collapsed it is icons only. Point at it and the whole rail slides open over
-   the page, each icon gaining its name beside it, with the page dimmed behind
-   — the same gesture as Ate Sam's panel, mirrored to the other edge.
+   2026-09-25, from the professors: "Remove the left panel animation, its
+   better if it's already showing out for easier access and navigation." They
+   are right, and it undoes the hover drawer on purpose: a menu whose names only
+   appear when the mouse finds it asks the user to go looking for the menu
+   before they can use it. Every name is on screen now, all the time.
 
-   THE CONFLICT, AND HOW IT IS SETTLED.
-   The labels were put here in the first place because the rail carried
-   title="Patients", which is a HOVER tooltip, and this system is going to
-   elderly staff on a tablet — where there is no hover, only tap. Seven grey
-   squares and no way to read any of them. Making the labels hover-only again
-   would walk straight back into that.
-
-   So the drawer is served only to devices that actually have a pointer, via
-   @media (hover: hover). A tablet takes the branch below it and keeps the
-   labels permanently visible. One design, two devices, neither compromised.
-
-   :focus-within is in the trigger alongside :hover so the drawer also opens
-   for someone moving through the nav on a keyboard, who otherwise gets the
-   collapsed rail and no idea where they are.
+   On a phone the rail used to be a 62px column of unlabelled icons squeezing
+   the topbar until the bell and "No appointments today" fell off the edge —
+   also on the review list. It becomes a bar along the bottom instead, where a
+   thumb already is, and gives the topbar the whole width back.
    =========================================================================== */
+.rail-label { font-weight: 600; line-height: 1.15; }
 
-/* --- Shared: the label element itself ------------------------------------ */
-.rail-label {
-  font-size: 10px; font-weight: 600; line-height: 1.15;
-  letter-spacing: -.01em; text-align: center;
-}
-.rail-logo { margin-bottom: 2px; }
-
-/* --- Touch and everything without a pointer ------------------------------ */
-/* The state shipped before this: 96px, label stacked under the icon, always
-   readable. This is the fallback, and it is deliberately the DEFAULT so that
-   any browser which does not understand the media query below still gets a
-   navigation that can be read. */
-.rail { width: 96px; flex: 0 0 96px; }
-.rail-item {
-  display: flex; flex-direction: column; gap: 4px;
-  width: 80px; height: auto; padding: 9px 5px 7px;
-}
-
-/* --- Pointer devices: the drawer ----------------------------------------- */
-@media (hover: hover) and (pointer: fine) {
-  /* Taken out of the flex flow so opening it covers the page instead of
-     shoving it sideways. A rail that pushes the whole layout right every time
-     the mouse crosses it is unusable — the thing you were about to click moves
-     out from under the cursor. .layout keeps the 66px as padding so nothing
-     ends up underneath the collapsed rail. */
-  .layout { padding-left: 66px; }
+/* --- Computers and tablets ---------------------------------------------- */
+@media (min-width: 641px) {
+  /* Fixed rather than in the flex flow, so the page scrolls underneath it and
+     the menu never scrolls away. .layout reserves the width. */
+  .layout { padding-left: 212px; }
   .rail {
-    position: fixed; left: 0; top: 0; bottom: 0; z-index: 50;
-    width: 66px; flex: none;
-    align-items: flex-start;
-    padding: 14px 11px;
-    overflow: hidden;
-    transition: width .3s cubic-bezier(.22,.9,.28,1);
+    position: fixed; left: 0; top: 0; bottom: 0; z-index: 30;
+    width: 212px; flex: none;
+    align-items: stretch;
+    padding: 14px 12px;
+    gap: 3px;
+    overflow-y: auto;
   }
-  .rail:hover, .rail:focus-within { width: 212px; }
-
-  /* The dimmer, hung on the main column rather than on the rail.
-     It was .rail::before with z-index:-1 first, on the assumption that a
-     negative child paints behind its parent. It does not: within a stacking
-     context the order is the context's own background, THEN negative-z
-     children, then everything else. So the scrim landed on top of the rail's
-     white background and greyed the rail itself, while each nav item — being
-     in-flow content painted later — stayed bright. The rail looked dimmed and
-     the links looked like they were floating above it.
-     .main-col is the rail's next sibling, so hovering one can dim the other
-     without adding an element to the EJS. */
-  .rail:hover ~ .main-col::before,
-  .rail:focus-within ~ .main-col::before { opacity: 1; }
-  .main-col::before {
-    content: ""; position: fixed; inset: 0; z-index: 40;
-    background: rgba(24, 35, 56, .34);
-    opacity: 0; pointer-events: none;
-    transition: opacity .3s ease;
+  .rail-brand {
+    display: flex; align-items: center; gap: 10px;
+    padding: 2px 6px 14px; margin-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+    color: var(--ink); text-decoration: none;
   }
-
-  .rail-logo { flex: none; margin: 0 0 10px 1px; }
+  .rail-brand-text { line-height: 1.2; }
+  .rail-brand-text b { display: block; font-size: 14px; font-weight: 800; }
+  .rail-brand-text span { display: block; font-size: 11.5px; color: var(--ink-3); }
 
   .rail-item {
-    display: flex; flex-direction: row; align-items: center; gap: 12px;
-    width: 190px; height: 44px; padding: 0 0 0 10px;
-    /* Fixed width even while collapsed, so the label is already laid out and
-       only has to fade in. Animating width per item as well as on the rail
-       makes the text reflow mid-slide and shimmer. */
-    flex: none;
+    display: flex; align-items: center; gap: 12px;
+    width: 100%; height: 44px; padding: 0 12px;
+    border-radius: 10px;
+    color: var(--ink-2);
   }
-  .rail-item svg {
-    flex: none;
-    transition: transform .34s cubic-bezier(.34,1.4,.5,1);
-  }
+  .rail-item svg { flex: none; width: 21px; height: 21px; }
+  .rail-label { font-size: 14px; white-space: nowrap; }
+  .rail-item.active { font-weight: 700; }
+  .rail-item.active .rail-label { font-weight: 700; }
 
-  .rail-label {
-    font-size: 13px; font-weight: 600; text-align: left;
-    white-space: nowrap;
-    opacity: 0;
-    transform: translateX(-6px);
-    transition: opacity .22s ease, transform .28s ease;
-  }
-  .rail:hover .rail-label,
-  .rail:focus-within .rail-label { opacity: 1; transform: translateX(0); }
-
-  /* The tilt. Small on purpose — enough to register as the panel acknowledging
-     the mouse, not enough to look broken. The per-item delay makes it run down
-     the rail rather than snapping all at once. */
-  .rail:hover .rail-item svg,
-  .rail:focus-within .rail-item svg { transform: rotate(-9deg); }
-
-  .rail:hover .rail-item:nth-child(2) svg  { transition-delay: .00s; }
-  .rail:hover .rail-item:nth-child(3) svg  { transition-delay: .03s; }
-  .rail:hover .rail-item:nth-child(4) svg  { transition-delay: .06s; }
-  .rail:hover .rail-item:nth-child(5) svg  { transition-delay: .09s; }
-  .rail:hover .rail-item:nth-child(6) svg  { transition-delay: .12s; }
-  .rail:hover .rail-item:nth-child(7) svg  { transition-delay: .15s; }
-  .rail:hover .rail-item:nth-child(8) svg  { transition-delay: .18s; }
-  .rail:hover .rail-item:nth-child(9) svg  { transition-delay: .21s; }
-
-  /* Hovering one item straightens that icon while its neighbours stay tilted,
-     so the thing under the cursor is the one standing upright. */
-  .rail .rail-item:hover svg { transform: rotate(0deg); transition-delay: 0s; }
+  /* The rail already shows the seal and the name, so the topbar's copy of the
+     same badge was the doubled icon the review pointed at. */
+  .topbar .brand { display: none; }
 }
 
+/* --- Phones -------------------------------------------------------------- */
 @media (max-width: 640px) {
-  /* On a phone the rail is already fighting the topbar for room; the labels
-     are the first thing to go. */
-  .layout { padding-left: 0; }
+  .layout { display: block; padding-left: 0; }
+  .main-col { min-height: 100vh; padding-bottom: 76px; }
+
   .rail {
-    position: static; width: 62px; flex: 0 0 62px;
-    align-items: center; padding: 14px 0; overflow: visible;
+    position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 40;
+    width: auto; height: 66px; flex: none;
+    flex-direction: row; align-items: stretch; gap: 0;
+    padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+    border-right: 0; border-top: 1px solid var(--border);
+    overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: none;
+    box-shadow: 0 -6px 18px rgba(24, 35, 56, .08);
   }
-  .main-col::before { display: none; }
-  .rail-label { display: none; }
-  .rail-item { width: 44px; height: 44px; padding: 0; justify-content: center; }
-}
+  .rail::-webkit-scrollbar { display: none; }
+  /* The seal lives in the topbar on a phone; a second copy in the bar is the
+     doubled icon again. */
+  .rail-brand, .rail-spacer { display: none; }
 
-/* A tilt and a slide are decoration. Someone who asked for less motion still
-   gets the drawer, and the labels still arrive — they just stop moving. */
-@media (prefers-reduced-motion: reduce) {
-  .rail, .main-col::before, .rail-label, .rail-item svg { transition: none; }
-  .rail:hover .rail-item svg, .rail:focus-within .rail-item svg { transform: none; }
-}
+  .rail-item {
+    flex: 1 0 64px; min-width: 64px; height: auto;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    padding: 6px 2px; border-radius: 10px;
+  }
+  .rail-item svg { width: 21px; height: 21px; }
+  .rail-label { font-size: 10.5px; text-align: center; white-space: nowrap; }
 
+  /* The topbar keeps everything it holds, on two rows: seal, today's count,
+     bell and account on top; the search below at full width. */
+  .topbar {
+    height: auto; flex: none; flex-wrap: wrap;
+    gap: 8px 10px; padding: 10px 12px;
+  }
+  .topbar .brand { order: 1; }
+  .topbar .brand > span:not(.brand-badge) { display: none; }
+  .topbar-right { order: 2; margin-left: auto; gap: 8px; }
+  .topbar .search-form { order: 3; flex: 1 0 100% !important; }
+  .topbar .pill { height: 30px; padding: 0 10px; font-size: 11.5px; white-space: nowrap; }
+  .topbar .user-meta { display: none; }
+
+  /* Ate Sam sits above the bar instead of under it. */
+  .sam-bubble { bottom: 84px !important; }
+}
 /* ===========================================================================
    Dark mode, and the two preferences that are not colours.
 
@@ -1344,7 +1308,7 @@ body {
 
 /* The favicon and the marks share one shape, so the tab, the rail and the
    topbar are the same thing at three sizes. */
-.rail-logo { width: 38px; height: 38px; border-radius: 0; }
+.rail-logo { width: 38px; height: 38px; border-radius: 0; flex: none; margin: 0; }
 .brand-badge { width: 30px; height: 30px; border-radius: 0; }
 
 /* Ate Sam's bubble already has its own round background; her mark sits inside
@@ -1620,3 +1584,83 @@ body {
   .cal-count { font-size: 9.5px; padding: 1px 4px; }
   .cal-month { min-width: 7.5em; font-size: 12.5px; }
 }
+
+/* ===========================================================================
+   Readability pass (2026-09-25 review: "Make the fonts bigger, especially the
+   numbers in the calendar").
+
+   Overrides, not edits, so every rule above stays readable as it was designed
+   and this block can be read as one decision: the working text of the system
+   goes up a step. The floor for anything somebody has to READ is 13px here —
+   small print included — because the people reading it are a barangay's
+   health workers, some of them not young, on a laptop at arm's length.
+   =========================================================================== */
+body { font-size: 15px; }
+.page-head h1 { font-size: 25px; }
+.page-head .sub { font-size: 14px; }
+.panel-title { font-size: 16.5px; }
+.tbl { font-size: 15px; }
+.tbl th { font-size: 12.5px; }
+.status-label { font-size: 15px; }
+.status-label small { font-size: 13px; }
+.field span { font-size: 14px; }
+.field input, .field select, .field textarea { font-size: 15px; }
+.badge { font-size: 12.5px; }
+.steps { font-size: 15px; }
+.muted { font-size: inherit; }
+.btn, .mini-btn { font-size: 14px; }
+
+/* The calendar numbers were called out by name. A date cell is the one place a
+   single glyph carries the whole meaning, so it gets the biggest step. */
+.cal-day { font-size: 18px; font-weight: 700; }
+.cal-count { font-size: 12.5px; padding: 3px 8px; }
+.cal-head { font-size: 12.5px; }
+.cal-month { font-size: 15px; }
+@media (max-width: 560px) {
+  .cal-day { font-size: 15px; }
+  .cal-count { font-size: 11px; padding: 1px 5px; }
+}
+
+/* Calendar hover text ("Add a text upon hover in the calendar … how many
+   appointments are set that day"). The native title attribute carries it too,
+   for keyboards and for touch, where a long-press shows it; this is the faster
+   version for a mouse. */
+.cal-cell[data-tip]:hover::after,
+.cal-cell[data-tip]:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%);
+  z-index: 5; white-space: nowrap;
+  background: var(--ink); color: #fff;
+  font-size: 12.5px; font-weight: 600; line-height: 1;
+  padding: 7px 10px; border-radius: 8px;
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+}
+
+/* Quick actions ("change the color or highlight the text that are
+   clickable"). Links inside running text were accent-coloured but otherwise
+   indistinguishable from bold words; they now look pressable. */
+.steps a {
+  color: var(--accent-strong); font-weight: 700;
+  background: var(--accent-soft);
+  padding: 1px 7px; border-radius: 6px;
+  text-decoration: none;
+  box-decoration-break: clone; -webkit-box-decoration-break: clone;
+}
+.steps a:hover { background: var(--accent); color: var(--on-accent); }
+
+/* ---- Sign-in pages: the back link and the forgot link ------------------- */
+.auth-back {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin: 2px 0 14px;
+  font-size: 14px; font-weight: 700;
+  color: var(--accent-strong); text-decoration: none;
+}
+.auth-back:hover { text-decoration: underline; }
+.auth-forgot { text-align: center; margin: 14px 0 0; font-size: 14px; }
+.auth-forgot a { color: var(--accent-strong); font-weight: 700; }
+
+/* The seal is round and brings its own colours; the badge around it must not
+   add a square or a tint. */
+.seal-img { display: block; border-radius: 50%; }
+.brand-badge .seal-img, .rail-logo .seal-img { width: 100%; height: 100%; }

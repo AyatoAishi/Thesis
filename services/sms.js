@@ -11,6 +11,18 @@
 //
 //   PHILSMS_TOKEN   + PHILSMS_SENDER      -> PhilSMS  (app.philsms.com, v3)
 //   SEMAPHORE_API_KEY + SEMAPHORE_SENDER  -> Semaphore (api.semaphore.co, v4)
+//   SMSGATE_USERNAME + SMSGATE_PASSWORD   -> the clinic's own Android phone,
+//        through "SMS Gateway for Android" (sms-gate.app). Optional:
+//        SMSGATE_PASSPHRASE  end-to-end encryption (strongly recommended)
+//        SMSGATE_URL         a self-hosted gateway instead of the public one
+//
+// 2026-09-29: the phone. PhilSMS only reaches Globe and stopped answering;
+// Semaphore wants a ₱560 minimum top-up. So texts go out through an Android
+// phone on the clinic's own SIM and load: the gateway app receives each message
+// over the internet and the phone sends it as an ordinary SMS. Patients see
+// that phone's number as the sender, which is why every message starts with
+// "Sampaguita Health Clinic:". The PhilSMS and Semaphore adapters stay; either
+// can be switched on later with its own variables, and nothing else changes.
 //
 // The two providers disagree about almost everything — number format, auth
 // header, body encoding, what "success" looks like — so each gets its own
@@ -28,17 +40,30 @@ const SEMAPHORE_BASE = "https://api.semaphore.co/api/v4";
 // payloads are unchanged, so only the base moves. Overridable by env because we
 // have now been caught once by a provider changing host underneath us.
 const PHILSMS_BASE = process.env.PHILSMS_BASE || "https://dashboard.philsms.com/api/v3";
+const SMSGATE_BASE = (process.env.SMSGATE_URL || "https://api.sms-gate.app/3rdparty/v1").replace(/\/+$/, "");
 const TIMEOUT_MS = 15000;
 
-// Which adapter is in play. PhilSMS wins if both are somehow set.
+// Which adapter is in play. SMS_PROVIDER (philsms | semaphore | smsgate) names
+// one outright, and it is used only if its own keys are set; nothing falls
+// through to a different provider behind anyone's back. Without it, the first
+// configured one wins: PhilSMS, then Semaphore, then the phone. The override
+// exists because an old PHILSMS_TOKEN left in a .env silently beat the phone.
 function provider() {
-  if (process.env.PHILSMS_TOKEN) return "philsms";
-  if (process.env.SEMAPHORE_API_KEY) return "semaphore";
+  const ready = {
+    philsms: !!process.env.PHILSMS_TOKEN,
+    semaphore: !!process.env.SEMAPHORE_API_KEY,
+    smsgate: !!(process.env.SMSGATE_USERNAME && process.env.SMSGATE_PASSWORD),
+  };
+  const want = String(process.env.SMS_PROVIDER || "").trim().toLowerCase();
+  if (want in ready) return ready[want] ? want : null;
+  if (ready.philsms) return "philsms";
+  if (ready.semaphore) return "semaphore";
+  if (ready.smsgate) return "smsgate";
   return null;
 }
 
 function providerName() {
-  return { philsms: "PhilSMS", semaphore: "Semaphore" }[provider()] || null;
+  return { philsms: "PhilSMS", semaphore: "Semaphore", smsgate: "Android phone (SMS Gateway)" }[provider()] || null;
 }
 
 function isLive() {
@@ -160,8 +185,120 @@ async function sendSemaphore(local09, message, sender) {
   }
 }
 
+// ---- Android phone (SMS Gateway for Android, sms-gate.app) ------------------
+// POST /messages hands the text to the gateway, which pushes it to the phone;
+// the phone then sends it over its own SIM. So the API answering "Pending" means
+// QUEUED, not sent. Checked a few times over ~6 seconds: an online phone takes
+// it within a second or two. A phone that has not picked it up by then is
+// recorded as `pending`, never as `sent`, so the log does not claim a text left
+// the building when it has not.
+//
+// Patient data and the relay: the public gateway is a third party. With
+// SMSGATE_PASSPHRASE set (and the same passphrase in the phone app's settings),
+// the text AND the number are encrypted here and only the phone can read them,
+// so the relay only ever sees ciphertext (RA 10173). Format from the gateway's
+// docs: AES-256-CBC, key = PBKDF2-SHA1(passphrase, salt, 75000 iterations,
+// 32 bytes), the 16-byte random salt doubles as the IV,
+// "$aes-256-cbc/pbkdf2-sha1$i=<n>$<salt b64>$<ciphertext b64>".
+const SMSGATE_ITERATIONS = 75000;
+const SMSGATE_TTL_SECONDS = 12 * 60 * 60;      // a reminder queued while the phone is off must not arrive after the visit
+const SMSGATE_ACTIVE_WITHIN_HOURS = 24;         // no phone seen for a day -> fail now, don't queue into the void
+
+function smsgateEncrypt(plain, passphrase) {
+  const crypto = require("crypto");
+  const salt = crypto.randomBytes(16);
+  const key = crypto.pbkdf2Sync(passphrase, salt, SMSGATE_ITERATIONS, 32, "sha1");
+  const cipher = crypto.createCipheriv("aes-256-cbc", key, salt);
+  const enc = Buffer.concat([cipher.update(String(plain), "utf8"), cipher.final()]);
+  return `$aes-256-cbc/pbkdf2-sha1$i=${SMSGATE_ITERATIONS}$${salt.toString("base64")}$${enc.toString("base64")}`;
+}
+
+function smsgateAuth() {
+  return "Basic " + Buffer.from(`${process.env.SMSGATE_USERNAME}:${process.env.SMSGATE_PASSWORD}`).toString("base64");
+}
+
+async function smsgateState(id) {
+  const t = withTimeout();
+  try {
+    const res = await fetch(`${SMSGATE_BASE}/messages/${encodeURIComponent(id)}`, {
+      signal: t.signal, headers: { Authorization: smsgateAuth(), Accept: "application/json" },
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  } finally {
+    t.done();
+  }
+}
+
+// The reason a failed message gives, wherever the gateway put it.
+function smsgateReason(d) {
+  if (!d) return "";
+  const r = Array.isArray(d.recipients) ? d.recipients.find((x) => x && x.error) : null;
+  return (r && r.error) || d.reason || d.error || d.message || "";
+}
+
+async function sendSmsGate(local09, message) {
+  const pass = process.env.SMSGATE_PASSPHRASE || "";
+  const e164 = "+63" + local09.slice(1);
+  const body = {
+    textMessage: { text: pass ? smsgateEncrypt(message, pass) : message },
+    phoneNumbers: [pass ? smsgateEncrypt(e164, pass) : e164],
+    ttl: SMSGATE_TTL_SECONDS,
+    withDeliveryReport: true,
+    isEncrypted: !!pass,
+  };
+  const t = withTimeout();
+  let data, text, res;
+  try {
+    res = await fetch(`${SMSGATE_BASE}/messages?deviceActiveWithin=${SMSGATE_ACTIVE_WITHIN_HOURS}`, {
+      method: "POST",
+      signal: t.signal,
+      headers: { Authorization: smsgateAuth(), "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(body),
+    });
+    text = await res.text();
+    try { data = JSON.parse(text); } catch { data = null; }
+  } catch (e) {
+    return failed(e.name === "AbortError" ? "SMS gateway request timed out." : `Network error: ${e.message}`);
+  } finally {
+    t.done();
+  }
+  if (!res.ok || !data || !data.id) {
+    const why = res.status === 401 ? "the username/password was refused"
+      : /no active device/i.test(text || "") ? "the phone has not been online in the last 24 hours"
+      : (text || "").slice(0, 300);
+    return failed(`SMS gateway ${res.status}: ${why}`);
+  }
+
+  // Queued. Give an online phone a moment to take it.
+  let state = data.state, d = data;
+  for (let i = 0; i < 3 && (!state || state === "Pending"); i++) {
+    await new Promise((r) => setTimeout(r, Number(process.env.SMSGATE_POLL_MS) || 2000));
+    const now = await smsgateState(data.id);
+    if (now && now.state) { d = now; state = now.state; }
+  }
+  const id = String(data.id);
+  if (state === "Failed") return { ...failed(`Phone could not send it: ${smsgateReason(d) || "no reason given"}`), message_id: id };
+  if (!state || state === "Pending") {
+    return { sent: false, simulated: false, message_id: id, status: "pending",
+             response: "Queued, but the phone has not picked it up yet — check that it is on, online, and the app is running." };
+  }
+  return { sent: true, simulated: false, message_id: id, status: "sent",
+           response: `Sent by the clinic phone (${state}).` };
+}
+
+// Where a message stands now, for the test button: Pending / Processed / Sent /
+// Delivered / Failed. Only the phone gateway can be asked; null otherwise.
+async function messageState(id) {
+  if (provider() !== "smsgate" || !id) return null;
+  const d = await smsgateState(id);
+  return d ? { state: d.state || null, reason: smsgateReason(d) || null } : null;
+}
+
 // Send one SMS. Always resolves (never throws on network/provider failure) with:
-//   { sent, simulated, message_id, status: 'sent'|'failed', response }
+//   { sent, simulated, message_id, status: 'sent'|'pending'|'failed', response }
 async function sendSMS(number, message, { sender } = {}) {
   assertSendable(message);
 
@@ -177,13 +314,15 @@ async function sendSMS(number, message, { sender } = {}) {
       response: "SIMULATED — no SMS provider connected; no text was actually sent.",
     };
   }
-  return p === "philsms" ? sendPhilSMS(to, message) : sendSemaphore(to, message, sender);
+  if (p === "philsms") return sendPhilSMS(to, message);
+  if (p === "semaphore") return sendSemaphore(to, message, sender);
+  return sendSmsGate(to, message);
 }
 
 // Remaining credit, if the provider will tell us. Returns a number, or null.
 async function accountBalance() {
   const p = provider();
-  if (!p) return null;
+  if (!p || p === "smsgate") return null;   // the phone's load is not visible to the gateway
   const t = withTimeout();
   try {
     if (p === "philsms") {
@@ -218,4 +357,7 @@ async function accountBalance() {
   }
 }
 
-module.exports = { isLive, provider, providerName, normalizePH, toIntl, assertSendable, sendSMS, accountBalance };
+module.exports = {
+  isLive, provider, providerName, normalizePH, toIntl, assertSendable, sendSMS, accountBalance,
+  messageState, smsgateEncrypt,
+};

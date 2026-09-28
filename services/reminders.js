@@ -178,11 +178,13 @@ async function logNotification(n) {
   );
 }
 
-// Already sent a reminder for this appointment on this channel?
+// Already sent a reminder for this appointment on this channel? A text still
+// `pending` on the clinic phone counts: it may yet go out, and sending a second
+// copy would reach the patient twice.
 async function alreadySent(appointment_id, channel) {
   const dup = await db.query(
     `SELECT 1 FROM notifications
-      WHERE appointment_id=$1 AND channel=$2 AND status='sent' LIMIT 1`,
+      WHERE appointment_id=$1 AND channel=$2 AND status IN ('sent', 'pending') LIMIT 1`,
     [appointment_id, channel]
   );
   return dup.rowCount > 0;
@@ -216,7 +218,7 @@ async function processReminders({ date, force = false, only = null } = {}) {
     date: target, only: restrict, total: rows.length,
     sent: 0, failed: 0, skipped: 0, simulated: 0,
     email: { sent: 0, failed: 0, skipped: 0 },
-    sms: { sent: 0, failed: 0, skipped: 0, simulated: 0 },
+    sms: { sent: 0, failed: 0, skipped: 0, simulated: 0, pending: 0 },
   };
   const bump = (ch, key) => { summary[ch][key]++; summary[key]++; };
 
@@ -242,7 +244,7 @@ async function processReminders({ date, force = false, only = null } = {}) {
       bump("email", r.sent ? "sent" : "failed");
     }
 
-    // ---- SMS channel (no provider connected — see services/sms.js) ----------
+    // ---- SMS channel (whichever provider services/sms.js has switched on) ---
     const smsTo = wantsChannel(appt, "sms", restrict) ? resolveRecipient(appt) : null;
     if (!smsTo) {
       bump("sms", "skipped");
@@ -254,10 +256,12 @@ async function processReminders({ date, force = false, only = null } = {}) {
       await logNotification({
         patient_id: appt.patient_id, appointment_id: appt.appointment_id,
         channel: "sms", recipient: smsTo.number, recipient_type: smsTo.type,
-        message, status: result.status === "sent" ? "sent" : "failed",
+        message, status: ["sent", "pending"].includes(result.status) ? result.status : "failed",
         provider_message_id: result.message_id, provider_response: result.response,
       });
-      bump("sms", result.status === "sent" ? "sent" : "failed");
+      // Queued on the phone but not yet taken: counted apart, never as sent.
+      if (result.status === "pending") summary.sms.pending++;
+      else bump("sms", result.status === "sent" ? "sent" : "failed");
     }
   }
 

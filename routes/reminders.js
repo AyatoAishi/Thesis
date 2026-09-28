@@ -8,6 +8,7 @@ const express = require("express");
 const db = require("../db");
 const F = require("../lib/format");
 const sms = require("../services/sms");
+const audit = require("../lib/audit");
 const emailSvc = require("../services/email");
 const { processReminders } = require("../services/reminders");
 const { requireRole } = require("../middleware/auth");
@@ -70,6 +71,9 @@ async function renderIndex(req, res, extra = {}) {
     active: "reminders",
     live: sms.isLive(),
     smsProvider: sms.providerName(),
+    smsKind: sms.provider(),
+    smsEncrypted: !!process.env.SMSGATE_PASSPHRASE,
+    smsTest: null,
     emailLive: emailSvc.isLive(),
     emailInfo: emailSvc.describe(),
     emailTest: null,
@@ -108,6 +112,51 @@ router.post("/reminders/test-email", requireRole("admin"), async (req, res, next
   }
 });
 
+// ---- POST /reminders/test-sms  (admin) ------------------------------------
+// One real text to a number the admin types, so "is SMS working?" can be
+// answered from inside the clinic before it matters — the delivery log only
+// shows the damage after the fact. Not tied to a patient, so it goes to the
+// activity log rather than the notifications table.
+router.post("/reminders/test-sms", requireRole("admin"), async (req, res, next) => {
+  try {
+    const to = sms.normalizePH(req.body.number);
+    let smsTest;
+    if (!sms.isLive()) {
+      smsTest = { ok: false, number: req.body.number || "", response: "No SMS provider is switched on, so nothing can be sent." };
+    } else if (!to) {
+      smsTest = { ok: false, number: req.body.number || "", response: "That is not an 11-digit mobile number (09xxxxxxxxx)." };
+    } else {
+      const r = await sms.sendSMS(to,
+        "Sampaguita Health Clinic: pagsubok lamang ito ng reminder system. Wala pong kailangang gawin. Salamat po.");
+      smsTest = { ok: r.status === "sent", status: r.status, number: to, id: r.message_id, response: r.response };
+      audit.log(req.session.user.user_id, "test", "sms", null,
+        `test SMS to ${to}: ${r.status}${r.message_id ? ` (${r.message_id})` : ""}`);
+    }
+    await renderIndex(req, res, { smsTest });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ---- POST /reminders/test-sms/check  (admin) ------------------------------
+// Where that test text stands now: the phone reports Sent, then Delivered once
+// the recipient's network confirms it.
+router.post("/reminders/test-sms/check", requireRole("admin"), async (req, res, next) => {
+  try {
+    const id = String(req.body.id || "").slice(0, 64);
+    const st = await sms.messageState(id);
+    const smsTest = {
+      ok: !!(st && ["Sent", "Delivered", "Processed"].includes(st.state)),
+      status: st ? String(st.state || "unknown").toLowerCase() : "unknown",
+      number: String(req.body.number || "").slice(0, 16), id,
+      response: st ? `The phone reports: ${st.state || "no state yet"}${st.reason ? ` — ${st.reason}` : ""}.` : "The gateway did not answer.",
+    };
+    await renderIndex(req, res, { smsTest });
+  } catch (e) {
+    next(e);
+  }
+});
+
 // ---- POST /reminders/run-now  (admin) -------------------------------------
 router.post("/reminders/run-now", requireRole("admin"), async (req, res, next) => {
   try {
@@ -120,6 +169,7 @@ router.post("/reminders/run-now", requireRole("admin"), async (req, res, next) =
     const flash =
       `Ran reminders for ${s.date} (${s.total} appointment${s.total === 1 ? "" : "s"}) — ` +
       part("Email", s.email) + " · " + part("SMS", s.sms) +
+      (s.sms.pending ? ` (${s.sms.pending} still waiting on the phone)` : "") +
       (s.sms.simulated ? ` (${s.sms.simulated} simulated)` : "") + ".";
     res.redirect(`/reminders?date=${s.date}&flash=${encodeURIComponent(flash)}`);
   } catch (e) {

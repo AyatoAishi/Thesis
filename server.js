@@ -33,6 +33,7 @@ const formRoutes = require("./routes/forms");
 const helpRoutes = require("./routes/help");
 const announcementRoutes = require("./routes/announcements");
 const reminders = require("./services/reminders");
+const smsSvc = require("./services/sms");
 const immSchedule = require("./services/immunizationSchedule");
 const imm = require("./lib/immunizationCard");
 const { requireLogin } = require("./middleware/auth");
@@ -106,6 +107,8 @@ app.use((req, res, next) => {
   // Where the language toggle sends the reader back to.
   res.locals.currentPath = req.originalUrl;
   res.locals.t = (key, vars) => i18n.t(lang, key, vars);
+  // Whether texts really leave the building; forms say so instead of guessing.
+  res.locals.smsLive = smsSvc.isLive();
   next();
 });
 
@@ -536,7 +539,7 @@ app.listen(PORT, async () => {
   const s = await db.ping();
   console.log(s.ok ? "  DB: connected ✓" : `  DB: not connected — ${s.reason}`);
   console.log(
-    `  Reminders: ${process.env.SEMAPHORE_API_KEY ? "LIVE (Semaphore)" : "SIMULATION (no API key)"}` +
+    `  Reminders: SMS ${smsSvc.isLive() ? `LIVE (${smsSvc.providerName()})` : "SIMULATION (no provider)"}` +
       ` · daily cron "${reminderCron}" ${F.TZ}\n`
   );
 });

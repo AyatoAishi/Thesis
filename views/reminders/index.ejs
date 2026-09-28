@@ -85,10 +85,43 @@
   <% if (!live) { %>
     <p class="muted" style="margin:8px 2px 0;font-size:13px;opacity:.75">
       No text message has actually been sent. SMS rows in the log below are a dry run — the message
-      was composed and recorded, but nothing left the building. Add
-      <code class="mono">PHILSMS_TOKEN</code> and <code class="mono">PHILSMS_SENDER</code> to go
-      live; no other change is needed.
+      was composed and recorded, but nothing left the building. To go live, set
+      <code class="mono">SMSGATE_USERNAME</code> and <code class="mono">SMSGATE_PASSWORD</code> (the clinic's
+      Android phone), or <code class="mono">PHILSMS_TOKEN</code>, or <code class="mono">SEMAPHORE_API_KEY</code>.
+      See docs/OPERATIONS.md.
     </p>
+  <% } else { %>
+    <% if (smsKind === "smsgate") { %>
+      <%# Said on the page, so nobody — staff or panel — has to guess where the
+          texts come from. %>
+      <p class="muted" style="margin:8px 2px 0;font-size:13px;line-height:1.55">
+        Texts go out through the clinic's Android phone, on its own SIM and load, using the
+        <b>SMS Gateway for Android</b> app. Patients see that phone's number as the sender.
+        <% if (smsEncrypted) { %>Messages are <b>end-to-end encrypted</b>: the relay server that passes them to the phone cannot read them.
+        <% } else { %><b>Encryption is off</b> — set <code class="mono">SMSGATE_PASSPHRASE</code> (and the same passphrase in the app) so the relay cannot read patient names.<% } %>
+        The phone has to stay on, online and charged, with the app allowed to run in the background.
+      </p>
+    <% } %>
+    <form method="POST" action="/reminders/test-sms" class="daynav-left" style="gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:12px"><%- include("../partials/csrf") %>
+      <label class="field" style="gap:4px"><span>Send a test text to</span>
+        <input type="tel" name="number" placeholder="09xxxxxxxxx" inputmode="numeric" maxlength="16" required
+               value="<%= smsTest && smsTest.number ? smsTest.number : '' %>" />
+      </label>
+      <button type="submit" class="mini-btn">Send test SMS</button>
+    </form>
+    <% if (smsTest) { %>
+      <div class="page-alert <%= smsTest.ok ? 'ok' : (smsTest.status === 'pending' ? 'warn' : 'bad') %>" style="margin:10px 0 0;display:block">
+        <b><%= smsTest.ok ? "Sent." : smsTest.status === "pending" ? "Queued — waiting on the phone." : "Not sent." %></b>
+        <%= smsTest.response %>
+        <% if (smsTest.id && smsKind === "smsgate") { %>
+          <form method="POST" action="/reminders/test-sms/check" style="margin:8px 0 0"><%- include("../partials/csrf") %>
+            <input type="hidden" name="id" value="<%= smsTest.id %>" />
+            <input type="hidden" name="number" value="<%= smsTest.number %>" />
+            <button type="submit" class="mini-btn">Check its status again</button>
+          </form>
+        <% } %>
+      </div>
+    <% } %>
   <% } %>
 </div>
 

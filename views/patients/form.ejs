@@ -154,7 +154,7 @@
         </select>
         <span class="muted" style="font-size:11.5px;font-weight:500">
           The patient's own address is tried first; the emergency contact below is the fallback.
-          SMS is not connected to a provider yet, so those are recorded but not actually sent.
+          <% if (typeof smsLive !== "undefined" && !smsLive) { %>SMS is not connected to a provider yet, so those are recorded but not actually sent.<% } %>
         </span>
       </label>
       <label class="field" style="grid-column:1/-1"><span>Address</span>

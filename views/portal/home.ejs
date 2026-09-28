@@ -9,7 +9,7 @@
   //   - "Yung ibang text mejo crowded pa … mapa igsi" — every sentence here
   //     was cut to the one thing it has to say, in one language.
   function statusBadge(s) {
-    const m = { scheduled:["info","Naka-schedule"], completed:["ok","Tapos na"], missed:["bad","Hindi nakapunta"], cancelled:["warn","Kinansela"] };
+    const m = { scheduled:["info",t("status.scheduled")], completed:["ok",t("status.completed")], missed:["bad",t("status.missed")], cancelled:["warn",t("status.cancelled")] };
     const [c, l] = m[s] || ["info", s];
     return `<span class="badge ${c}">${l}</span>`;
   }
@@ -26,7 +26,7 @@
 %>
 
 <div class="page-head">
-  <h1>Hello, <%= me.full_name.split(" ")[0] %> 👋</h1>
+  <h1><%= t("por.hello", { name: me.full_name.split(" ")[0] }) %></h1>
   <div class="sub mono"><%= me.patient_number %></div>
 </div>
 
@@ -39,19 +39,19 @@
     password is still the one in use, and gone once they have set their own. %>
 <% if (onTempPassword) { %>
   <a class="card portal-flash warn-flash portal-temp-pw" href="#change-password">
-    <b>Pansamantala pa ang password mo.</b> Palitan ito ng sarili mo — nasa ibaba ng page. →
+    <b><%= t("por.temp_pw") %></b> <%= t("por.temp_pw_do") %>
   </a>
 <% } %>
 
 <% if (!me.is_verified) { %>
   <div class="card portal-flash warn-flash">
-    <b>Hindi pa verified ang account mo.</b> Ipakita ang valid ID sa clinic para makita ang buong record mo.
+    <b><%= t("por.unverified") %></b> <%= t("por.unverified_do") %>
   </div>
 <% } %>
 
 <div class="portal-pair">
   <div class="card hero-appt<%= next ? "" : " is-empty" %>">
-    <div class="panel-title" style="margin-bottom:8px">Susunod na appointment</div>
+    <div class="panel-title" style="margin-bottom:8px"><%= t("por.next") %></div>
     <% if (next) { %>
       <div class="hero-appt-main">
         <div class="hero-appt-date"><%= longDate(next.appointment_date) %></div>
@@ -60,27 +60,26 @@
         </div>
         <% if (next.notes) { %><div class="hero-appt-note"><%= next.notes %></div><% } %>
       </div>
-      <p class="hero-appt-foot">Paaalalahanan ka namin isang araw bago.</p>
+      <p class="hero-appt-foot"><%= t("por.remind") %></p>
     <% } else { %>
-      <p class="muted" style="margin:4px 0 0">Wala kang naka-schedule.</p>
+      <p class="muted" style="margin:4px 0 0"><%= t("por.none_sched") %></p>
     <% } %>
     <%# "Add an instruction on how to do an appointment." Walk-in only — the
         portal does not book, on purpose (one calendar, one set of hands). %>
     <div class="how-to-book">
-      <b>Paano magpa-appointment?</b>
-      Pumunta sa clinic, <b>8 AM – 5 PM</b> (sarado 12–1), dala ang patient number mo.
-      Ang staff ang maglalagay ng schedule.
+      <b><%= t("por.how_book") %></b>
+      <%- t("por.how_book_body") %>
     </div>
   </div>
 
   <div class="card">
-    <div class="panel-title" style="margin-bottom:12px">Mga appointment ko</div>
+    <div class="panel-title" style="margin-bottom:12px"><%= t("por.my_appts") %></div>
     <% if (!appointments.length) { %>
-      <p class="muted" style="margin:0">Wala pa.</p>
+      <p class="muted" style="margin:0"><%= t("por.none") %></p>
     <% } else { %>
       <div class="scroll-box" style="max-height:300px">
         <table class="tbl">
-          <thead><tr><th>Petsa</th><th>Serbisyo</th><th>Oras</th><th>Status</th></tr></thead>
+          <thead><tr><th><%= t("por.col_date") %></th><th><%= t("por.col_service") %></th><th><%= t("por.col_time") %></th><th><%= t("por.col_status") %></th></tr></thead>
           <tbody>
             <% appointments.forEach(a => { %>
               <tr>
@@ -98,7 +97,7 @@
         </table>
       </div>
     <% } %>
-    <p class="muted" style="font-size:13px;margin:12px 2px 0">Para magpalit o magkansela, sabihin sa clinic.</p>
+    <p class="muted" style="font-size:13px;margin:12px 2px 0"><%= t("por.change_appt") %></p>
   </div>
 </div>
 
@@ -106,13 +105,13 @@
 
 <div class="portal-pair">
   <div class="card">
-    <div class="panel-title" style="margin-bottom:12px">💊 Mga gamot na natanggap ko</div>
+    <div class="panel-title" style="margin-bottom:12px"><%= t("por.meds") %></div>
     <% if (!medicines.length) { %>
-      <p class="muted" style="margin:0">Wala pa.</p>
+      <p class="muted" style="margin:0"><%= t("por.none") %></p>
     <% } else { %>
       <div class="scroll-box" style="max-height:320px">
         <table class="tbl">
-          <thead><tr><th>Petsa</th><th>Gamot</th><th>Dami</th></tr></thead>
+          <thead><tr><th><%= t("por.col_date") %></th><th><%= t("por.col_medicine") %></th><th><%= t("por.col_qty") %></th></tr></thead>
           <tbody>
             <% medicines.forEach(m => { %>
               <tr>
@@ -132,14 +131,14 @@
   </div>
 
   <div class="portal-pair-cell">
-    <%- include("_immunization", { who: "My" }) %>
+    <%- include("_immunization") %>
   </div>
 </div>
 
 <% if (dependents.length) { %>
 <div class="card">
-  <div class="panel-title" style="margin-bottom:4px">👨‍👩‍👧 Mga anak ko</div>
-  <p class="muted" style="font-size:13px;margin:0 0 12px">Buksan para makita ang immunization card nila.</p>
+  <div class="panel-title" style="margin-bottom:4px"><%= t("por.children") %></div>
+  <p class="muted" style="font-size:13px;margin:0 0 12px"><%= t("por.children_hint") %></p>
   <div class="dependent-list">
     <% dependents.forEach(d => { %>
       <a class="dependent-row" href="/portal/household/<%= d.patient_id %>">
@@ -147,7 +146,7 @@
           <b><%= d.full_name %></b>
           <span class="muted mono" style="font-size:12.5px"><%= d.patient_number %></span>
         </span>
-        <span class="muted">Tingnan →</span>
+        <span class="muted"><%= t("por.view") %></span>
       </a>
     <% }) %>
   </div>
@@ -160,33 +159,33 @@
   const ttGiven = ttDoses.filter(Boolean).length;
 %>
 <div class="card">
-  <div class="panel-title" style="margin-bottom:12px">🤰 Prenatal record ko</div>
+  <div class="panel-title" style="margin-bottom:12px"><%= t("por.prenatal") %></div>
 
   <% if (prenatal.edd && prenatal.status === "active") { %>
     <div class="hero-appt-main" style="margin-bottom:14px">
       <div class="hero-appt-date" style="color:var(--accent-strong)"><%= longDate(prenatal.edd) %></div>
-      <div class="hero-appt-sub">Inaasahang petsa ng panganganak</div>
+      <div class="hero-appt-sub"><%= t("por.edd") %></div>
     </div>
   <% } %>
 
   <dl class="kv">
-    <div><dt>Status</dt><dd>
-      <% if (prenatal.status === "active") { %><span class="badge info">Tuloy-tuloy</span>
-      <% } else if (prenatal.status === "delivered") { %><span class="badge ok">Nanganak na</span>
-      <% } else { %><span class="badge">Sarado</span><% } %>
+    <div><dt><%= t("por.pn_status") %></dt><dd>
+      <% if (prenatal.status === "active") { %><span class="badge info"><%= t("por.pn_active") %></span>
+      <% } else if (prenatal.status === "delivered") { %><span class="badge ok"><%= t("por.pn_delivered") %></span>
+      <% } else { %><span class="badge"><%= t("por.pn_closed") %></span><% } %>
     </dd></div>
-    <div><dt>Huling regla (LMP)</dt><dd><%= prenatal.lmp ? longDate(prenatal.lmp) : "—" %></dd></div>
-    <div><dt>Pagbubuntis (G / P)</dt><dd class="mono"><%= prenatal.gravida ?? "—" %> / <%= prenatal.para ?? "—" %></dd></div>
-    <div><dt>Tetanus</dt><dd><%= ttGiven %> sa 5 na dose</dd></div>
+    <div><dt><%= t("por.lmp") %></dt><dd><%= prenatal.lmp ? longDate(prenatal.lmp) : "—" %></dd></div>
+    <div><dt><%= t("por.gp") %></dt><dd class="mono"><%= prenatal.gravida ?? "—" %> / <%= prenatal.para ?? "—" %></dd></div>
+    <div><dt><%= t("por.tetanus") %></dt><dd><%= t("por.tt_of", { n: ttGiven }) %></dd></div>
   </dl>
 
-  <div class="panel-title" style="margin:18px 0 10px;font-size:15px">Mga check-up</div>
+  <div class="panel-title" style="margin:18px 0 10px;font-size:15px"><%= t("por.checkups") %></div>
   <% if (!prenatalVisits.length) { %>
-    <p class="muted" style="margin:0">Wala pa.</p>
+    <p class="muted" style="margin:0"><%= t("por.none") %></p>
   <% } else { %>
     <div style="overflow-x:auto">
       <table class="tbl">
-        <thead><tr><th>Petsa</th><th>Linggo (AOG)</th><th>BP</th><th>Timbang</th><th>Tibok ng puso ng baby</th></tr></thead>
+        <thead><tr><th><%= t("por.col_date") %></th><th><%= t("por.aog") %></th><th><%= t("por.bp") %></th><th><%= t("por.weight") %></th><th><%= t("por.fht") %></th></tr></thead>
         <tbody>
           <% prenatalVisits.forEach(v => { %>
             <tr>
@@ -206,10 +205,10 @@
 
 <% if (visits.length) { %>
 <div class="card">
-  <div class="panel-title" style="margin-bottom:12px">Mga konsultasyon ko</div>
+  <div class="panel-title" style="margin-bottom:12px"><%= t("por.visits") %></div>
   <div style="overflow-x:auto">
     <table class="tbl">
-      <thead><tr><th>Petsa</th><th>BP</th><th>Timbang</th><th>Temp</th><th>Diagnosis</th></tr></thead>
+      <thead><tr><th><%= t("por.col_date") %></th><th><%= t("por.bp") %></th><th><%= t("por.weight") %></th><th><%= t("por.temp") %></th><th><%= t("por.diagnosis") %></th></tr></thead>
       <tbody>
         <% visits.forEach(v => { %>
           <tr>
@@ -231,29 +230,29 @@
 
 <div class="portal-pair">
   <div class="card">
-    <div class="panel-title" style="margin-bottom:12px">Impormasyon ko</div>
+    <div class="panel-title" style="margin-bottom:12px"><%= t("por.info") %></div>
     <dl class="kv">
-      <div><dt>Pangalan</dt><dd><%= me.full_name %></dd></div>
+      <div><dt><%= t("por.name") %></dt><dd><%= me.full_name %></dd></div>
       <div><dt>Patient number</dt><dd class="mono"><%= me.patient_number %></dd></div>
-      <div><dt>Kaarawan</dt><dd><%= me.birthdate ? longDate(me.birthdate) : "—" %></dd></div>
-      <div><dt>Kasarian</dt><dd><%= me.sex === "male" ? "Lalaki" : me.sex === "female" ? "Babae" : "—" %></dd></div>
-      <div><dt>Numero</dt><dd class="mono"><%= me.contact_number || "—" %></dd></div>
+      <div><dt><%= t("por.birthdate") %></dt><dd><%= me.birthdate ? longDate(me.birthdate) : "—" %></dd></div>
+      <div><dt><%= t("por.sex") %></dt><dd><%= me.sex === "male" ? t("por.male") : me.sex === "female" ? t("por.female") : "—" %></dd></div>
+      <div><dt><%= t("por.number") %></dt><dd class="mono"><%= me.contact_number || "—" %></dd></div>
       <div><dt>Email</dt><dd><%= me.email || "—" %></dd></div>
       <div style="grid-column:1/-1"><dt>Address</dt><dd><%= me.address || "—" %></dd></div>
     </dl>
-    <p class="muted" style="font-size:13px;margin:12px 2px 0">May mali? Sabihin sa clinic — sila lang ang makakapag-ayos.</p>
+    <p class="muted" style="font-size:13px;margin:12px 2px 0"><%= t("por.wrong_info") %></p>
   </div>
 
   <div class="card" id="change-password">
-    <div class="panel-title" style="margin-bottom:4px">🔑 Palitan ang password</div>
+    <div class="panel-title" style="margin-bottom:4px"><%= t("por.pw_title") %></div>
     <%# The professors gave the exact wording, and it is shorter and clearer
         than what was here. %>
     <p class="muted" style="font-size:13px;margin:0 0 14px">
-      Kung makalimutan, agad na pumunta sa klinika dala ang valid ID upang mabigyan ng bagong password.
+      <%= t("por.pw_forgot") %>
     </p>
 
     <% if (flash.pwOk) { %>
-      <div class="auth-notice" style="margin-bottom:14px">✅ Napalitan na ang password mo.</div>
+      <div class="auth-notice" style="margin-bottom:14px"><%= t("por.pw_ok") %></div>
     <% } %>
     <% if (flash.pwErr) { %>
       <div class="auth-error" style="margin-bottom:14px"><%= flash.pwErr %></div>
@@ -261,18 +260,18 @@
 
     <form method="POST" action="/portal/password" class="auth-form" style="gap:12px"><%- include("../partials/csrf") %>
       <label class="field">
-        <span>Kasalukuyang password</span>
+        <span><%= t("por.pw_current") %></span>
         <%- include("../partials/password-field", { name: "current_password", autocomplete: "current-password" }) %>
       </label>
       <label class="field">
-        <span>Bagong password <span class="muted">(8 characters pataas)</span></span>
+        <span><%= t("por.pw_new") %> <span class="muted"><%= t("por.pw_min") %></span></span>
         <%- include("../partials/password-field", { name: "password", minlength: 8, autocomplete: "new-password" }) %>
       </label>
       <label class="field">
-        <span>Ulitin ang bagong password</span>
+        <span><%= t("por.pw_again") %></span>
         <%- include("../partials/password-field", { name: "password2", minlength: 8, autocomplete: "new-password" }) %>
       </label>
-      <button type="submit" class="btn" style="align-self:flex-start">Palitan</button>
+      <button type="submit" class="btn" style="align-self:flex-start"><%= t("por.pw_btn") %></button>
     </form>
   </div>
 </div>

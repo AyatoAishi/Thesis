@@ -36,10 +36,9 @@
 
   <% if (archivedOnly) { %>
     <div class="card" style="border-color:var(--warn);background:var(--warn-bg);margin-bottom:14px">
-      <b style="color:var(--warn-ink)">Mga naka-archive na gamot</b>
+      <b style="color:var(--warn-ink)"><%= t("inv.archived_list_title") %></b>
       <p style="margin:6px 0 0;font-size:13px;color:var(--ink-2)">
-        Wala sila sa inventory at wala sa dispense. Buksan ang isa at pindutin
-        ang <b>Ibalik sa listahan</b> kung mali ang pag-archive.
+        <%= t("inv.archived_list_body") %>
       </p>
     </div>
   <% } %>

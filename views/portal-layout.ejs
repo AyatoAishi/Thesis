@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<%= lang === 'tl' ? 'fil' : 'en' %>">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -24,16 +24,17 @@
       </div>
     </div>
     <div class="portal-top-right">
+      <%- include("partials/lang-toggle") %>
       <%# "Add an 'About' button in the header in patient portal." %>
-      <a class="portal-about-link" href="/portal/about">About</a>
+      <a class="portal-about-link" href="/portal/about"><%= t("por.about") %></a>
       <% if (typeof me !== "undefined" && me) { %>
-        <a class="portal-home-link" href="/portal">Home</a>
+        <a class="portal-home-link" href="/portal"><%= t("por.home") %></a>
         <span class="portal-me"><%= me.full_name %></span>
         <form method="POST" action="/portal/logout" style="margin:0"><%- include("partials/csrf") %>
-          <button type="submit" class="logout-btn">Log out</button>
+          <button type="submit" class="logout-btn"><%= t("por.logout") %></button>
         </form>
       <% } else { %>
-        <a class="btn" href="/portal/login">Mag-sign in</a>
+        <a class="btn" href="/portal/login"><%= t("por.signin") %></a>
       <% } %>
     </div>
   </header>

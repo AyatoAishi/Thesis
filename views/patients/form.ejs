@@ -112,8 +112,8 @@
         <input type="checkbox" name="no_own_phone" value="on" data-no-phone
                <%= (!p.contact_number && p.family_contact_number) ? "checked" : "" %> />
         <span>
-          <b>Walang sariling telepono</b>
-          <small>Sa emergency contact # sa ibaba ipapadala ang paalala. Karaniwan ito sa sanggol at sa matatanda.</small>
+          <b><%= t("pat.no_phone") %></b>
+          <small><%= t("pat.no_phone_hint") %></small>
         </span>
       </label>
       <label class="field"><span>Patient email <span class="muted">(for reminders)</span></span>

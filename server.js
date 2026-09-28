@@ -15,6 +15,7 @@ const cron = require("node-cron");
 const authRoutes = require("./routes/auth");
 const legalRoutes = require("./routes/legal");
 const cal = require("./lib/calendar");
+const i18n = require("./lib/i18n");
 const patientRoutes = require("./routes/patients");
 const familyRoutes = require("./routes/families");
 const appointmentRoutes = require("./routes/appointments");
@@ -97,7 +98,39 @@ app.use((req, res, next) => {
   // lib/theme.js. Signed-out pages get the defaults from the same code path,
   // so the login screen and the portal never depend on somebody's settings.
   res.locals.theme = theme.forUser(req.session.user && req.session.user.preferences);
+  // English or Tagalog for this reader (lib/i18n.js). Staff default to English,
+  // patients to Tagalog; the toggle below overrides either.
+  const lang = i18n.pick(req);
+  res.locals.lang = lang;
+  // Where the language toggle sends the reader back to.
+  res.locals.currentPath = req.originalUrl;
+  res.locals.t = (key, vars) => i18n.t(lang, key, vars);
   next();
+});
+
+// ----- The language toggle ------------------------------------------------------
+// A plain link, not a form: it changes nothing but which language this reader
+// sees, so there is nothing for a forged request to steal. `back` is honoured
+// only as a path on this site — never a full URL — so the link cannot be used
+// to bounce somebody off to another website.
+app.get("/lang/:code", async (req, res) => {
+  const code = i18n.LANGS.includes(req.params.code) ? req.params.code : "en";
+  req.session.lang = code;
+  if (req.session.user) {
+    // Remembered on the staff account, so it follows them to another computer.
+    try {
+      await db.query(
+        `UPDATE users SET preferences = coalesce(preferences, '{}'::jsonb) || jsonb_build_object('lang', $1::text)
+          WHERE user_id = $2`,
+        [code, req.session.user.user_id]
+      );
+      req.session.user.preferences = Object.assign({}, req.session.user.preferences, { lang: code });
+    } catch (_) { /* the session still carries it */ }
+  }
+  const back = String(req.query.back || "");
+  // No backslash anywhere: browsers read "/\evil.com" as "//evil.com".
+  const safe = /^\/(?![\/\\])[^\s\\]*$/.test(back) && !/^\/lang\//.test(back) ? back : "/";
+  req.session.save(() => res.redirect(safe));
 });
 
 // ----- Never let a browser store a page that has records on it ----------------
@@ -271,25 +304,26 @@ app.use(async (req, res, next) => {
     // Only what this role can actually act on — a bell that shows a facilitator
     // a stock problem they can't fix is just noise they learn to ignore.
     const role = (req.session.user && req.session.user.role) || "";
+    const t = res.locals.t; // the bell reads in the reader's language too
     const all = [
       { key: "today_waiting", n: c.today_waiting, href: "/appointments",
-        label: `${c.today_waiting} patient${c.today_waiting === 1 ? "" : "s"} still expected today`,
+        label: t("bell.waiting", { n: c.today_waiting }),
         roles: ["nurse", "facilitator", "recorder", "admin"] },
       // "Possible kaya na yung mga overdue list lang ang makikita pagka open
       // ng kung sino sino overdue from notifications? Para lang mas
       // straightforward sha" — Alyanna. It used to open the whole list of 13
       // and leave her to hunt for the red badges.
       { key: "imm_overdue", n: c.imm_overdue, href: "/patients?overdue=1",
-        label: `${c.imm_overdue} child${c.imm_overdue === 1 ? "" : "ren"} overdue for immunization`,
+        label: t(c.imm_overdue === 1 ? "bell.imm_one" : "bell.imm_many", { n: c.imm_overdue }),
         roles: ["nurse", "facilitator", "recorder", "admin"] },
       { key: "low_stock", n: c.low_stock, href: "/inventory?low=1",
-        label: `${c.low_stock} medicine${c.low_stock === 1 ? "" : "s"} low on stock`,
+        label: t("bell.low", { n: c.low_stock }),
         roles: ["nurse", "admin"] },
       // Expired boxes still on the shelf. They are already out of usable stock
       // (lib/stock.js), so this is about the physical box: somebody has to
       // take it off the shelf and record it, or it gets handed out by hand.
       { key: "expired", n: c.expired_meds, href: "/inventory?expired=1",
-        label: `${c.expired_meds} medicine${c.expired_meds === 1 ? " has" : "s have"} expired stock to dispose of`,
+        label: t(c.expired_meds === 1 ? "bell.expired_one" : "bell.expired_many", { n: c.expired_meds }),
         roles: ["nurse", "admin"] },
     ];
     res.locals.alerts = all.filter((a) => a.n > 0 && a.roles.includes(role));

@@ -20,38 +20,38 @@
   };
 %>
 <div class="page-head">
-  <h1>Dashboard</h1>
+  <h1><%= t("dash.title") %></h1>
   <div class="sub"><%= today %></div>
 </div>
 
 <!-- Live metrics -->
 <div class="stat-grid">
   <a class="stat-card" href="/appointments?date=<%= todayISO %>" style="text-decoration:none;color:inherit">
-    <div class="stat-label">Expected today</div>
+    <div class="stat-label"><%= t("dash.expected") %></div>
     <div class="stat-value"><%= stats ? stats.today : "—" %></div>
-    <div class="stat-note">scheduled + done + missed</div>
+    <div class="stat-note"><%= t("dash.expected_sub") %></div>
   </a>
   <a class="stat-card" href="/patients" style="text-decoration:none;color:inherit">
-    <div class="stat-label">Patients</div>
+    <div class="stat-label"><%= t("dash.patients") %></div>
     <div class="stat-value"><%= stats ? stats.patients : "—" %></div>
-    <div class="stat-note">total records</div>
+    <div class="stat-note"><%= t("dash.patients_sub") %></div>
   </a>
   <a class="stat-card" href="/appointments?date=<%= todayISO %>" style="text-decoration:none;color:inherit">
-    <div class="stat-label">Completed today</div>
+    <div class="stat-label"><%= t("dash.completed") %></div>
     <div class="stat-value"><%= stats ? stats.done : "—" %></div>
-    <div class="stat-note">marked done</div>
+    <div class="stat-note"><%= t("dash.completed_sub") %></div>
   </a>
   <a class="stat-card" href="/appointments?date=<%= todayISO %>" style="text-decoration:none;color:inherit">
-    <div class="stat-label">Missed today</div>
+    <div class="stat-label"><%= t("dash.missed") %></div>
     <div class="stat-value"><%= stats ? stats.missed : "—" %></div>
-    <div class="stat-note">no-shows</div>
+    <div class="stat-note"><%= t("dash.missed_sub") %></div>
   </a>
 </div>
 
 <!-- Needs attention: only what this role can actually act on -->
 <section class="card">
   <div class="panel-head">
-    <div class="panel-title">Needs attention</div>
+    <div class="panel-title"><%= t("dash.attention") %></div>
   </div>
   <% if (attention.length) { %>
     <div class="status-list">
@@ -64,7 +64,7 @@
             </svg>
             <span><%= a.label %></span>
           </div>
-          <span class="badge warn">open</span>
+          <span class="badge warn"><%= t("dash.open") %></span>
         </a>
       <% }) %>
     </div>
@@ -76,8 +76,8 @@
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;color:var(--ok)">
             <circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/>
           </svg>
-          <span>Nothing needs chasing right now.
-            <small>No one is overdue, stock is above its levels, and today's list is clear.</small>
+          <span><%= t("dash.all_clear") %>
+            <small><%= t("dash.all_clear_sub") %></small>
           </span>
         </div>
       </div>
@@ -97,17 +97,17 @@
 <section class="card cal-card">
   <div class="panel-head">
     <div>
-      <div class="panel-title">Kalendaryo</div>
+      <div class="panel-title"><%= t("dash.calendar") %></div>
       <div class="muted" style="font-size:12.5px;margin-top:3px">
-        Pindutin ang araw para makita ang mga appointment nito.
+        <%= t("dash.calendar_hint") %>
       </div>
     </div>
     <div class="cal-nav">
-      <a class="mini-btn" href="/dashboard?m=<%= calendar.prev %>&d=<%= selected %>" aria-label="Nakaraang buwan">&larr;</a>
+      <a class="mini-btn" href="/dashboard?m=<%= calendar.prev %>&d=<%= selected %>" aria-label="<%= t('dash.prev_month') %>">&larr;</a>
       <b class="cal-month"><%= calendar.label %></b>
-      <a class="mini-btn" href="/dashboard?m=<%= calendar.next %>&d=<%= selected %>" aria-label="Susunod na buwan">&rarr;</a>
+      <a class="mini-btn" href="/dashboard?m=<%= calendar.next %>&d=<%= selected %>" aria-label="<%= t('dash.next_month') %>">&rarr;</a>
       <% if (calendar.key !== todayISO.slice(0, 7) || selected !== todayISO) { %>
-        <a class="mini-btn" href="/dashboard">Ngayon</a>
+        <a class="mini-btn" href="/dashboard"><%= t("dash.today") %></a>
       <% } %>
     </div>
   </div>
@@ -131,10 +131,10 @@
              <%
                // The hover text the review asked for. The same words go in
                // title= as well, which is what a long-press shows on a tablet.
-               const tip = c.count === 0 ? "No appointments"
-                         : c.count + " appointment" + (c.count === 1 ? "" : "s") +
-                           (c.missed ? " · " + c.missed + " missed" : "") +
-                           (c.scheduled && c.scheduled !== c.count ? " · " + c.scheduled + " still scheduled" : "");
+               const tip = c.count === 0 ? t("dash.tip_none")
+                         : t("dash.tip_n", { n: c.count }) +
+                           (c.missed ? " · " + t("dash.tip_missed", { n: c.missed }) : "") +
+                           (c.scheduled && c.scheduled !== c.count ? " · " + t("dash.tip_scheduled", { n: c.scheduled }) : "");
              %>
              data-tip="<%= tip %>" title="<%= tip %>"
              aria-label="<%= c.day %> — <%= tip %>">
@@ -153,23 +153,23 @@
   <div class="cal-day-panel">
     <div class="panel-head" style="margin-bottom:8px">
       <div class="panel-title" style="font-size:14px">
-        <%= selectedLabel %><% if (selected === todayISO) { %> <span class="badge ok">Ngayon</span><% } %>
+        <%= selectedLabel %><% if (selected === todayISO) { %> <span class="badge ok"><%= t("dash.today") %></span><% } %>
       </div>
       <% if (dayAppts.length) { %>
-        <a class="mini-btn" href="/appointments?date=<%= selected %>">Buksan ang buong listahan</a>
+        <a class="mini-btn" href="/appointments?date=<%= selected %>"><%= t("dash.open_list") %></a>
       <% } else { %>
-        <a class="mini-btn" href="/appointments/new">+ Magpa-book</a>
+        <a class="mini-btn" href="/appointments/new"><%= t("dash.book") %></a>
       <% } %>
     </div>
 
     <% if (!dayAppts.length) { %>
-      <p class="muted" style="margin:4px 2px;font-size:13px">Walang appointment sa araw na ito.</p>
+      <p class="muted" style="margin:4px 2px;font-size:13px"><%= t("dash.no_appts_day") %></p>
     <% } else { %>
       <div class="status-list">
         <% dayAppts.forEach(function (a) { %>
           <%
-            const badge = { scheduled: ["info", "Scheduled"], completed: ["ok", "Done"],
-                            missed: ["bad", "Missed"], cancelled: ["warn", "Cancelled"] }[a.status]
+            const badge = { scheduled: ["info", t("status.scheduled")], completed: ["ok", t("status.completed")],
+                            missed: ["bad", t("status.missed")], cancelled: ["warn", t("status.cancelled")] }[a.status]
                           || ["info", a.status];
           %>
           <div class="status-row">
@@ -190,10 +190,10 @@
 <% } %>
 
 <section class="card">
-  <div class="panel-head"><div class="panel-title">Quick actions</div></div>
+  <div class="panel-head"><div class="panel-title"><%= t("dash.quick") %></div></div>
   <ol class="steps">
-    <li><a href="/patients/new">Add a patient</a>, then <a href="/appointments/new">book an appointment</a> into one of the 3 services.</li>
-    <li>Open the <a href="/appointments?date=<%= todayISO %>">daily list</a> to mark patients done / missed as they arrive.</li>
-    <li>Record what happened in a <a href="/forms">form</a> — immunization, prenatal, or family planning.</li>
+    <li><%- t("dash.q1", { a: `<a href="/patients/new">${t("dash.q1a")}</a>`, b: `<a href="/appointments/new">${t("dash.q1b")}</a>` }) %></li>
+    <li><%- t("dash.q2", { a: `<a href="/appointments?date=${todayISO}">${t("dash.q2a")}</a>` }) %></li>
+    <li><%- t("dash.q3", { a: `<a href="/forms">${t("dash.q3a")}</a>` }) %></li>
   </ol>
 </section>

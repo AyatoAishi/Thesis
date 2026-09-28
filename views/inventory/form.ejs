@@ -32,9 +32,7 @@
       <label class="field"><span>Dosage <span class="muted">(optional)</span></span>
         <input type="text" name="dosage" value="<%= m.dosage || '' %>" placeholder="e.g. 500mg, 2g" />
         <span class="muted" style="font-size:11.5px">
-          Ang lakas ay <b>dito lang</b>, hindi sa pangalan. "Amlodipine" + "10mg",
-          hindi "Amlodipine 10mg" — kapag nasa dalawang lugar ang isang bagay,
-          nagkakadoble ang gamot. Isama ang unit: <b>10mg</b>, hindi <b>10</b>.
+          <%= t("inv.dosage_hint") %>
         </span>
       </label>
       <%# A fixed list, not a text box. Two of eleven medicines in the live
@@ -44,7 +42,7 @@
           can be corrected on purpose instead of by accident. %>
       <label class="field"><span>Unit *</span>
         <select name="unit" required>
-          <option value="">— pumili —</option>
+          <option value=""><%= t("inv.choose_unit") %></option>
           <% unitOptions.forEach(function (u) { %>
             <option value="<%= u.value %>" <%= (m.unit || '') === u.value ? 'selected' : '' %>><%= u.label %></option>
           <% }) %>

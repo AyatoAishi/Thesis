@@ -1047,7 +1047,10 @@ body {
     padding: 6px 2px; border-radius: 10px;
   }
   .rail-item svg { width: 21px; height: 21px; }
-  .rail-label { font-size: 10.5px; text-align: center; white-space: nowrap; }
+  /* A fixed-width cell each: a long label is cut with "…" instead of running
+     into its neighbour (the Tagalog labels are longer than the English). */
+  .rail-label { font-size: 10.5px; text-align: center; white-space: nowrap;
+                max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 
   /* The topbar keeps everything it holds, on two rows: seal, today's count,
      bell and account on top; the search below at full width. */
@@ -1791,9 +1794,14 @@ body { font-size: 15px; }
   padding: 6px 10px; border-radius: 8px;
 }
 .portal-about-link:hover, .portal-home-link:hover { background: var(--accent-softer); }
+.portal-about-link, .portal-home-link, .portal-top-right .btn { white-space: nowrap; }
 @media (max-width: 560px) {
   .portal-me { display: none; }
-  .portal-top-right { gap: 6px; }
+  /* Two rows on a phone: the seal and name, then the controls across the full
+     width. One row pushed Log out off the right edge of the screen. */
+  .portal-top { flex-wrap: wrap; padding: 12px 16px; row-gap: 10px; }
+  .portal-top-right { gap: 6px; width: 100%; justify-content: flex-end; flex-wrap: wrap; }
+  .portal-about-link, .portal-home-link { padding: 6px 8px; }
 }
 
 .about-head { display: flex; align-items: center; gap: 16px; }
@@ -1819,3 +1827,15 @@ body { font-size: 15px; }
 .manual-toc a:hover { text-decoration: underline; }
 @media (max-width: 640px) { .manual-toc ol { columns: 1; } }
 section.manual { scroll-margin-top: 16px; }
+
+/* The language switch: two segments, the active one filled. */
+.lang-toggle {
+  display: inline-flex; border: 1px solid var(--border-strong); border-radius: 999px;
+  overflow: hidden; flex: none;
+}
+.lang-toggle a {
+  font-size: 12.5px; font-weight: 800; letter-spacing: .03em;
+  padding: 6px 10px; text-decoration: none; color: var(--ink-3); line-height: 1;
+}
+.lang-toggle a.is-on { background: var(--accent); color: var(--on-accent); }
+.lang-toggle a:not(.is-on):hover { background: var(--accent-softer); color: var(--accent-strong); }

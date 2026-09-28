@@ -1,7 +1,7 @@
 <%
   const u = typeof user !== "undefined" && user ? user : null;
   const apptCount = typeof todayApptCount !== "undefined" ? todayApptCount : null;
-  const todayPill = apptCount === null ? "—" : apptCount === 0 ? "No appointments today" : `${apptCount} appointment${apptCount === 1 ? "" : "s"} today`;
+  const todayPill = apptCount === null ? "—" : apptCount === 0 ? t("top.no_appts") : t("top.appts_today", { n: apptCount });
 %>
 <header class="topbar">
   <div class="brand">
@@ -16,12 +16,13 @@
     <div class="search-wrap" data-topsearch>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-3.6-3.6"/></svg>
       <input class="search search-lg" type="search" name="q" data-search autocomplete="off"
-             placeholder="Search patient by name or number…   (press / )" aria-label="Search patients" />
+             placeholder="<%= t('top.search') %>" aria-label="Search patients" />
       <div class="topsearch-results" data-topsearch-results hidden></div>
     </div>
   </form>
 
   <div class="topbar-right">
+    <%- include("lang-toggle") %>
     <span class="pill">● <%= todayPill %></span>
 
     <%
@@ -33,15 +34,15 @@
     %>
     <div class="bell" data-bell>
       <button type="button" class="icon-btn" data-bell-toggle
-              title="Notifications" aria-label="Notifications"
+              title="<%= t('top.notifications') %>" aria-label="<%= t('top.notifications') %>"
               aria-expanded="false">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
         <% if (bellTotal) { %><span class="bell-dot"><%= bellTotal > 9 ? "9+" : bellTotal %></span><% } %>
       </button>
       <div class="bell-dropdown" data-bell-dropdown hidden>
-        <div class="bell-title">Needs attention</div>
+        <div class="bell-title"><%= t("top.needs_attention") %></div>
         <% if (!bell.length) { %>
-          <div class="bell-empty">Nothing right now.</div>
+          <div class="bell-empty"><%= t("top.nothing_now") %></div>
         <% } else { %>
           <% bell.forEach(a => { %>
             <a class="bell-item" href="<%= a.href %>">
@@ -66,10 +67,10 @@
           <%# One entry, not two. "Change password" pointed at /account as well,
               so the menu offered two labels for one destination — and the page
               it opens already holds the password form under Update profile. %>
-          <a href="/account">Update profile</a>
-          <a href="/manual">User's manual</a>
+          <a href="/account"><%= t("top.update_profile") %></a>
+          <a href="/manual"><%= t("top.manual") %></a>
           <form method="POST" action="/logout" style="margin:0"><%- include("../partials/csrf") %>
-            <button type="submit" class="user-menu-logout">Logout</button>
+            <button type="submit" class="user-menu-logout"><%= t("top.logout") %></button>
           </form>
         </div>
       </div>

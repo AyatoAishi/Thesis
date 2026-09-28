@@ -53,8 +53,7 @@
       <div>
         <div class="panel-title">Medicines</div>
         <div class="muted" style="font-size:12.5px;margin-top:3px">
-          Lahat ng gamot na iuuwi nila ngayon. Isang beses lang i-save — sabay-sabay
-          na babawas sa stock, at kung kulang ang kahit isa, walang mababawas sa lahat.
+          <%= t("inv.dispense_medicines_hint") %>
         </div>
       </div>
     </div>
@@ -94,12 +93,12 @@
                 nothing is worse than one that is not there. %>
             <button type="button" class="mini-btn dispense-drop" data-drop-line
                     <%= rows.length === 1 ? "hidden" : "" %>
-                    aria-label="Alisin ang linyang ito">Alisin</button>
+                    aria-label="<%= t('inv.remove_line') %>"><%= t("inv.remove_line") %></button>
           </div>
         <% }) %>
       </div>
 
-      <button type="button" class="mini-btn" data-add-line style="margin-top:4px">+ Isa pang gamot</button>
+      <button type="button" class="mini-btn" data-add-line style="margin-top:4px"><%= t("inv.add_line") %></button>
     <% } %>
   </div>
 

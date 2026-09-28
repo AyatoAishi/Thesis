@@ -17,7 +17,7 @@
   // fixed string from this file and never contains anything a user typed.
   const animAttr = appearance.animations ? "" : ' data-anim="off"';
 %><!DOCTYPE html>
-<html lang="en" data-theme="<%= appearance.mode %>"<%- animAttr %>>
+<html lang="<%= lang === 'tl' ? 'fil' : 'en' %>" data-theme="<%= appearance.mode %>"<%- animAttr %>>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />

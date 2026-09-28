@@ -43,10 +43,10 @@
 %>
 <div class="page-head" style="display:flex;align-items:center;justify-content:space-between">
   <div>
-    <h1>Patients</h1>
-    <div class="sub"><%= patients.length %> record<%= patients.length === 1 ? "" : "s" %><%= q ? ` matching “${q}”` : "" %></div>
+    <h1><%= t("pat.title") %></h1>
+    <div class="sub"><%= t("pat.count", { n: patients.length }) %><%= q ? " " + t("pat.matching", { q }) : "" %></div>
   </div>
-  <a class="btn" href="/patients/new">+ Add patient</a>
+  <a class="btn" href="/patients/new"><%= t("pat.add") %></a>
 </div>
 
 <div class="card">
@@ -57,10 +57,10 @@
     <div class="search-wrap search-wrap-lg">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-3.6-3.6"/></svg>
       <input class="search search-lg" type="search" name="q" value="<%= q %>"
-             placeholder="Name, patient #, mobile #, email, or family # (26-0001)…" autofocus autocomplete="off" />
+             placeholder="<%= t('pat.search') %>" autofocus autocomplete="off" />
     </div>
     <% if (view !== "household") { %>
-      <label class="field list-sort"><span>Sort by</span>
+      <label class="field list-sort"><span><%= t("pat.sort_by") %></span>
         <select name="sort" onchange="this.form.submit()">
           <% Object.keys(sorts).forEach(k => { %>
             <option value="<%= k %>" <%= sort === k ? 'selected' : '' %>><%= sorts[k].label %></option>
@@ -70,31 +70,31 @@
     <% } else { %>
       <input type="hidden" name="view" value="household" />
     <% } %>
-    <button class="btn" type="submit">Search</button>
+    <button class="btn" type="submit"><%= t("pat.search_btn") %></button>
   </form>
 
   <div data-live-results>
   <div class="view-tabs">
-    <a class="view-tab <%= view === 'list' && !overdueOnly ? 'active' : '' %>" href="<%= viewLink('list') %>">All patients</a>
-    <a class="view-tab <%= view === 'household' && !overdueOnly ? 'active' : '' %>" href="<%= viewLink('household') %>">By household</a>
-    <a class="view-tab" href="/families">Family records</a>
+    <a class="view-tab <%= view === 'list' && !overdueOnly ? 'active' : '' %>" href="<%= viewLink('list') %>"><%= t("pat.tab_all") %></a>
+    <a class="view-tab <%= view === 'household' && !overdueOnly ? 'active' : '' %>" href="<%= viewLink('household') %>"><%= t("pat.tab_household") %></a>
+    <a class="view-tab" href="/families"><%= t("pat.tab_families") %></a>
     <%# Where the bell lands. Alyanna asked for the overdue on their own rather
         than having to pick the red badges out of the whole list. The count is
         on the tab so it agrees with the bell that sent you here. %>
     <% if (overdueTotal) { %>
       <a class="view-tab <%= overdueOnly ? 'active' : '' %>" href="<%= viewLink(view, true) %>">
-        Overdue only <span class="badge bad" style="margin-left:5px"><%= overdueTotal %></span>
+        <%= t("pat.tab_overdue") %> <span class="badge bad" style="margin-left:5px"><%= overdueTotal %></span>
       </a>
     <% } %>
   </div>
 
   <% if (overdueOnly && !patients.length) { %>
     <p class="muted" style="padding:8px 2px">
-      Nobody is overdue<%= q ? " among the patients matching this search" : "" %>.
-      <a href="<%= viewLink(view) %>">Show all patients</a>
+      <%= q ? t("pat.none_overdue_q") : t("pat.none_overdue") %>
+      <a href="<%= viewLink(view) %>"><%= t("pat.show_all") %></a>
     </p>
   <% } else if (!patients.length) { %>
-    <p class="muted" style="padding:8px 2px">No patients yet. Click <b>Add patient</b> to create the first record.</p>
+    <p class="muted" style="padding:8px 2px"><%- t("pat.none_yet") %></p>
   <% } else if (view === "household") { %>
     <%
       const { groups, loose } = household(patients);
@@ -119,7 +119,7 @@
                 <td class="mono" style="width:150px"><%= p.patient_number %></td>
                 <td>
                   <a href="/patients/<%= p.patient_id %>"><%= p.full_name %></a>
-                  <% if (p.is_minor) { %><span class="badge info" style="margin-left:6px">Minor</span><% } %>
+                  <% if (p.is_minor) { %><span class="badge info" style="margin-left:6px"><%= t("pat.minor") %></span><% } %>
                   <% const od = overdue.get(p.patient_id); %><% if (od) { %><a href="/patients/<%= p.patient_id %>/immunization" class="badge bad" style="margin-left:6px;text-decoration:none" title="Oldest dose is <%= od.worstDays %> days late"><%= od.overdue %> overdue</a><% } %>
                 </td>
                 <td style="width:70px"><%= age(p.birthdate) %></td>
@@ -144,7 +144,7 @@
                 <td class="mono" style="width:150px"><%= p.patient_number %></td>
                 <td>
                   <a href="/patients/<%= p.patient_id %>"><%= p.full_name %></a>
-                  <% if (p.is_minor) { %><span class="badge info" style="margin-left:6px">Minor</span><% } %>
+                  <% if (p.is_minor) { %><span class="badge info" style="margin-left:6px"><%= t("pat.minor") %></span><% } %>
                   <% const od = overdue.get(p.patient_id); %><% if (od) { %><a href="/patients/<%= p.patient_id %>/immunization" class="badge bad" style="margin-left:6px;text-decoration:none" title="Oldest dose is <%= od.worstDays %> days late"><%= od.overdue %> overdue</a><% } %>
                 </td>
                 <td style="width:70px"><%= age(p.birthdate) %></td>
@@ -158,7 +158,7 @@
   <% } else { %>
     <table class="tbl">
       <thead>
-        <tr><th>Patient #</th><th>Name</th><th>Sex</th><th>Age</th><th>Mobile #</th><th>Email</th><th>Family #</th><th></th></tr>
+        <tr><th><%= t("pat.col_num") %></th><th><%= t("pat.col_name") %></th><th><%= t("pat.col_sex") %></th><th><%= t("pat.col_age") %></th><th><%= t("pat.col_mobile") %></th><th><%= t("pat.col_email") %></th><th><%= t("pat.col_family") %></th><th></th></tr>
       </thead>
       <tbody>
         <% patients.forEach(p => { %>
@@ -166,8 +166,8 @@
             <td class="mono"><%= p.patient_number %></td>
             <td>
               <a href="/patients/<%= p.patient_id %>"><%= p.full_name %></a>
-              <% if (p.is_minor) { %><span class="badge info" style="margin-left:6px">Minor</span><% } %>
-              <% if (p.deceased_at) { %><span class="badge bad" style="margin-left:6px">Deceased</span><% } %>
+              <% if (p.is_minor) { %><span class="badge info" style="margin-left:6px"><%= t("pat.minor") %></span><% } %>
+              <% if (p.deceased_at) { %><span class="badge bad" style="margin-left:6px"><%= t("pat.deceased") %></span><% } %>
               <% const od = overdue.get(p.patient_id); %><% if (od) { %><a href="/patients/<%= p.patient_id %>/immunization" class="badge bad" style="margin-left:6px;text-decoration:none" title="Oldest dose is <%= od.worstDays %> days late"><%= od.overdue %> overdue</a><% } %>
             </td>
             <td><%= p.sex || "—" %></td>
@@ -175,7 +175,7 @@
             <td class="mono"><%= p.contact_number || "—" %></td>
             <td><%= p.email || "—" %></td>
             <td class="mono"><% if (p.family_number) { %><a href="/families/<%= p.family_number %>"><%= p.family_number %></a><% } else { %>—<% } %></td>
-            <td style="text-align:right"><a href="/patients/<%= p.patient_id %>/edit" class="muted">Edit</a></td>
+            <td style="text-align:right"><a href="/patients/<%= p.patient_id %>/edit" class="muted"><%= t("pat.edit") %></a></td>
           </tr>
         <% }) %>
       </tbody>

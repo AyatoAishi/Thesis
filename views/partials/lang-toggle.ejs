@@ -1,0 +1,8 @@
+<%# English / Tagalog. Two links, the current one filled — a switch you can
+    read at a glance, where a single "Translate" button would leave the reader
+    guessing which language they are about to get. See lib/i18n.js. %>
+<% const _back = encodeURIComponent(typeof currentPath !== "undefined" ? currentPath : "/"); %>
+<div class="lang-toggle" role="group" aria-label="<%= t('lang.label') %>">
+  <a href="/lang/en?back=<%= _back %>" class="<%= lang === 'en' ? 'is-on' : '' %>" lang="en" aria-pressed="<%= lang === 'en' %>" title="English">EN</a>
+  <a href="/lang/tl?back=<%= _back %>" class="<%= lang === 'tl' ? 'is-on' : '' %>" lang="tl" aria-pressed="<%= lang === 'tl' %>" title="Tagalog">TL</a>
+</div>

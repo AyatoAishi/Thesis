@@ -1,6 +1,6 @@
 <%
   function statusBadge(s) {
-    const m = { scheduled:["info","Scheduled"], completed:["ok","Completed"], missed:["bad","Missed"], cancelled:["warn","Cancelled"] };
+    const m = { scheduled:["info",t("status.scheduled")], completed:["ok",t("status.completed")], missed:["bad",t("status.missed")], cancelled:["warn",t("status.cancelled")] };
     const [c, l] = m[s] || ["info", s];
     return `<span class="badge ${c}">${l}</span>`;
   }
@@ -12,21 +12,19 @@
   <div class="sub mono"><%= child.patient_number %></div>
 </div>
 
-<p style="margin:-6px 0 18px"><a href="/portal">← Balik sa akin</a></p>
+<p style="margin:-6px 0 18px"><a href="/portal"><%= t("por.back_me") %></a></p>
 
 <div class="card portal-flash">
-  Nakikita mo ito dahil kasama kayo sa iisang <b>household number</b> na binigay ng clinic,
-  at menor de edad pa siya. <b>View only</b> — ang clinic lang ang makakapagbago ng records,
-  at ang clinic lang din ang makakapag-book o makakapag-cancel para sa kanya.
+  <%- t("por.dep_why") %>
 </div>
 
 <div class="card">
-  <div class="panel-title" style="margin-bottom:12px">Appointments ni <%= firstName %></div>
+  <div class="panel-title" style="margin-bottom:12px"><%= t("por.dep_appts", { name: firstName }) %></div>
   <% if (!appointments.length) { %>
-    <p class="muted" style="margin:0">Wala pang appointment.</p>
+    <p class="muted" style="margin:0"><%= t("por.dep_no_appts") %></p>
   <% } else { %>
     <table class="tbl">
-      <thead><tr><th>Date</th><th>Service</th><th>Time</th><th>Status</th></tr></thead>
+      <thead><tr><th><%= t("por.col_date") %></th><th><%= t("por.col_service") %></th><th><%= t("por.col_time") %></th><th><%= t("por.col_status") %></th></tr></thead>
       <tbody>
         <% appointments.forEach(a => { %>
           <tr>
@@ -46,15 +44,15 @@
   <% } %>
 </div>
 
-<%- include("_immunization", { who: `${firstName}'s` }) %>
+<%- include("_immunization") %>
 
 <div class="card">
-  <div class="panel-title" style="margin-bottom:12px">💊 Mga gamot na natanggap ni <%= firstName %></div>
+  <div class="panel-title" style="margin-bottom:12px"><%= t("por.dep_meds", { name: firstName }) %></div>
   <% if (!medicines.length) { %>
-    <p class="muted" style="margin:0">Wala pa — lalabas dito ang mga gamot na ibinigay sa clinic.</p>
+    <p class="muted" style="margin:0"><%= t("por.dep_no_meds") %></p>
   <% } else { %>
     <table class="tbl">
-      <thead><tr><th>Date</th><th>Medicine</th><th>Quantity</th></tr></thead>
+      <thead><tr><th><%= t("por.col_date") %></th><th><%= t("por.col_medicine") %></th><th><%= t("por.col_qty") %></th></tr></thead>
       <tbody>
         <% medicines.forEach(m => { %>
           <tr>

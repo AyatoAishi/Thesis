@@ -264,7 +264,7 @@ router.get("/inventory/new", (req, res) => {
     active: "inventory",
     mode: "new",
     medicine: {},
-    unitOptions: optionsFor(({}).unit),
+    unitOptions: optionsFor(({}).unit, res.locals.t),
     errors: [],
   });
 });
@@ -295,7 +295,7 @@ router.post("/inventory", async (req, res, next) => {
       active: "inventory",
       mode: "new",
       medicine: m,
-      unitOptions: optionsFor(m.unit),
+      unitOptions: optionsFor(m.unit, res.locals.t),
       errors,
     });
   }
@@ -307,7 +307,7 @@ router.post("/inventory", async (req, res, next) => {
         active: "inventory",
         mode: "new",
         medicine: m,
-        unitOptions: optionsFor(m.unit),
+        unitOptions: optionsFor(m.unit, res.locals.t),
         errors: [
           `"${dup.name}"${dup.dosage ? ` (${dup.dosage})` : ""} already exists in inventory` +
             (dup.archived_at
@@ -320,7 +320,7 @@ router.post("/inventory", async (req, res, next) => {
     if (m.stock_quantity > 0 && m.expiry_date && m.expiry_date < F.manilaToday()) {
       return res.status(400).render("inventory/form", {
         title: "Add medicine · Sampaguita HC", active: "inventory", mode: "new",
-        medicine: m, unitOptions: optionsFor(m.unit),
+        medicine: m, unitOptions: optionsFor(m.unit, res.locals.t),
         errors: ["That expiry date has already passed — expired stock cannot be added as usable stock."],
       });
     }
@@ -704,7 +704,7 @@ router.get("/inventory/:id/edit", async (req, res, next) => {
       active: "inventory",
       mode: "edit",
       medicine: rows[0],
-      unitOptions: optionsFor(rows[0].unit),
+      unitOptions: optionsFor(rows[0].unit, res.locals.t),
       errors: [],
     });
   } catch (e) {
@@ -722,7 +722,7 @@ router.post("/inventory/:id", async (req, res, next) => {
       active: "inventory",
       mode: "edit",
       medicine: { ...m, medicine_id: req.params.id },
-      unitOptions: optionsFor(({ ...m, medicine_id: req.params.id }).unit),
+      unitOptions: optionsFor(({ ...m, medicine_id: req.params.id }).unit, res.locals.t),
       errors,
     });
   }
@@ -734,7 +734,7 @@ router.post("/inventory/:id", async (req, res, next) => {
         active: "inventory",
         mode: "edit",
         medicine: { ...m, medicine_id: req.params.id },
-        unitOptions: optionsFor(({ ...m, medicine_id: req.params.id }).unit),
+        unitOptions: optionsFor(({ ...m, medicine_id: req.params.id }).unit, res.locals.t),
         errors: [
           `"${dup.name}"${dup.dosage ? ` (${dup.dosage})` : ""} already exists as a separate entry — ` +
             `merge stock there instead of having two entries for the same medicine.`,
@@ -782,7 +782,7 @@ router.post("/inventory/:id", async (req, res, next) => {
         active: "inventory",
         mode: "edit",
         medicine: still.rows[0],   // redraw with the CURRENT numbers, not theirs
-        unitOptions: optionsFor(still.rows[0].unit),
+        unitOptions: optionsFor(still.rows[0].unit, res.locals.t),
         errors: [
           `Someone else changed "${still.rows[0].name}" while this page was open — most likely a dispense. ` +
             `Nothing was saved. The current values are shown below; make your change again on top of them.`,

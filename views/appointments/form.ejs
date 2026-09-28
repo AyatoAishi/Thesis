@@ -119,7 +119,7 @@
       notes.required = !!isOther;
       if (word) word.textContent = isOther ? "(required)" : "(optional)";
       if (hint) hint.textContent = isOther
-        ? "Sabihin kung ano ang ginawa — vitals, BP, palit ng benda. Ito lang ang record ng pagpuntang ito."
+        ? <%- JSON.stringify(t("appt.notes_other_hint")) %>
         : "";
       if (isOther) notes.setAttribute("aria-required", "true");
       else notes.removeAttribute("aria-required");

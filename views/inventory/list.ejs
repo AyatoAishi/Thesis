@@ -16,19 +16,26 @@
 
 <div class="card">
   <div class="sum" style="margin-bottom:14px">
-    <span class="sum-pill"><b><%= total %></b> medicine<%= total === 1 ? "" : "s" %></span>
-    <a href="/inventory?low=1" style="text-decoration:none">
-      <span class="sum-pill <%= lowCount ? 'bad' : '' %>"><b><%= lowCount %></b> low stock</span>
+    <%# Every pill is a link, and the one you are looking at is outlined. The
+        count pill used to be a plain span sitting in a row of links — it looked
+        exactly like them and did nothing when pressed (Richelle, Sept 26). It
+        now means "all medicines" and clears whatever filter is on. %>
+    <% const _all = !lowOnly && !archivedOnly && !expiredOnly; %>
+    <a href="/inventory" class="sum-link" aria-current="<%= _all ? 'true' : 'false' %>">
+      <span class="sum-pill <%= _all ? 'is-on' : '' %>"><b><%= total %></b> medicine<%= total === 1 ? "" : "s" %></span>
     </a>
-    <a href="/inventory?expired=1" style="text-decoration:none">
-      <span class="sum-pill <%= medicines.some(m => m.expired_waiting) || expiredOnly ? 'bad' : '' %>">expired to dispose of</span>
+    <a href="/inventory?low=1" class="sum-link" aria-current="<%= lowOnly ? 'true' : 'false' %>">
+      <span class="sum-pill <%= lowCount ? 'bad' : '' %> <%= lowOnly ? 'is-on' : '' %>"><b><%= lowCount %></b> low stock</span>
+    </a>
+    <a href="/inventory?expired=1" class="sum-link" aria-current="<%= expiredOnly ? 'true' : 'false' %>">
+      <span class="sum-pill <%= medicines.some(m => m.expired_waiting) || expiredOnly ? 'bad' : '' %> <%= expiredOnly ? 'is-on' : '' %>">expired to dispose of</span>
     </a>
     <%# Only shown once something is actually in there. A permanent "0 archived"
         pill is a control that does nothing 99% of the time and teaches the eye
         to skip that row. %>
     <% if (archivedCount) { %>
-      <a href="/inventory?archived=1" style="text-decoration:none">
-        <span class="sum-pill"><b><%= archivedCount %></b> archived</span>
+      <a href="/inventory?archived=1" class="sum-link" aria-current="<%= archivedOnly ? 'true' : 'false' %>">
+        <span class="sum-pill <%= archivedOnly ? 'is-on' : '' %>"><b><%= archivedCount %></b> archived</span>
       </a>
     <% } %>
     <% if (lowOnly || archivedOnly || expiredOnly) { %><a class="mini-btn" href="/inventory">Clear filter</a><% } %>

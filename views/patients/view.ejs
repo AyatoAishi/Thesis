@@ -342,6 +342,8 @@
 <div class="card">
   <div class="panel-title" style="margin-bottom:12px">Guardian</div>
   <dl class="kv">
+    <div><dt>Mother</dt><dd><%= p.mother_name || "—" %></dd></div>
+    <div><dt>Father</dt><dd><%= p.father_name || "—" %></dd></div>
     <div><dt>Guardian name</dt><dd><%= p.guardian_name || "—" %></dd></div>
     <div><dt>Consent</dt><dd>
       <% if (p.guardian_consent) { %><span class="badge ok">Recorded</span>

@@ -209,6 +209,10 @@ function readForm(body) {
     reminder_channel: REMINDER_CHANNELS.includes(body.reminder_channel) ? body.reminder_channel : "both",
     is_minor: calcIsMinor(birthdate),
     guardian_name: (body.guardian_name || "").trim() || null,
+    // Asked for on a minor's record (Richelle, Sept 26); optional, because a
+    // parent is sometimes genuinely not known.
+    mother_name: (body.mother_name || "").trim().slice(0, 150) || null,
+    father_name: (body.father_name || "").trim().slice(0, 150) || null,
     guardian_consent: body.guardian_consent === "on" || body.guardian_consent === "true",
     privacy_consent: body.privacy_consent === "on" || body.privacy_consent === "true",
   };
@@ -480,6 +484,11 @@ router.post("/patients", async (req, res, next) => {
         p.guardian_consent, p.privacy_consent, req.session.user.user_id,
       ]
     );
+    // The parents, in their own statement rather than as $19/$20 of the one
+    // above: renumbering eighteen positional parameters is how two columns end
+    // up silently swapped. Same row, same request, a moment later.
+    await db.query("UPDATE patients SET mother_name=$1, father_name=$2 WHERE patient_id=$3",
+      [p.mother_name, p.father_name, rows[0].patient_id]);
     audit.log(req.session.user.user_id, "create", "patient", rows[0].patient_id, p.full_name);
     fam.joined.forEach((m) =>
       audit.log(req.session.user.user_id, "update", "patient", m.patient_id,
@@ -728,6 +737,11 @@ router.post("/patients/:id", async (req, res, next) => {
       ]
     );
     if (!rowCount) return next();
+    // The parents, in their own statement rather than as $19/$20 of the one
+    // above: renumbering eighteen positional parameters is how two columns end
+    // up silently swapped. Same row, same request, a moment later.
+    await db.query("UPDATE patients SET mother_name=$1, father_name=$2 WHERE patient_id=$3",
+      [p.mother_name, p.father_name, req.params.id]);
     audit.log(req.session.user.user_id, "update", "patient", req.params.id, p.full_name);
     fam.joined.forEach((m) =>
       audit.log(req.session.user.user_id, "update", "patient", m.patient_id,

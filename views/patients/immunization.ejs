@@ -34,6 +34,42 @@
   </div>
 </div>
 
+<%
+  // Whose child this is, and who actually gets the reminder. A baby has no
+  // phone, email or portal account of its own, so the reminder goes where
+  // services/reminders.js sends it: the patient's own number/email first, then
+  // the emergency/family contact's. Shown here because "how does the reminder
+  // reach a baby?" was a real question from our own group (Richelle, Sept 26)
+  // — if we had to ask, a nurse will too.
+  const _smsTo = patient.contact_number
+    ? { to: patient.contact_number, who: "the patient's own number" }
+    : patient.family_contact_number
+      ? { to: patient.family_contact_number, who: patient.family_contact_name || "the emergency contact" }
+      : null;
+  const _mailTo = patient.email || patient.family_email || null;
+%>
+<% if (patient.is_minor) { %>
+  <div class="card parents-card">
+    <dl class="kv">
+      <div><dt>Mother</dt><dd><b><%= patient.mother_name || "—" %></b></dd></div>
+      <div><dt>Father</dt><dd><b><%= patient.father_name || "—" %></b></dd></div>
+      <% if (patient.guardian_name) { %><div><dt>Guardian</dt><dd><%= patient.guardian_name %></dd></div><% } %>
+      <div><dt>Reminders go to</dt><dd>
+        <% if (_smsTo || _mailTo) { %>
+          <%= [_smsTo && `${_smsTo.to} (${_smsTo.who})`, _mailTo].filter(Boolean).join(" · ") %>
+        <% } else { %>
+          <span class="badge bad">Nobody</span> — no number or email on this record.
+        <% } %>
+      </dd></div>
+    </dl>
+    <% if (!patient.mother_name && !patient.father_name || !_smsTo && !_mailTo) { %>
+      <p class="muted" style="margin:8px 0 0;font-size:12.5px">
+        <a href="/patients/<%= patient.patient_id %>/edit">Edit the patient</a> to add the parents<%= !_smsTo && !_mailTo ? " and a parent's number under Emergency / family contact" : "" %>.
+      </p>
+    <% } %>
+  </div>
+<% } %>
+
 <% if (flash) { %>
   <div class="card" style="background:var(--accent-softer);border-color:var(--accent-soft)"><%= flash %></div>
 <% } %>

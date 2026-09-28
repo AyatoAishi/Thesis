@@ -1,0 +1,77 @@
+<%# The clinic's notice board. Posted here, shown to patients on the portal and
+    on the public About page for the days chosen. See routes/announcements.js. %>
+<div class="page-head">
+  <h1>Announcements</h1>
+  <div class="sub">What patients see at the top of their portal — free x-ray days, vaccine drives, vitamin drops.</div>
+</div>
+
+<% if (flash) { %>
+  <div class="card" style="background:var(--accent-softer);border-color:var(--accent-soft)"><%= flash %></div>
+<% } %>
+
+<% if (canPost) { %>
+  <div class="card" id="post">
+    <div class="panel-title" style="margin-bottom:10px"><%= editing ? "Edit announcement" : "Post an announcement" %></div>
+    <% if (errors.length) { %>
+      <div class="card" style="border-color:#f3c9cb;background:var(--bad-bg);margin-bottom:12px">
+        <ul style="margin:0;padding-left:18px;color:var(--bad-ink)"><% errors.forEach(e => { %><li><%= e %></li><% }) %></ul>
+      </div>
+    <% } %>
+    <form method="POST" action="<%= action %>"><%- include("../partials/csrf") %>
+      <label class="field"><span>Title *</span>
+        <input type="text" name="title" required maxlength="<%= TITLE_MAX %>" value="<%= form.title %>"
+               placeholder="e.g. Libreng bakuna laban sa tigdas" />
+      </label>
+      <label class="field" style="margin-top:12px"><span>What to tell patients * <span class="muted">(up to <%= BODY_MAX %> characters)</span></span>
+        <textarea name="body" required maxlength="<%= BODY_MAX %>" rows="4"
+                  placeholder="When, where, who can come, and what to bring."><%= form.body %></textarea>
+      </label>
+      <div class="form-grid" style="margin-top:12px">
+        <label class="field"><span>Show from *</span>
+          <input type="date" name="starts_on" required value="<%= form.starts_on %>" />
+        </label>
+        <label class="field"><span>Last day shown <span class="muted">(blank = until removed)</span></span>
+          <input type="date" name="ends_on" value="<%= form.ends_on %>" />
+        </label>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button type="submit" class="btn"><%= editing ? "Save" : "Post" %></button>
+        <% if (editing) { %><a class="mini-btn" href="/announcements">Cancel</a><% } %>
+      </div>
+    </form>
+  </div>
+<% } %>
+
+<div class="card">
+  <div class="panel-title" style="margin-bottom:10px">All announcements</div>
+  <% if (!rows.length) { %>
+    <p class="muted" style="margin:0">Nothing posted yet.</p>
+  <% } else { %>
+    <div class="ann-list">
+      <% rows.forEach(a => { %>
+        <div class="ann-item<%= a.state.key === "ended" ? " is-ended" : "" %>">
+          <div class="ann-head">
+            <b><%= a.title %></b>
+            <span class="badge <%= a.state.key === "live" ? "ok" : a.state.key === "upcoming" ? "info" : "" %>"><%= a.state.label %></span>
+          </div>
+          <p class="ann-body"><%= a.body %></p>
+          <div class="muted ann-meta">
+            <%= longDate(a.starts_on) %> – <%= a.ends_on ? longDate(a.ends_on) : "until removed" %>
+            <% if (a.posted_by) { %> · posted by <%= a.posted_by %><% } %>
+          </div>
+          <% if (canPost) { %>
+            <div class="ann-actions">
+              <a class="mini-btn" href="/announcements/<%= a.announcement_id %>/edit#post">Edit</a>
+              <form method="POST" action="/announcements/<%= a.announcement_id %>/delete" style="margin:0"
+                    data-confirm-title="Remove this announcement?"
+                    data-confirm="Patients stop seeing it right away. | The activity log keeps a record of it."
+                    data-confirm-yes="Yes, remove" data-confirm-no="Cancel"><%- include("../partials/csrf") %>
+                <button type="submit" class="logout-btn">Remove</button>
+              </form>
+            </div>
+          <% } %>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+</div>

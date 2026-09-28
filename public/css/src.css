@@ -1839,3 +1839,62 @@ section.manual { scroll-margin-top: 16px; }
 }
 .lang-toggle a.is-on { background: var(--accent); color: var(--on-accent); }
 .lang-toggle a:not(.is-on):hover { background: var(--accent-softer); color: var(--accent-strong); }
+
+/* Summary pills that are links (inventory): look pressable, and outline the
+   one whose list is showing. */
+.sum-link { text-decoration: none; color: inherit; }
+.sum-link .sum-pill { cursor: pointer; transition: box-shadow .12s; }
+.sum-link:hover .sum-pill { box-shadow: 0 0 0 1.5px var(--border-strong); }
+.sum-link .sum-pill.is-on { box-shadow: 0 0 0 2px var(--accent); }
+
+/* Calendar chips carry their own label; the legend repeats it for phones,
+   where the words are dropped to fit a 45px cell. */
+.cal-word { font-weight: 600; }
+.cal-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; font-size: 12.5px; color: var(--ink-3); }
+.cal-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+@media (max-width: 640px) { .cal-word { display: none; } }
+
+/* A child's immunization page opens with whose child it is (Richelle, Sept 26). */
+.parents-card { border-left: 4px solid var(--accent); background: var(--accent-softer); }
+.parents-card .kv { margin: 0; }
+
+/* Announcements (routes/announcements.js). The body keeps the line breaks the
+   nurse typed; the text is escaped, so pre-line is the only formatting. */
+.ann-list { display: flex; flex-direction: column; gap: 12px; }
+.ann-item { padding: 12px 0; border-top: 1px solid var(--line); }
+.ann-list .ann-item:first-child, .ann-panel .panel-title + .ann-item { border-top: 0; padding-top: 4px; }
+.ann-item.is-ended { opacity: .6; }
+.ann-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.ann-body { margin: 6px 0 4px; white-space: pre-line; line-height: 1.55; }
+.ann-meta { font-size: 12.5px; }
+.ann-actions { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+.ann-panel { border-left: 4px solid var(--warn, #d99411); }
+.ann-panel .panel-title { margin-bottom: 6px; }
+
+/* ---- Patient portal sidebar (Richelle's mockup, Sept 26) -------------------
+   A column of section links beside the content on a computer; a row of
+   scrollable pills above it on a phone. The portal page widens to make room. */
+.portal-main:has(.portal-shell) { max-width: 1080px; }
+.portal-shell { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 22px; align-items: start; }
+.portal-side { display: flex; flex-direction: column; gap: 6px; position: sticky; top: 16px; }
+.portal-side-link {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--surface);
+  color: var(--ink-2); font-weight: 600; font-size: 14px; text-decoration: none;
+}
+.portal-side-link:hover { border-color: var(--accent-soft); background: var(--accent-softer); }
+.portal-side-link.is-on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.portal-side-link svg { flex: none; }
+.portal-side-dot {
+  margin-left: auto; min-width: 20px; padding: 1px 6px; border-radius: 999px; text-align: center;
+  font-size: 11.5px; font-weight: 800; background: var(--bad-bg); color: var(--bad-ink);
+}
+.portal-content { min-width: 0; display: flex; flex-direction: column; }
+.portal-content > .card { margin-bottom: 16px; }
+.missed-card { border-left: 4px solid var(--bad-ink); background: var(--bad-bg); }
+.missed-list { margin: 0; padding-left: 18px; font-size: 13.5px; }
+@media (max-width: 760px) {
+  .portal-shell { grid-template-columns: 1fr; gap: 12px; }
+  .portal-side { position: static; flex-direction: row; overflow-x: auto; gap: 6px; padding-bottom: 4px; }
+  .portal-side-link { flex: none; padding: 8px 12px; font-size: 13px; white-space: nowrap; }
+}

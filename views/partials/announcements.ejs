@@ -1,0 +1,16 @@
+<%# The clinic's live announcements, for patients. Expects `announcements`
+    (lib/announcements.js active()) and `longDate`. Renders nothing when there
+    are none — an empty "Announcements" box every day teaches people to skip it. %>
+<% const _ann = typeof announcements !== "undefined" && announcements ? announcements : []; %>
+<% if (_ann.length) { %>
+  <section class="card ann-panel" aria-label="<%= t('por.announcements') %>">
+    <div class="panel-title">📢 <%= t("por.announcements") %></div>
+    <% _ann.forEach(a => { %>
+      <div class="ann-item">
+        <b><%= a.title %></b>
+        <p class="ann-body"><%= a.body %></p>
+        <% if (a.ends_on) { %><div class="muted ann-meta"><%= t("por.ann_until", { d: longDate(a.ends_on) }) %></div><% } %>
+      </div>
+    <% }) %>
+  </section>
+<% } %>

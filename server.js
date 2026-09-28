@@ -31,6 +31,7 @@ const prenatalRoutes = require("./routes/prenatal");
 const visitRoutes = require("./routes/visits");
 const formRoutes = require("./routes/forms");
 const helpRoutes = require("./routes/help");
+const announcementRoutes = require("./routes/announcements");
 const reminders = require("./services/reminders");
 const immSchedule = require("./services/immunizationSchedule");
 const imm = require("./lib/immunizationCard");
@@ -355,6 +356,7 @@ app.use("/", immunizationRoutes);
 app.use("/", prenatalRoutes);
 app.use("/", visitRoutes);
 app.use("/", formRoutes);
+app.use("/", announcementRoutes);
 
 // Dashboard — the clinic's numbers for today.
 //

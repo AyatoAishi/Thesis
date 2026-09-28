@@ -1,28 +1,44 @@
 <%
   // 2026-09-25, from the professors' review of the patient side:
-  //   - "Dapat magkatabi na yung my appointments sabay next appointments … yung
-  //     medicines at card magkatabi naman." The page is now two pairs of boxes
-  //     side by side on a computer, stacked on a phone.
+  //   - "Dapat magkatabi na yung my appointments sabay next appointments …"
   //   - "Yung color ng box ng appointments is something na makakuha ng
-  //     atensyon" — the next appointment is a solid green panel, the one
-  //     coloured block on the page.
-  //   - "Yung ibang text mejo crowded pa … mapa igsi" — every sentence here
-  //     was cut to the one thing it has to say, in one language.
+  //     atensyon" — the next appointment is a solid green panel.
+  //   - "Yung ibang text mejo crowded pa … mapa igsi".
+  //
+  // 2026-09-28, Richelle's mockup: a sidebar, and only the overview on
+  // sign-in — announcements, the next appointment, anything missed — with the
+  // rest one press away "para di nakabalandra agad lahat pagka log in". Each
+  // section is its own ?tab= link (routes/portal.js picks and validates it), so
+  // the page works without JavaScript and the Back button goes where you were.
   function statusBadge(s) {
     const m = { scheduled:["info",t("status.scheduled")], completed:["ok",t("status.completed")], missed:["bad",t("status.missed")], cancelled:["warn",t("status.cancelled")] };
     const [c, l] = m[s] || ["info", s];
     return `<span class="badge ${c}">${l}</span>`;
   }
   const next = upcoming[0] || null;
-  // The tables sit in half-width boxes now, where "Thursday, July 9, 2026"
-  // pushed the status column off the edge. The weekday stays on the big
-  // next-appointment date, where it is the point; the tables get "Jul 9, 2026".
+  // Half-width boxes: "Jul 9, 2026" in tables, the weekday only on the big date.
   function shortD(d) {
     if (!d) return "—";
     const iso = d instanceof Date ? d.toLocaleDateString("en-CA", { timeZone: "Asia/Manila" }) : String(d).slice(0, 10);
     return new Date(iso + "T00:00:00+08:00").toLocaleDateString("en-PH", { timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric" });
   }
   const onTempPassword = !me.password_changed_at;
+
+  const ICON = {
+    overview: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+    appointments: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+    immunization: '<path d="M18 2l4 4M17 7l3-3M19 9l-8.7 8.7a2 2 0 0 1-2.8 0l-1.2-1.2a2 2 0 0 1 0-2.8L15 5M9 11l4 4M5 19l-3 3M14 4l6 6"/>',
+    records: '<path d="M10.5 20.5 3.5 13.5a4.95 4.95 0 1 1 7-7l7 7a4.95 4.95 0 1 1-7 7Z"/><path d="m8.5 8.5 7 7"/>',
+    info: '<circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 14 0v1"/>',
+    password: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  };
+  const TABS = [
+    ["overview", t("por.tab_overview")],
+    ["appointments", t("por.tab_appts")],
+    ...(me.is_verified ? [["immunization", t("por.tab_imm")], ["records", t("por.tab_records")]] : []),
+    ["info", t("por.tab_info")],
+    ["password", t("por.tab_pw")],
+  ];
 %>
 
 <div class="page-head">
@@ -30,26 +46,42 @@
   <div class="sub mono"><%= me.patient_number %></div>
 </div>
 
-<% if (flash.err) { %>
-  <div class="card portal-flash bad-flash">⚠️ <%= flash.err %></div>
-<% } %>
+<div class="portal-shell">
+  <nav class="portal-side" aria-label="<%= t('por.sections') %>">
+    <% TABS.forEach(([key, label]) => { %>
+      <a href="/portal<%= key === "overview" ? "" : "?tab=" + key %>"
+         class="portal-side-link<%= tab === key ? " is-on" : "" %>" aria-current="<%= tab === key ? 'page' : 'false' %>">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><%- ICON[key] %></svg>
+        <span><%= label %></span>
+        <% if (key === "appointments" && missed.length) { %><span class="portal-side-dot"><%= missed.length %></span><% } %>
+      </a>
+    <% }) %>
+  </nav>
 
-<%# "Add a note on patient portal, that can change their password after
-    creating an account." Shown at the top while the clinic's temporary
-    password is still the one in use, and gone once they have set their own. %>
-<% if (onTempPassword) { %>
-  <a class="card portal-flash warn-flash portal-temp-pw" href="#change-password">
-    <b><%= t("por.temp_pw") %></b> <%= t("por.temp_pw_do") %>
-  </a>
-<% } %>
+  <div class="portal-content">
 
-<% if (!me.is_verified) { %>
-  <div class="card portal-flash warn-flash">
-    <b><%= t("por.unverified") %></b> <%= t("por.unverified_do") %>
-  </div>
-<% } %>
+<% if (tab === "overview") { %>
 
-<div class="portal-pair">
+  <% if (flash.err) { %>
+    <div class="card portal-flash bad-flash">⚠️ <%= flash.err %></div>
+  <% } %>
+
+  <%# "Add a note on patient portal, that can change their password after
+      creating an account." Gone once they have set their own. %>
+  <% if (onTempPassword) { %>
+    <a class="card portal-flash warn-flash portal-temp-pw" href="/portal?tab=password">
+      <b><%= t("por.temp_pw") %></b> <%= t("por.temp_pw_do") %>
+    </a>
+  <% } %>
+
+  <% if (!me.is_verified) { %>
+    <div class="card portal-flash warn-flash">
+      <b><%= t("por.unverified") %></b> <%= t("por.unverified_do") %>
+    </div>
+  <% } %>
+
+  <%- include("../partials/announcements") %>
+
   <div class="card hero-appt<%= next ? "" : " is-empty" %>">
     <div class="panel-title" style="margin-bottom:8px"><%= t("por.next") %></div>
     <% if (next) { %>
@@ -64,20 +96,51 @@
     <% } else { %>
       <p class="muted" style="margin:4px 0 0"><%= t("por.none_sched") %></p>
     <% } %>
-    <%# "Add an instruction on how to do an appointment." Walk-in only — the
-        portal does not book, on purpose (one calendar, one set of hands). %>
+    <%# Walk-in only — the portal does not book, on purpose. %>
     <div class="how-to-book">
       <b><%= t("por.how_book") %></b>
       <%- t("por.how_book_body") %>
     </div>
   </div>
 
+  <% if (missed.length) { %>
+    <div class="card missed-card">
+      <div class="panel-title" style="margin-bottom:6px">⚠️ <%= t("por.missed_title") %></div>
+      <p style="margin:0 0 10px"><%= t("por.missed_body", { n: missed.length }) %></p>
+      <ul class="missed-list">
+        <% missed.slice(0, 3).forEach(a => { %>
+          <li><b><%= shortD(a.appointment_date) %></b> · <%= pretty(a.service_name) %></li>
+        <% }) %>
+      </ul>
+    </div>
+  <% } %>
+
+  <% if (dependents.length) { %>
+    <div class="card">
+      <div class="panel-title" style="margin-bottom:4px"><%= t("por.children") %></div>
+      <p class="muted" style="font-size:13px;margin:0 0 12px"><%= t("por.children_hint") %></p>
+      <div class="dependent-list">
+        <% dependents.forEach(d => { %>
+          <a class="dependent-row" href="/portal/household/<%= d.patient_id %>">
+            <span>
+              <b><%= d.full_name %></b>
+              <span class="muted mono" style="font-size:12.5px"><%= d.patient_number %></span>
+            </span>
+            <span class="muted"><%= t("por.view") %></span>
+          </a>
+        <% }) %>
+      </div>
+    </div>
+  <% } %>
+
+<% } else if (tab === "appointments") { %>
+
   <div class="card">
     <div class="panel-title" style="margin-bottom:12px"><%= t("por.my_appts") %></div>
     <% if (!appointments.length) { %>
       <p class="muted" style="margin:0"><%= t("por.none") %></p>
     <% } else { %>
-      <div class="scroll-box" style="max-height:300px">
+      <div style="overflow-x:auto">
         <table class="tbl">
           <thead><tr><th><%= t("por.col_date") %></th><th><%= t("por.col_service") %></th><th><%= t("por.col_time") %></th><th><%= t("por.col_status") %></th></tr></thead>
           <tbody>
@@ -98,30 +161,87 @@
       </div>
     <% } %>
     <p class="muted" style="font-size:13px;margin:12px 2px 0"><%= t("por.change_appt") %></p>
+    <div class="how-to-book" style="margin-top:12px">
+      <b><%= t("por.how_book") %></b>
+      <%- t("por.how_book_body") %>
+    </div>
   </div>
-</div>
 
-<% if (me.is_verified) { %>
+<% } else if (tab === "immunization") { %>
 
-<div class="portal-pair">
+  <%- include("_immunization") %>
+
+<% } else if (tab === "records") { %>
+
+  <% if (!medicines.length && !prenatal && !visits.length) { %>
+    <div class="card"><p class="muted" style="margin:0"><%= t("por.records_none") %></p></div>
+  <% } %>
+
+  <% if (medicines.length) { %>
   <div class="card">
     <div class="panel-title" style="margin-bottom:12px"><%= t("por.meds") %></div>
-    <% if (!medicines.length) { %>
+    <div style="overflow-x:auto">
+      <table class="tbl">
+        <thead><tr><th><%= t("por.col_date") %></th><th><%= t("por.col_medicine") %></th><th><%= t("por.col_qty") %></th></tr></thead>
+        <tbody>
+          <% medicines.forEach(m => { %>
+            <tr>
+              <td style="white-space:nowrap"><%= shortD(m.date) %></td>
+              <td>
+                <%= m.medicine_name %><%= m.dosage ? " " + m.dosage : "" %>
+                <%# How often to take it, written by the nurse at the desk. %>
+                <% if (m.instructions) { %><div class="med-how">🕑 <%= m.instructions %></div><% } %>
+              </td>
+              <td class="mono" style="white-space:nowrap"><%= m.quantity %> <%= m.unit || "" %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <% } %>
+
+  <% if (prenatal) { %>
+  <%
+    const ttDoses = [prenatal.tt1_date, prenatal.tt2_date, prenatal.tt3_date, prenatal.tt4_date, prenatal.tt5_date];
+    const ttGiven = ttDoses.filter(Boolean).length;
+  %>
+  <div class="card">
+    <div class="panel-title" style="margin-bottom:12px"><%= t("por.prenatal") %></div>
+
+    <% if (prenatal.edd && prenatal.status === "active") { %>
+      <div class="hero-appt-main" style="margin-bottom:14px">
+        <div class="hero-appt-date" style="color:var(--accent-strong)"><%= longDate(prenatal.edd) %></div>
+        <div class="hero-appt-sub"><%= t("por.edd") %></div>
+      </div>
+    <% } %>
+
+    <dl class="kv">
+      <div><dt><%= t("por.pn_status") %></dt><dd>
+        <% if (prenatal.status === "active") { %><span class="badge info"><%= t("por.pn_active") %></span>
+        <% } else if (prenatal.status === "delivered") { %><span class="badge ok"><%= t("por.pn_delivered") %></span>
+        <% } else { %><span class="badge"><%= t("por.pn_closed") %></span><% } %>
+      </dd></div>
+      <div><dt><%= t("por.lmp") %></dt><dd><%= prenatal.lmp ? longDate(prenatal.lmp) : "—" %></dd></div>
+      <div><dt><%= t("por.gp") %></dt><dd class="mono"><%= prenatal.gravida ?? "—" %> / <%= prenatal.para ?? "—" %></dd></div>
+      <div><dt><%= t("por.tetanus") %></dt><dd><%= t("por.tt_of", { n: ttGiven }) %></dd></div>
+    </dl>
+
+    <div class="panel-title" style="margin:18px 0 10px;font-size:15px"><%= t("por.checkups") %></div>
+    <% if (!prenatalVisits.length) { %>
       <p class="muted" style="margin:0"><%= t("por.none") %></p>
     <% } else { %>
-      <div class="scroll-box" style="max-height:320px">
+      <div style="overflow-x:auto">
         <table class="tbl">
-          <thead><tr><th><%= t("por.col_date") %></th><th><%= t("por.col_medicine") %></th><th><%= t("por.col_qty") %></th></tr></thead>
+          <thead><tr><th><%= t("por.col_date") %></th><th><%= t("por.aog") %></th><th><%= t("por.bp") %></th><th><%= t("por.weight") %></th><th><%= t("por.fht") %></th></tr></thead>
           <tbody>
-            <% medicines.forEach(m => { %>
+            <% prenatalVisits.forEach(v => { %>
               <tr>
-                <td style="white-space:nowrap"><%= shortD(m.date) %></td>
-                <td>
-                  <%= m.medicine_name %><%= m.dosage ? " " + m.dosage : "" %>
-                  <%# How often to take it, written by the nurse at the desk. %>
-                  <% if (m.instructions) { %><div class="med-how">🕑 <%= m.instructions %></div><% } %>
-                </td>
-                <td class="mono" style="white-space:nowrap"><%= m.quantity %> <%= m.unit || "" %></td>
+                <td><%= longDate(v.visit_date) %></td>
+                <td><%= v.aog || "—" %></td>
+                <td class="mono"><%= v.bp || "—" %></td>
+                <td class="mono"><%= v.weight_kg ? v.weight_kg + " kg" : "—" %></td>
+                <td class="mono"><%= v.fetal_heart_tone || "—" %></td>
               </tr>
             <% }) %>
           </tbody>
@@ -129,124 +249,51 @@
       </div>
     <% } %>
   </div>
-
-  <div class="portal-pair-cell">
-    <%- include("_immunization") %>
-  </div>
-</div>
-
-<% if (dependents.length) { %>
-<div class="card">
-  <div class="panel-title" style="margin-bottom:4px"><%= t("por.children") %></div>
-  <p class="muted" style="font-size:13px;margin:0 0 12px"><%= t("por.children_hint") %></p>
-  <div class="dependent-list">
-    <% dependents.forEach(d => { %>
-      <a class="dependent-row" href="/portal/household/<%= d.patient_id %>">
-        <span>
-          <b><%= d.full_name %></b>
-          <span class="muted mono" style="font-size:12.5px"><%= d.patient_number %></span>
-        </span>
-        <span class="muted"><%= t("por.view") %></span>
-      </a>
-    <% }) %>
-  </div>
-</div>
-<% } %>
-
-<% if (prenatal) { %>
-<%
-  const ttDoses = [prenatal.tt1_date, prenatal.tt2_date, prenatal.tt3_date, prenatal.tt4_date, prenatal.tt5_date];
-  const ttGiven = ttDoses.filter(Boolean).length;
-%>
-<div class="card">
-  <div class="panel-title" style="margin-bottom:12px"><%= t("por.prenatal") %></div>
-
-  <% if (prenatal.edd && prenatal.status === "active") { %>
-    <div class="hero-appt-main" style="margin-bottom:14px">
-      <div class="hero-appt-date" style="color:var(--accent-strong)"><%= longDate(prenatal.edd) %></div>
-      <div class="hero-appt-sub"><%= t("por.edd") %></div>
-    </div>
   <% } %>
 
-  <dl class="kv">
-    <div><dt><%= t("por.pn_status") %></dt><dd>
-      <% if (prenatal.status === "active") { %><span class="badge info"><%= t("por.pn_active") %></span>
-      <% } else if (prenatal.status === "delivered") { %><span class="badge ok"><%= t("por.pn_delivered") %></span>
-      <% } else { %><span class="badge"><%= t("por.pn_closed") %></span><% } %>
-    </dd></div>
-    <div><dt><%= t("por.lmp") %></dt><dd><%= prenatal.lmp ? longDate(prenatal.lmp) : "—" %></dd></div>
-    <div><dt><%= t("por.gp") %></dt><dd class="mono"><%= prenatal.gravida ?? "—" %> / <%= prenatal.para ?? "—" %></dd></div>
-    <div><dt><%= t("por.tetanus") %></dt><dd><%= t("por.tt_of", { n: ttGiven }) %></dd></div>
-  </dl>
-
-  <div class="panel-title" style="margin:18px 0 10px;font-size:15px"><%= t("por.checkups") %></div>
-  <% if (!prenatalVisits.length) { %>
-    <p class="muted" style="margin:0"><%= t("por.none") %></p>
-  <% } else { %>
+  <% if (visits.length) { %>
+  <div class="card">
+    <div class="panel-title" style="margin-bottom:12px"><%= t("por.visits") %></div>
     <div style="overflow-x:auto">
       <table class="tbl">
-        <thead><tr><th><%= t("por.col_date") %></th><th><%= t("por.aog") %></th><th><%= t("por.bp") %></th><th><%= t("por.weight") %></th><th><%= t("por.fht") %></th></tr></thead>
+        <thead><tr><th><%= t("por.col_date") %></th><th><%= t("por.bp") %></th><th><%= t("por.weight") %></th><th><%= t("por.temp") %></th><th><%= t("por.diagnosis") %></th></tr></thead>
         <tbody>
-          <% prenatalVisits.forEach(v => { %>
+          <% visits.forEach(v => { %>
             <tr>
               <td><%= longDate(v.visit_date) %></td>
-              <td><%= v.aog || "—" %></td>
-              <td class="mono"><%= v.bp || "—" %></td>
-              <td class="mono"><%= v.weight_kg ? v.weight_kg + " kg" : "—" %></td>
-              <td class="mono"><%= v.fetal_heart_tone || "—" %></td>
+              <td class="mono"><%= v.bp_systolic && v.bp_diastolic ? `${v.bp_systolic}/${v.bp_diastolic}` : "—" %></td>
+              <%# NUMERIC arrives padded to its scale ("58.50") — trim it. %>
+              <td class="mono"><%= v.weight_kg ? Number(v.weight_kg) + " kg" : "—" %></td>
+              <td class="mono"><%= v.temperature_c ? Number(v.temperature_c) + " °C" : "—" %></td>
+              <td><%= v.diagnosis || "—" %></td>
             </tr>
           <% }) %>
         </tbody>
       </table>
     </div>
-  <% } %>
-</div>
-<% } %>
-
-<% if (visits.length) { %>
-<div class="card">
-  <div class="panel-title" style="margin-bottom:12px"><%= t("por.visits") %></div>
-  <div style="overflow-x:auto">
-    <table class="tbl">
-      <thead><tr><th><%= t("por.col_date") %></th><th><%= t("por.bp") %></th><th><%= t("por.weight") %></th><th><%= t("por.temp") %></th><th><%= t("por.diagnosis") %></th></tr></thead>
-      <tbody>
-        <% visits.forEach(v => { %>
-          <tr>
-            <td><%= longDate(v.visit_date) %></td>
-            <td class="mono"><%= v.bp_systolic && v.bp_diastolic ? `${v.bp_systolic}/${v.bp_diastolic}` : "—" %></td>
-            <%# NUMERIC arrives padded to its scale ("58.50") — trim it. %>
-            <td class="mono"><%= v.weight_kg ? Number(v.weight_kg) + " kg" : "—" %></td>
-            <td class="mono"><%= v.temperature_c ? Number(v.temperature_c) + " °C" : "—" %></td>
-            <td><%= v.diagnosis || "—" %></td>
-          </tr>
-        <% }) %>
-      </tbody>
-    </table>
   </div>
-</div>
-<% } %>
+  <% } %>
 
-<% } %>
+<% } else if (tab === "info") { %>
 
-<div class="portal-pair">
   <div class="card">
     <div class="panel-title" style="margin-bottom:12px"><%= t("por.info") %></div>
     <dl class="kv">
       <div><dt><%= t("por.name") %></dt><dd><%= me.full_name %></dd></div>
-      <div><dt>Patient number</dt><dd class="mono"><%= me.patient_number %></dd></div>
+      <div><dt><%= t("por.patient_no") %></dt><dd class="mono"><%= me.patient_number %></dd></div>
       <div><dt><%= t("por.birthdate") %></dt><dd><%= me.birthdate ? longDate(me.birthdate) : "—" %></dd></div>
       <div><dt><%= t("por.sex") %></dt><dd><%= me.sex === "male" ? t("por.male") : me.sex === "female" ? t("por.female") : "—" %></dd></div>
       <div><dt><%= t("por.number") %></dt><dd class="mono"><%= me.contact_number || "—" %></dd></div>
-      <div><dt>Email</dt><dd><%= me.email || "—" %></dd></div>
-      <div style="grid-column:1/-1"><dt>Address</dt><dd><%= me.address || "—" %></dd></div>
+      <div><dt><%= t("por.email") %></dt><dd><%= me.email || "—" %></dd></div>
+      <div style="grid-column:1/-1"><dt><%= t("por.address") %></dt><dd><%= me.address || "—" %></dd></div>
     </dl>
     <p class="muted" style="font-size:13px;margin:12px 2px 0"><%= t("por.wrong_info") %></p>
   </div>
 
+<% } else if (tab === "password") { %>
+
   <div class="card" id="change-password">
     <div class="panel-title" style="margin-bottom:4px"><%= t("por.pw_title") %></div>
-    <%# The professors gave the exact wording, and it is shorter and clearer
-        than what was here. %>
     <p class="muted" style="font-size:13px;margin:0 0 14px">
       <%= t("por.pw_forgot") %>
     </p>
@@ -258,7 +305,7 @@
       <div class="auth-error" style="margin-bottom:14px"><%= flash.pwErr %></div>
     <% } %>
 
-    <form method="POST" action="/portal/password" class="auth-form" style="gap:12px"><%- include("../partials/csrf") %>
+    <form method="POST" action="/portal/password" class="auth-form" style="gap:12px;max-width:420px"><%- include("../partials/csrf") %>
       <label class="field">
         <span><%= t("por.pw_current") %></span>
         <%- include("../partials/password-field", { name: "current_password", autocomplete: "current-password" }) %>
@@ -273,5 +320,9 @@
       </label>
       <button type="submit" class="btn" style="align-self:flex-start"><%= t("por.pw_btn") %></button>
     </form>
+  </div>
+
+<% } %>
+
   </div>
 </div>

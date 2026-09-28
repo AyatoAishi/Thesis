@@ -57,7 +57,13 @@ function safeRedirect(res, back, fallback, flash) {
 async function loadPatient(id) {
   // `sex` is here for the HPV row: the DOH programme is girls-only, so the
   // card and the dropdown need to know who they are looking at.
-  const { rows } = await db.query("SELECT patient_id, full_name, patient_number, birthdate, sex FROM patients WHERE patient_id=$1", [id]);
+  // The parents and the number reminders go to are here so the child's
+  // immunization page says whose baby this is and who gets told (Richelle).
+  const { rows } = await db.query(
+    `SELECT patient_id, full_name, patient_number, birthdate, sex, is_minor,
+            mother_name, father_name, guardian_name, contact_number, family_contact_name, family_contact_number,
+            email, family_email
+       FROM patients WHERE patient_id=$1`, [id]);
   return rows[0] || null;
 }
 
@@ -263,7 +269,9 @@ router.get("/patients/:id/immunization/export", async (req, res, next) => {
     doc.pipe(res);
     buildReportPdf(doc, {
       title: `Immunization record — ${patient.full_name}`,
-      subtitle: patient.patient_number,
+      subtitle: [patient.patient_number,
+        patient.mother_name && `Mother: ${patient.mother_name}`,
+        patient.father_name && `Father: ${patient.father_name}`].filter(Boolean).join("  ·  "),
       generatedBy: req.session.user.full_name,
       sections,
     });

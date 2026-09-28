@@ -141,13 +141,25 @@
             <span class="cal-day"><%= c.day %></span>
             <% if (c.count) { %>
               <%# The number, not a dot: "3" is the thing somebody is deciding
-                  with, and a dot makes them press the day to find out. %>
-              <span class="cal-count<%= c.missed ? " is-missed" : "" %>"><%= c.count %></span>
+                  with, and a dot makes them press the day to find out.
+                  Labelled, because a bare "2" — green on one day, red on the
+                  next — left the panel asking "two what?" (Mr. Trapago; again
+                  in Richelle's Sept 26 scan). The total and the missed are now
+                  two chips that each say what they count. The word drops on a
+                  phone, where the legend under the grid carries it. %>
+              <span class="cal-count"><%= c.count %><span class="cal-word"> <%= t("dash.cell_appts", { n: c.count }) %></span></span>
+              <% if (c.missed) { %>
+                <span class="cal-count is-missed"><%= c.missed %><span class="cal-word"> <%= t("dash.cell_missed") %></span></span>
+              <% } %>
             <% } %>
           </a>
         <% } %>
       <% }) %>
     <% }) %>
+  </div>
+  <div class="cal-legend">
+    <span><span class="cal-count">2</span> <%= t("dash.legend_appts") %></span>
+    <span><span class="cal-count is-missed">1</span> <%= t("dash.legend_missed") %></span>
   </div>
 
   <div class="cal-day-panel">

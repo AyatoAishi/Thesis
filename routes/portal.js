@@ -28,6 +28,7 @@ const F = require("../lib/format");
 const { buildCard, rowVisible } = require("../lib/immunizationCard");
 const { requirePatient } = require("../middleware/portalAuth");
 const { endOtherPatientSessions } = require("../lib/sessions");
+const announcements = require("../lib/announcements");
 const emailSvc = require("../services/email");
 const reset = require("../lib/passwordReset");
 const guard = require("../lib/loginGuard");
@@ -438,7 +439,7 @@ router.post("/portal/password", requirePatient, async (req, res, next) => {
     const current = req.body.current_password || "";
     const password = req.body.password || "";
     const password2 = req.body.password2 || "";
-    const oops = (msg) => res.redirect(`/portal?pw_err=${encodeURIComponent(msg)}`);
+    const oops = (msg) => res.redirect(`/portal?tab=password&pw_err=${encodeURIComponent(msg)}`);
 
     if (password.length < 8) return oops("Dapat 8 characters pataas ang bagong password.");
     if (password !== password2) return oops("Hindi magkatugma ang dalawang bagong password.");
@@ -494,7 +495,7 @@ router.post("/portal/password", requirePatient, async (req, res, next) => {
     // changing their password should not have to wonder who else is still in.
     await endOtherPatientSessions(pid, req.sessionID);
 
-    res.redirect("/portal?pw=1");
+    res.redirect("/portal?tab=password&pw=1");
   } catch (e) {
     next(e);
   }
@@ -609,6 +610,21 @@ router.get("/portal", requirePatient, async (req, res, next) => {
       .filter((a) => a.status === "scheduled" && a.appointment_date >= today)
       .sort((a, b) => (a.appointment_date < b.appointment_date ? -1 : 1));
 
+    // "Missed appointment (parang magserve pa rin as warning na may
+    // nakalimutan)" — Richelle. The last three months only: a no-show from
+    // last year is history, not something to act on today.
+    const since = F.addDays(today, -90);
+    const missed = apptsQ.rows
+      .filter((a) => a.status === "missed" && a.appointment_date >= since)
+      .sort((a, b) => (a.appointment_date < b.appointment_date ? 1 : -1));
+
+    // Which section of the portal is open (Richelle's sidebar). A link, not a
+    // script: Back works, and a section can be bookmarked. Anything unknown,
+    // or a records section on an unverified account, falls back to Overview.
+    const TABS = ["overview", "appointments", "immunization", "records", "info", "password"];
+    let tab = TABS.includes(req.query.tab) ? req.query.tab : "overview";
+    if (!me.is_verified && (tab === "immunization" || tab === "records")) tab = "overview";
+
     res.render("portal/home", {
       title: "My clinic portal · Sampaguita HC",
       layout: "portal-layout",
@@ -616,6 +632,9 @@ router.get("/portal", requirePatient, async (req, res, next) => {
       today,
       appointments: apptsQ.rows,
       upcoming,
+      missed,
+      tab,
+      announcements: await announcements.activeSafe(),
       visits: visitsQ.rows,
       medicines,
       immCategories,
@@ -705,11 +724,14 @@ router.post("/portal/help/unanswered", requirePatient, (req, res) => {
 // phone number, or do walk in)" — the professors' review. Public on purpose:
 // the people who most need to know how the clinic works are the ones who do
 // not have an account yet, and the portal sign-in page links here too.
-router.get("/portal/about", (req, res) => {
+router.get("/portal/about", async (req, res) => {
   res.render("portal/about", {
     title: "About · Sampaguita HC",
     layout: "portal-layout",
     me: req.session.patient || null,
+    // Public, so the barangay's announcements reach people with no account.
+    announcements: await announcements.activeSafe(),
+    longDate: F.longDate,
   });
 });
 

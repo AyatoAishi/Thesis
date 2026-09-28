@@ -1,0 +1,25 @@
+<%# The weekly schedule box (Richelle's mockup). Expects `schedule`
+    (lib/clinicSchedule.js) and `todayName` ("Tuesday"). Today's row is marked
+    so a patient reading it on a Tuesday sees "that's today". %>
+<%
+  const _sched = typeof schedule !== "undefined" && schedule ? schedule : [];
+  // Literal keys, one per day and service, so test/i18n.test.js can see every one.
+  const _day = { Sunday: t("por.day_sun"), Monday: t("por.day_mon"), Tuesday: t("por.day_tue"), Wednesday: t("por.day_wed"),
+                 Thursday: t("por.day_thu"), Friday: t("por.day_fri"), Saturday: t("por.day_sat") };
+  const _svc = { immunization: t("por.svc_immunization"), prenatal: t("por.svc_prenatal"), medicine_distribution: t("por.svc_medicine") };
+%>
+<% if (_sched.length) { %>
+  <div class="card sched-card">
+    <div class="panel-title" style="margin-bottom:10px">🗓️ <%= t("por.sched_title") %></div>
+    <ul class="sched-list">
+      <% _sched.forEach(s => { %>
+        <li class="<%= s.schedule_day === todayName ? "is-today" : "" %>">
+          <b><%= _day[s.schedule_day] %></b>
+          <span><%= _svc[s.name] || s.name %></span>
+          <% if (s.schedule_day === todayName) { %><span class="badge ok"><%= t("por.sched_today") %></span><% } %>
+        </li>
+      <% }) %>
+    </ul>
+    <p class="sched-hours"><%- t("por.sched_hours") %></p>
+  </div>
+<% } %>

@@ -1898,3 +1898,12 @@ section.manual { scroll-margin-top: 16px; }
   .portal-side { position: static; flex-direction: row; overflow-x: auto; gap: 6px; padding-bottom: 4px; }
   .portal-side-link { flex: none; padding: 8px 12px; font-size: 13px; white-space: nowrap; }
 }
+
+/* Weekly schedule box (portal overview + About). Read from services.schedule_day. */
+.sched-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.sched-list li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); }
+.sched-list li b { min-width: 88px; color: var(--accent-strong); }
+.sched-list li.is-today { background: var(--accent-softer); box-shadow: inset 3px 0 0 var(--accent); }
+.sched-list li .badge { margin-left: auto; }
+.sched-hours { margin: 10px 2px 0; font-size: 13px; color: var(--ink-3); }
+.portal-content > .portal-pair { margin-bottom: 16px; }

@@ -82,6 +82,7 @@
 
   <%- include("../partials/announcements") %>
 
+  <div class="portal-pair">
   <div class="card hero-appt<%= next ? "" : " is-empty" %>">
     <div class="panel-title" style="margin-bottom:8px"><%= t("por.next") %></div>
     <% if (next) { %>
@@ -101,6 +102,8 @@
       <b><%= t("por.how_book") %></b>
       <%- t("por.how_book_body") %>
     </div>
+  </div>
+  <div class="portal-pair-cell"><%- include("../partials/clinic-schedule") %></div>
   </div>
 
   <% if (missed.length) { %>

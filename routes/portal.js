@@ -29,6 +29,7 @@ const { buildCard, rowVisible } = require("../lib/immunizationCard");
 const { requirePatient } = require("../middleware/portalAuth");
 const { endOtherPatientSessions } = require("../lib/sessions");
 const announcements = require("../lib/announcements");
+const clinicSchedule = require("../lib/clinicSchedule");
 const emailSvc = require("../services/email");
 const reset = require("../lib/passwordReset");
 const guard = require("../lib/loginGuard");
@@ -635,6 +636,8 @@ router.get("/portal", requirePatient, async (req, res, next) => {
       missed,
       tab,
       announcements: await announcements.activeSafe(),
+      schedule: await clinicSchedule.weeklySafe(),
+      todayName: F.weekdayName(today),
       visits: visitsQ.rows,
       medicines,
       immCategories,
@@ -731,6 +734,8 @@ router.get("/portal/about", async (req, res) => {
     me: req.session.patient || null,
     // Public, so the barangay's announcements reach people with no account.
     announcements: await announcements.activeSafe(),
+    schedule: await clinicSchedule.weeklySafe(),
+    todayName: F.weekdayName(F.manilaToday()),
     longDate: F.longDate,
   });
 });

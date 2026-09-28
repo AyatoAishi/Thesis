@@ -78,7 +78,7 @@
             <td><%= m.unit || "—" %></td>
             <td>
               <span style="<%= low ? 'color:var(--bad-ink);font-weight:700' : '' %>"><%= m.stock_quantity %></span>
-              <span class="muted" style="font-size:11px"> / <%= m.low_stock_threshold %> min</span>
+              <span class="muted" style="font-size:11px"> / <%= m.low_stock_threshold %> minimum</span>
               <% if (low) { %><span class="badge bad" style="margin-left:6px">Low</span><% } %>
               <% if (m.expired_waiting) { %><span class="badge bad" style="margin-left:6px" title="Expired units still on the shelf"><%= m.expired_waiting %> expired</span><% } %>
             </td>

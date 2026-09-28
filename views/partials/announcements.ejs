@@ -1,16 +1,36 @@
 <%# The clinic's live announcements, for patients. Expects `announcements`
     (lib/announcements.js active()) and `longDate`. Renders nothing when there
-    are none — an empty "Announcements" box every day teaches people to skip it. %>
-<% const _ann = typeof announcements !== "undefined" && announcements ? announcements : []; %>
+    are none — an empty "Announcements" box every day teaches people to skip it.
+
+    Sept 29: "it should be scrollable for every different announcement rather
+    than the announcements merging together", with a timeline as the reference.
+    Each one is now its own card on a dated line, newest first, and the list
+    scrolls inside its box instead of pushing the patient's appointment down
+    the page. %>
+<%
+  const _ann = typeof announcements !== "undefined" && announcements ? announcements : [];
+  // "Sep 29" — the day it went up. Dates arrive as "YYYY-MM-DD" text and are
+  // read in UTC so the day never shifts with the server's clock.
+  const _day = (d) => new Date(String(d) + "T00:00:00Z")
+    .toLocaleDateString("en-PH", { month: "short", day: "numeric", timeZone: "UTC" });
+%>
 <% if (_ann.length) { %>
   <section class="card ann-panel" aria-label="<%= t('por.announcements') %>">
-    <div class="panel-title">📢 <%= t("por.announcements") %></div>
-    <% _ann.forEach(a => { %>
-      <div class="ann-item">
-        <b><%= a.title %></b>
-        <p class="ann-body"><%= a.body %></p>
-        <% if (a.ends_on) { %><div class="muted ann-meta"><%= t("por.ann_until", { d: longDate(a.ends_on) }) %></div><% } %>
-      </div>
-    <% }) %>
+    <div class="ann-panel-head">
+      <div class="panel-title">📢 <%= t("por.announcements") %></div>
+      <% if (_ann.length > 1) { %><span class="muted ann-count"><%= t("por.ann_count", { n: _ann.length }) %></span><% } %>
+    </div>
+    <ol class="ann-timeline" tabindex="0">
+      <% _ann.forEach(a => { %>
+        <li class="ann-entry">
+          <div class="ann-date"><%= _day(a.starts_on) %></div>
+          <div class="ann-card">
+            <b class="ann-title"><%= a.title %></b>
+            <p class="ann-body"><%= a.body %></p>
+            <% if (a.ends_on) { %><div class="muted ann-meta"><%= t("por.ann_until", { d: longDate(a.ends_on) }) %></div><% } %>
+          </div>
+        </li>
+      <% }) %>
+    </ol>
   </section>
 <% } %>

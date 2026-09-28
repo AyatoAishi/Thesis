@@ -11,12 +11,18 @@
   // Nothing is written to the database until the form is submitted: picking a
   // name here only queues it, so backing out of the form leaves the other
   // patient untouched.
-  const _list = (familyLookup || []).map(p => ({ id: p.patient_id, name: p.full_name, num: p.patient_number }));
+  // `fam` lets the search say "in 26-0002" and the chip "moves from 26-0002"
+  // before anything is saved (routes/patients.js resolveFamily).
+  const _list = (familyLookup || []).map(p => ({ id: p.patient_id, name: p.full_name, num: p.patient_number, fam: p.family_number || "" }));
   const _members = (typeof familyMembers !== "undefined" ? familyMembers : []) || [];
   const _famNum = typeof selectedFamilyNumber !== "undefined"
     ? (selectedFamilyNumber || "")
     : (patient && patient.family_number) || "";
   const _joinIds = (patient && patient.family_join_ids) || "";
+  // Taking ONE member out is an edit-form thing: on a new patient there is no
+  // saved household to take anybody out of.
+  const _canRemove = !!(patient && patient.patient_id);
+  const _removeIds = String((patient && patient.family_remove_ids) || "").split(",").filter(Boolean);
 
   // JSON.stringify does not escape "<", so a patient whose name contained
   // "</script>" would close this tag early and the rest of their name would be
@@ -27,18 +33,26 @@
 <div class="family-link" data-family-link>
   <input type="hidden" name="family_number" data-family-link-value value="<%= _famNum %>" />
   <input type="hidden" name="family_join_ids" data-family-join-ids value="<%= _joinIds %>" />
+  <input type="hidden" name="family_remove_ids" data-family-remove-ids value="<%= _canRemove ? _removeIds.join(",") : "" %>" />
 
   <div class="family-members" data-family-members <%= _members.length ? "" : "hidden" %>>
     <div class="family-members-label muted">In this household:</div>
     <div class="family-chip-row">
       <% _members.forEach(m => { %>
-        <span class="family-chip-static">
+        <span class="family-chip-static<%= _canRemove && _removeIds.includes(String(m.patient_id)) ? " is-removing" : "" %>" data-family-member="<%= m.patient_id %>">
           <b><%= m.full_name %></b>
           <span class="muted mono"><%= m.patient_number %></span>
+          <% if (_canRemove) { %>
+            <button type="button" class="family-chip-x" data-family-remove
+                    aria-label="Take <%= m.full_name %> out of this household" title="Take out of this household">×</button>
+          <% } %>
         </span>
       <% }) %>
     </div>
-    <button type="button" class="mini-btn" data-family-link-clear>Remove from this household</button>
+    <% if (_canRemove) { %>
+      <p class="muted family-remove-hint">× takes that person out of this household when you save. Press it again to keep them.</p>
+    <% } %>
+    <button type="button" class="mini-btn" data-family-link-clear>Take this patient out of the household</button>
   </div>
 
   <%# Picked on this form but not saved yet. %>

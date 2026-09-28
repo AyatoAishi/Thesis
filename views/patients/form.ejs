@@ -2,7 +2,13 @@
   const isEdit = mode === "edit";
   const p = patient || {};
   const action = isEdit ? `/patients/${p.patient_id}` : "/patients";
-  const bd = p.birthdate ? new Date(p.birthdate).toISOString().slice(0, 10) : "";
+  // The database hands dates back as "YYYY-MM-DD" text (db/index.js). Taken as
+  // text, never through new Date(): a bad value typed into a hand-made request
+  // would make toISOString() throw and take the whole form down with it.
+  const bd = /^\d{4}-\d{2}-\d{2}$/.test(String(p.birthdate || "")) ? String(p.birthdate)
+           : p.birthdate instanceof Date ? p.birthdate.toISOString().slice(0, 10) : "";
+  // No birthdates in the future (the Sept 29 review found one) or before 1900.
+  const todayISO = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
   // Anything already saved that isn't one of the preset relations (free text
   // from before the dropdown existed) reopens as "Other" with the old wording
   // kept, so editing a patient never silently wipes it.
@@ -10,9 +16,9 @@
   const relIsPreset = relations.includes(rel);
   const chain = typeof next !== "undefined" ? next : "";
 %>
+<%- include("../partials/back", { href: isEdit ? `/patients/${p.patient_id}` : "/patients", to: "Back" }) %>
 <div class="page-head">
   <h1><%= isEdit ? "Edit patient" : "Add patient" %></h1>
-  <div class="sub"><a href="/patients" class="back-link">← Back to patients</a></div>
 </div>
 
 <% if (chain === "book") { %>
@@ -76,13 +82,32 @@
     <input type="hidden" name="seen_at" value="<%= new Date(p.updated_at).toISOString() %>" />
   <% } %>
   <div class="card">
-    <div class="panel-title" style="margin-bottom:14px">Patient details</div>
+    <div class="panel-title" style="margin-bottom:4px">Patient details</div>
+    <%# "What does the asterisk mean on the Guardian name?" (Sept 29) — the form
+        never said. %>
+    <p class="muted req-note">Fields marked <b class="req">*</b> are required.</p>
     <div class="form-grid">
-      <label class="field"><span>Full name *</span>
-        <input type="text" name="full_name" value="<%= p.full_name || '' %>" required />
-      </label>
+      <%# The name in three parts (Sept 29). full_name is built from them on save
+          and is still what every list, report and PDF shows. %>
+      <div class="name-grid" style="grid-column:1/-1">
+        <label class="field"><span>First name *</span>
+          <input type="text" name="first_name" value="<%= p.first_name || '' %>" maxlength="80" required autocomplete="off" />
+        </label>
+        <label class="field"><span>Middle name</span>
+          <input type="text" name="middle_name" value="<%= p.middle_name || '' %>" maxlength="80" autocomplete="off" />
+        </label>
+        <label class="field"><span>Last name *</span>
+          <input type="text" name="last_name" value="<%= p.last_name || '' %>" maxlength="80" required autocomplete="off" />
+        </label>
+      </div>
+      <% if (p.name_guessed) { %>
+        <p class="name-guess" style="grid-column:1/-1">
+          This record was saved as one name, <b>“<%= p.full_name %>”</b>. It has been split into the
+          three boxes above — check that each part is in the right box, then save.
+        </p>
+      <% } %>
       <label class="field"><span>Birthdate</span>
-        <input type="date" name="birthdate" value="<%= bd %>" />
+        <input type="date" name="birthdate" value="<%= bd %>" min="1900-01-01" max="<%= todayISO %>" />
       </label>
       <label class="field"><span>Sex</span>
         <select name="sex">

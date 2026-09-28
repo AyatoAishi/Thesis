@@ -1,6 +1,6 @@
+<%- include("../partials/back", { href: `/patients/${patient.patient_id}/prenatal/${record.prenatal_id}`, to: "Back to the prenatal record" }) %>
 <div class="page-head">
   <h1>Add a follow-up visit</h1>
-  <div class="sub"><a href="/patients/<%= patient.patient_id %>/prenatal/<%= record.prenatal_id %>" class="back-link">← Back to prenatal record</a></div>
 </div>
 
 <% if (errors && errors.length) { %>

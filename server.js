@@ -399,7 +399,8 @@ app.get("/dashboard", async (req, res) => {
         `SELECT to_char(appointment_date, 'YYYY-MM-DD') AS d,
                 count(*)::int AS total,
                 count(*) FILTER (WHERE status = 'missed')::int AS missed,
-                count(*) FILTER (WHERE status = 'scheduled')::int AS scheduled
+                count(*) FILTER (WHERE status = 'scheduled')::int AS scheduled,
+                count(*) FILTER (WHERE status = 'completed')::int AS completed
            FROM appointments
           WHERE appointment_date BETWEEN $1 AND $2
           GROUP BY 1`,
@@ -424,7 +425,7 @@ app.get("/dashboard", async (req, res) => {
 
     const counts = {};
     monthCounts.rows.forEach((r) => {
-      counts[r.d] = { total: r.total, missed: r.missed, scheduled: r.scheduled };
+      counts[r.d] = { total: r.total, missed: r.missed, scheduled: r.scheduled, completed: r.completed };
     });
     calendar = cal.buildMonth(month, counts, todayISO, selected);
     dayAppts = day.rows;

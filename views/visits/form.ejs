@@ -9,11 +9,11 @@
     ? String(v.visit_date).slice(0, 10)
     : "";
 %>
+<%- include("../partials/back", { href: `/patients/${patient.patient_id}`, to: "Back to the patient" }) %>
 <div class="page-head">
   <h1><%= isEdit ? "Edit consultation" : "Record consultation" %></h1>
   <div class="sub">
-    <%= patient.full_name %> · <span class="mono"><%= patient.patient_number %></span> ·
-    <a href="/patients/<%= patient.patient_id %>" class="back-link">← Back to the record</a>
+    <%= patient.full_name %> · <span class="mono"><%= patient.patient_number %></span>
   </div>
 </div>
 

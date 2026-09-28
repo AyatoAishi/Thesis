@@ -131,26 +131,31 @@
              <%
                // The hover text the review asked for. The same words go in
                // title= as well, which is what a long-press shows on a tablet.
+               const cancelled = c.count - c.completed - c.missed - c.scheduled;
                const tip = c.count === 0 ? t("dash.tip_none")
-                         : t("dash.tip_n", { n: c.count }) +
-                           (c.missed ? " · " + t("dash.tip_missed", { n: c.missed }) : "") +
-                           (c.scheduled && c.scheduled !== c.count ? " · " + t("dash.tip_scheduled", { n: c.scheduled }) : "");
+                         : [c.completed && t("dash.tip_done", { n: c.completed }),
+                            c.missed && t("dash.tip_missed", { n: c.missed }),
+                            c.scheduled && t("dash.tip_booked", { n: c.scheduled }),
+                            cancelled > 0 && t("dash.tip_cancelled", { n: cancelled })].filter(Boolean).join(" · ");
              %>
              data-tip="<%= tip %>" title="<%= tip %>"
              aria-label="<%= c.day %> — <%= tip %>">
             <span class="cal-day"><%= c.day %></span>
-            <% if (c.count) { %>
-              <%# The number, not a dot: "3" is the thing somebody is deciding
-                  with, and a dot makes them press the day to find out.
-                  Labelled, because a bare "2" — green on one day, red on the
-                  next — left the panel asking "two what?" (Mr. Trapago; again
-                  in Richelle's Sept 26 scan). The total and the missed are now
-                  two chips that each say what they count. The word drops on a
-                  phone, where the legend under the grid carries it. %>
-              <span class="cal-count"><%= c.count %><span class="cal-word"> <%= t("dash.cell_appts", { n: c.count }) %></span></span>
-              <% if (c.missed) { %>
-                <span class="cal-count is-missed"><%= c.missed %><span class="cal-word"> <%= t("dash.cell_missed") %></span></span>
-              <% } %>
+            <%# Numbers, not dots, each labelled with what it counts (Mr. Trapago;
+                Richelle's Sept 26 scan). Sept 29: "2 appt, 2 missed" read as FOUR
+                people, because the first chip was the day's total and the second
+                was part of it. Now every chip counts different people, so they
+                simply add up: done (came), missed (didn't), booked (still to
+                come). Cancelled ones get no chip, only a word in the tooltip. The
+                words drop on a phone, where the legend under the grid carries them. %>
+            <% if (c.completed) { %>
+              <span class="cal-count is-done"><%= c.completed %><span class="cal-word"> <%= t("dash.cell_done") %></span></span>
+            <% } %>
+            <% if (c.missed) { %>
+              <span class="cal-count is-missed"><%= c.missed %><span class="cal-word"> <%= t("dash.cell_missed") %></span></span>
+            <% } %>
+            <% if (c.scheduled) { %>
+              <span class="cal-count is-booked"><%= c.scheduled %><span class="cal-word"> <%= t("dash.cell_booked") %></span></span>
             <% } %>
           </a>
         <% } %>
@@ -158,8 +163,9 @@
     <% }) %>
   </div>
   <div class="cal-legend">
-    <span><span class="cal-count">2</span> <%= t("dash.legend_appts") %></span>
+    <span><span class="cal-count is-done">2</span> <%= t("dash.legend_done") %></span>
     <span><span class="cal-count is-missed">1</span> <%= t("dash.legend_missed") %></span>
+    <span><span class="cal-count is-booked">3</span> <%= t("dash.legend_booked") %></span>
   </div>
 
   <div class="cal-day-panel">

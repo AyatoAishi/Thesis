@@ -3,12 +3,13 @@
     <h1>Reports</h1>
     <div class="sub">Inventory report — as of <%= longDate(today) %></div>
   </div>
-  <%# "Printable or exportable copy of inventory." CSV opens in Excel; Print
-      uses the page itself, without the menu. %>
+  <%# "Printable or exportable copy of inventory." CSV opens in Excel. The PDF
+      IS the printable copy: one template, the same columns as this page. There
+      used to be a separate Print button that printed the page itself, and the
+      two came out looking different (Sept 29). %>
   <div style="display:flex;gap:8px;flex-wrap:wrap">
     <a class="mini-btn" href="/reports/inventory?format=csv">Export CSV (Excel)</a>
-    <a class="mini-btn" href="/reports/inventory?from=<%= from %>&to=<%= to %>&format=pdf" target="_blank">Export PDF</a>
-    <button type="button" class="mini-btn" onclick="window.print()">Print</button>
+    <a class="mini-btn" href="/reports/inventory?from=<%= from %>&to=<%= to %>&format=pdf" target="_blank" rel="noopener">PDF / Print</a>
   </div>
 </div>
 

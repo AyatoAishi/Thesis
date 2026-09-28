@@ -6,6 +6,7 @@
     return new Date(ts).toLocaleString("en-PH", { timeZone: "Asia/Manila", year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   }
 %>
+<%- include("../partials/back", { href: "/inventory", to: "Back to inventory" }) %>
 <div class="page-head" style="display:flex;align-items:center;justify-content:space-between">
   <div>
     <h1><%= m.name %><% if (m.dosage) { %> <span class="muted" style="font-weight:400"><%= m.dosage %></span><% } %>
@@ -32,7 +33,6 @@
         <button type="submit" class="mini-btn">Archive</button>
       <% } %>
     </form>
-    <a class="logout-btn" href="/inventory" style="display:inline-flex;align-items:center;text-decoration:none">Back</a>
   </div>
 </div>
 
@@ -81,8 +81,17 @@
 <div class="card">
   <div class="svc-head" style="flex-wrap:wrap;gap:8px">
     <span class="panel-title">Batches</span>
-    <span class="muted" style="font-size:13px">Dispensing always takes from the batch that expires first.</span>
+    <span class="muted" style="font-size:13px">Listed in the order they are used — the top batch is dispensed first.</span>
   </div>
+  <%# "Paano kapag binawasan ang lumang paracetamol — di ba siya mag-coconflict?"
+      (Sept 29). No: each delivery is its own batch, and a dispense takes from
+      one batch at a time in this order. Said on the page so nobody has to ask. %>
+  <p class="batch-rule">
+    Each delivery is kept as its own batch, so old and new stock never mix. A dispense takes from the
+    batch that <b>expires first</b>. A batch whose expiry was never recorded (stock already on the shelf
+    when tracking began) goes <b>before</b> them all, because it is the oldest. Record its expiry with
+    <b>Manage → Save expiry</b> and it moves to its proper place.
+  </p>
   <% if (!batches.length) { %>
     <p class="muted" style="margin:6px 2px 0">No stock has been received for this medicine yet.</p>
   <% } else { %>
@@ -179,7 +188,10 @@
           <tr>
             <td class="mono" style="font-size:12px"><%= fmt(d.dispensed_at) %></td>
             <td><a href="/patients/<%= d.patient_id %>"><%= d.full_name %></a></td>
-            <td><%= d.quantity %></td>
+            <td>
+              <%= d.quantity %>
+              <% if (d.instructions) { %><div class="med-how">🕑 <%= d.instructions %></div><% } %>
+            </td>
             <td><%= d.dispensed_by_name || "—" %></td>
             <td class="muted" style="font-size:12.5px"><%= d.notes || "—" %></td>
           </tr>
@@ -200,7 +212,7 @@
   <% if (!movements.length) { %>
     <p class="muted" style="margin:6px 2px 0">No stock movements yet.</p>
   <% } else { %>
-    <% const kindLabel = { opening: ["info", "Opening"], restock: ["ok", "Restock"], dispense: ["info", "Dispensed"], expire: ["bad", "Expired"], dispose: ["warn", "Disposed"], adjust: ["warn", "Correction"], archive: ["info", "Archived"], restore: ["info", "Restored"] }; %>
+    <% const kindLabel = { opening: ["info", "Starting stock"], restock: ["ok", "Restock"], dispense: ["info", "Dispensed"], expire: ["bad", "Expired"], dispose: ["warn", "Disposed"], adjust: ["warn", "Correction"], archive: ["info", "Archived"], restore: ["info", "Restored"] }; %>
     <div class="scroll-box" style="max-height:380px">
       <table class="tbl">
         <thead><tr><th>When</th><th>What</th><th>Change</th><th>Stock after</th><th>By</th><th>Note</th></tr></thead>

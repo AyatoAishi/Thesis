@@ -28,7 +28,40 @@
     var search = root.querySelector("[data-family-link-search]");
     var results = root.querySelector("[data-family-link-results]");
     var dataEl = root.querySelector("[data-family-link-data]");
+    var removeInput = root.querySelector("[data-family-remove-ids]");
     var people = JSON.parse(dataEl.textContent || "[]");
+
+    // Somebody already in a DIFFERENT household than this patient's is moved
+    // here on save (routes/patients.js). Said on screen before anything happens.
+    function elsewhere(p) {
+      return p.fam && p.fam !== valueInput.value ? p.fam : "";
+    }
+
+    // Members marked with × (edit form only): taken out of the household on save.
+    var removing = ((removeInput && removeInput.value) || "").split(",").filter(Boolean);
+    function syncRemoving() {
+      if (!removeInput) return;
+      removeInput.value = removing.join(",");
+      root.querySelectorAll("[data-family-member]").forEach(function (chip) {
+        var on = removing.indexOf(chip.getAttribute("data-family-member")) !== -1;
+        chip.classList.toggle("is-removing", on);
+        var x = chip.querySelector("[data-family-remove]");
+        if (x) {
+          x.textContent = on ? "↺" : "×";
+          x.title = on ? "Keep in this household" : "Take out of this household";
+        }
+      });
+    }
+    root.querySelectorAll("[data-family-remove]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var chip = btn.closest("[data-family-member]");
+        if (!chip) return;
+        var id = chip.getAttribute("data-family-member");
+        var i = removing.indexOf(id);
+        if (i === -1) removing.push(id); else removing.splice(i, 1);
+        syncRemoving();
+      });
+    });
 
     // Survives a failed validation round-trip: the ids come back in the hidden
     // field, so the names staff picked are still on screen.
@@ -49,6 +82,7 @@
         chip.className = "family-chip-static pending";
         var name = document.createElement("b");
         name.textContent = p.name;
+        var from = elsewhere(p);
         var drop = document.createElement("button");
         drop.type = "button";
         drop.className = "family-chip-x";
@@ -59,6 +93,12 @@
           syncPending();
         });
         chip.appendChild(name);
+        if (from) {
+          var note = document.createElement("span");
+          note.className = "family-chip-move";
+          note.textContent = "moves from " + from;
+          chip.appendChild(note);
+        }
         chip.appendChild(drop);
         pending.appendChild(chip);
       });
@@ -69,6 +109,8 @@
         valueInput.value = "";        // saved on submit: leaves the household
         picked = [];
         syncPending();
+        removing = [];                // leaving yourself; nobody else is touched
+        syncRemoving();
         if (membersBox) membersBox.hidden = true;
         search.focus();
       });
@@ -100,7 +142,7 @@
           nameSpan.textContent = p.name;
           var numSpan = document.createElement("span");
           numSpan.className = "muted";
-          numSpan.textContent = p.num;
+          numSpan.textContent = p.num + (elsewhere(p) ? " · in " + elsewhere(p) + ", will be moved" : "");
           btn.appendChild(nameSpan);
           btn.appendChild(numSpan);
           btn.addEventListener("click", function () { choose(p); });
@@ -119,6 +161,8 @@
       render(people.filter(function (p) {
         var alreadyPicked = picked.some(function (x) { return String(x.id) === String(p.id); });
         if (alreadyPicked) return false;
+        // Already a member of this household: nothing to add.
+        if (valueInput.value && p.fam === valueInput.value) return false;
         return p.name.toLowerCase().indexOf(q) !== -1 || p.num.toLowerCase().indexOf(q) !== -1;
       }));
     });
@@ -138,6 +182,7 @@
     });
 
     syncPending();
+    syncRemoving();
   });
 
   // Searchable picker (views/partials/search-picker.ejs) — filters the list

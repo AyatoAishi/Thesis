@@ -22,6 +22,7 @@
     return "";
   }
 %>
+<%- include("../partials/back", { href: back || `/patients/${patient.patient_id}`, to: "Back to the patient" }) %>
 <div class="page-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
   <div>
     <h1><%= patient.full_name %> — Immunization</h1>
@@ -30,7 +31,6 @@
   <div style="display:flex;gap:8px">
     <a class="mini-btn" href="/patients/<%= patient.patient_id %>/immunization/export" target="_blank" rel="noopener">Export PDF</a>
     <a class="btn" href="/patients/<%= patient.patient_id %>/immunization/new<%= back ? "?back=" + encodeURIComponent(back) : "" %>">+ Record a dose</a>
-    <a class="back-link" href="/patients/<%= patient.patient_id %>" style="display:inline-flex;align-items:center">Back to patient</a>
   </div>
 </div>
 

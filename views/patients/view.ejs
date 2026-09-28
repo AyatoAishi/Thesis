@@ -39,6 +39,7 @@
 <% } %>
 <% const isDeceased = !!p.deceased_at; %>
 <% const canMarkDeceased = typeof user !== "undefined" && user && ["admin", "nurse"].includes(user.role); %>
+<%- include("../partials/back", { href: "/patients", to: "Back to patients" }) %>
 <div class="page-head" style="display:flex;align-items:center;justify-content:space-between">
   <div>
     <h1><%= p.full_name %>
@@ -47,9 +48,7 @@
     </h1>
     <div class="sub mono"><%= p.patient_number %></div>
   </div>
-  <div style="display:flex;gap:8px">
-    <a class="mini-btn" href="/patients/<%= p.patient_id %>/immunization?back=/patients/<%= p.patient_id %>">Immunization</a>
-    <% if (p.sex !== "male") { %><a class="mini-btn" href="/patients/<%= p.patient_id %>/prenatal?back=/patients/<%= p.patient_id %>">Prenatal</a><% } %>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
     <a class="mini-btn" href="/reports/export/patient/<%= p.patient_id %>" target="_blank" rel="noopener">Export PDF</a>
     <a class="btn" href="/patients/<%= p.patient_id %>/edit">Edit</a>
     <% if (typeof user !== "undefined" && user && user.role === "admin") { %>
@@ -61,7 +60,6 @@
         <button type="submit" class="logout-btn">Delete</button>
       </form>
     <% } %>
-    <a class="back-link" href="/patients" style="display:inline-flex;align-items:center">Back</a>
   </div>
 </div>
 
@@ -83,27 +81,34 @@
       </form>
     <% } %>
   </div>
-<% } else if (canMarkDeceased) { %>
-  <%# A <details>, not a button that opens a dialog: this should take a deliberate
-      extra step, and it works with scripts off. The confirm on submit is the
-      second step. %>
-  <details class="card deceased-box">
-    <summary>Mark as deceased</summary>
-    <form method="POST" action="/patients/<%= p.patient_id %>/deceased" class="form-grid" style="margin-top:12px"
-          data-confirm-title="Mark <%= p.full_name %> as deceased?"
-          data-confirm="Every upcoming appointment is cancelled. | Reminders and vaccine scheduling stop. | Their portal account stops signing in. | The medical record itself is kept."
-          data-confirm-yes="Yes, mark as deceased"
-          data-confirm-no="Cancel"><%- include("../partials/csrf") %>
-      <label class="field"><span>Date of death *</span>
-        <input type="date" name="deceased_at" required max="<%= new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date()) %>" />
-      </label>
-      <label class="field"><span>Note <span class="muted">(optional)</span></span>
-        <input type="text" name="deceased_note" maxlength="255" placeholder="e.g. reported by family on …" />
-      </label>
-      <button type="submit" class="logout-btn" style="align-self:flex-end">Mark as deceased</button>
-    </form>
-  </details>
 <% } %>
+
+<%# "Forms page — wouldn't it be better if it was embedded on the patients?"
+    (Sept 29). The barangay's forms for THIS patient, as real buttons near the
+    top. /forms stays in the menu for starting from the form instead. %>
+<div class="card forms-box">
+  <div class="panel-title" style="margin-bottom:10px">Forms</div>
+  <div class="forms-box-row">
+    <a class="form-tile" href="/patients/<%= p.patient_id %>/immunization?back=/patients/<%= p.patient_id %>">
+      <span class="form-tile-ico" aria-hidden="true">💉</span><span><b>Immunization card</b><small>Todo Ligtas doses</small></span>
+    </a>
+    <% if (p.sex !== "male") { %>
+      <a class="form-tile" href="/patients/<%= p.patient_id %>/prenatal?back=/patients/<%= p.patient_id %>">
+        <span class="form-tile-ico" aria-hidden="true">🤰</span><span><b>Prenatal record</b><small>check-ups, labs, tetanus</small></span>
+      </a>
+    <% } %>
+    <% if (typeof canRecordVisit !== "undefined" && canRecordVisit && !isDeceased) { %>
+      <a class="form-tile" href="/patients/<%= p.patient_id %>/visits/new">
+        <span class="form-tile-ico" aria-hidden="true">🩺</span><span><b>Consultation</b><small>vitals, diagnosis, notes</small></span>
+      </a>
+    <% } %>
+    <% if (!isDeceased) { %>
+      <a class="form-tile" href="/inventory/dispense/new?patient_id=<%= p.patient_id %>">
+        <span class="form-tile-ico" aria-hidden="true">💊</span><span><b>Dispense medicine</b><small>incl. family planning</small></span>
+      </a>
+    <% } %>
+  </div>
+</div>
 
 <%
   // Overdue, stated in days, at the top of the page. It used to be knowable
@@ -237,7 +242,6 @@
       <dl class="kv" style="margin-top:10px">
         <div><dt>Username</dt><dd class="mono"><%= secrets.username %></dd></div>
         <div><dt>Temporary password</dt><dd class="mono" style="font-weight:700"><%= secrets.temp_password %></dd></div>
-        <div><dt>Portal address</dt><dd class="mono">/portal</dd></div>
       </dl>
       <p class="muted" style="font-size:12px;margin:10px 0 0">
         Write this down or hand it over now — <b>this box will not appear again.</b>
@@ -449,7 +453,10 @@
         <% dispenses.forEach(d => { %>
           <tr>
             <td><%= fmt(d.dispensed_at) %></td>
-            <td><a href="/inventory/<%= d.medicine_id %>"><%= d.medicine_name %></a></td>
+            <td>
+              <a href="/inventory/<%= d.medicine_id %>"><%= d.medicine_name %></a>
+              <% if (d.instructions) { %><div class="med-how">🕑 <%= d.instructions %></div><% } %>
+            </td>
             <td><%= d.quantity %> <%= d.unit || "" %></td>
             <td class="muted" style="font-size:12.5px"><%= d.notes || "—" %></td>
           </tr>
@@ -458,6 +465,29 @@
     </table>
   <% } %>
 </div>
+
+<% if (!isDeceased && canMarkDeceased) { %>
+  <%# At the bottom, and small (Sept 29: "why is it at the top and why is the
+      button taking the entire space? It looks like a notification"). Still a
+      <details>: opening it is one deliberate step, the confirm on submit is the
+      second, and it works with scripts off. %>
+  <details class="deceased-box">
+    <summary>Mark as deceased</summary>
+    <form method="POST" action="/patients/<%= p.patient_id %>/deceased" class="card form-grid deceased-form"
+          data-confirm-title="Mark <%= p.full_name %> as deceased?"
+          data-confirm="Every upcoming appointment is cancelled. | Reminders and vaccine scheduling stop. | Their portal account stops signing in. | The medical record itself is kept."
+          data-confirm-yes="Yes, mark as deceased"
+          data-confirm-no="Cancel"><%- include("../partials/csrf") %>
+      <label class="field"><span>Date of death *</span>
+        <input type="date" name="deceased_at" required max="<%= new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date()) %>" />
+      </label>
+      <label class="field"><span>Note <span class="muted">(optional)</span></span>
+        <input type="text" name="deceased_note" maxlength="255" placeholder="e.g. reported by family on …" />
+      </label>
+      <button type="submit" class="danger-btn" style="align-self:flex-end">Mark as deceased</button>
+    </form>
+  </details>
+<% } %>
 
 <p class="muted" style="font-size:12px">Added <%= fmt(p.created_at) %><%= p.created_by_name ? ` by ${p.created_by_name}` : "" %>.</p>
 

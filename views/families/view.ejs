@@ -10,14 +10,14 @@
   const living = members.filter(m => !m.deceased_at).length;
   const kindBadge = { Consultation: "info", Immunization: "ok", Medicine: "warn", Prenatal: "info" };
 %>
+<%- include("../partials/back", { href: "/families", to: "Back to family records" }) %>
 <div class="page-head" style="display:flex;align-items:center;justify-content:space-between">
   <div>
-    <h1>Family Record <span class="mono" style="color:var(--accent-strong)"><%= number %></span></h1>
+    <h1 class="page-title-lg">Family Record <span class="mono" style="color:var(--accent-strong)"><%= number %></span></h1>
     <div class="sub"><%= members.length %> member<%= members.length === 1 ? "" : "s" %> registered<%= living !== members.length ? ` · ${members.length - living} deceased` : "" %></div>
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap">
     <button type="button" class="mini-btn" onclick="window.print()">Print</button>
-    <a class="back-link" href="/families" style="display:inline-flex;align-items:center">All families</a>
   </div>
 </div>
 

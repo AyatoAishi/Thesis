@@ -1671,13 +1671,23 @@ body { font-size: 15px; }
 .brand-badge .seal-img, .rail-logo .seal-img { width: 100%; height: 100%; }
 
 /* "Mark as deceased" sits closed until somebody opens it on purpose. */
+/* "Mark as deceased": a small red button at the bottom of the patient page
+   (Sept 29), not a full-width bar at the top that read like a notification. */
+.deceased-box { margin: 4px 0 16px; }
 .deceased-box > summary {
-  cursor: pointer; font-weight: 700; font-size: 14px; color: var(--bad-ink);
-  list-style: none;
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer; list-style: none;
+  padding: 7px 14px; border-radius: 9px; border: 1px solid var(--bad);
+  background: var(--bad); color: #fff; font-weight: 700; font-size: 13px;
 }
+.deceased-box > summary:hover { filter: brightness(.94); }
 .deceased-box > summary::-webkit-details-marker { display: none; }
-.deceased-box > summary::before { content: "▸ "; }
-.deceased-box[open] > summary::before { content: "▾ "; }
+.deceased-box[open] > summary { background: var(--bad-bg); color: var(--bad-ink); }
+.deceased-form { margin-top: 10px; border-color: var(--bad); }
+.danger-btn {
+  border: 1px solid var(--bad); background: var(--bad); color: #fff; cursor: pointer;
+  border-radius: 9px; padding: 8px 14px; font-size: 13px; font-weight: 700;
+}
+.danger-btn:hover { filter: brightness(.94); }
 
 /* Family Record link on the patient page, and the household headers that now
    open the folder. */
@@ -1869,7 +1879,7 @@ section.manual { scroll-margin-top: 16px; }
 .ann-meta { font-size: 12.5px; }
 .ann-actions { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
 .ann-panel { border-left: 4px solid var(--warn, #d99411); }
-.ann-panel .panel-title { margin-bottom: 6px; }
+.ann-panel .panel-title { margin-bottom: 0; }
 
 /* ---- Patient portal sidebar (Richelle's mockup, Sept 26) -------------------
    A column of section links beside the content on a computer; a row of
@@ -1907,3 +1917,132 @@ section.manual { scroll-margin-top: 16px; }
 .sched-list li .badge { margin-left: auto; }
 .sched-hours { margin: 10px 2px 0; font-size: 13px; color: var(--ink-3); }
 .portal-content > .portal-pair { margin-bottom: 16px; }
+
+/* ---- The Back button (views/partials/back.ejs) -----------------------------
+   One style, one place: top left, above the page title, with an arrow and a
+   background so it reads as a button (Sept 29 review). */
+.back-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin: 0 0 12px; padding: 7px 14px 7px 10px;
+  border: 1px solid var(--accent-soft); border-radius: 999px;
+  background: var(--accent-softer); color: var(--accent-strong);
+  font-size: 13.5px; font-weight: 700; line-height: 1; text-decoration: none;
+}
+.back-btn:hover { background: var(--accent-soft); }
+.back-btn svg { flex: none; transition: transform .12s; }
+.back-btn:hover svg { transform: translateX(-2px); }
+.page-head h1.page-title-lg { font-size: 30px; }
+@media print { .back-btn { display: none !important; } }
+
+/* ---- Patient form (Sept 29): the name in three parts, the * note, and the
+   household editing marks. */
+.req-note { margin: 0 0 12px; font-size: 12.5px; }
+.req-note .req, .field .req { color: var(--bad-ink); }
+.name-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 640px) { .name-grid { grid-template-columns: 1fr; } }
+.name-guess {
+  margin: -4px 0 0; padding: 9px 12px; border-radius: 10px; font-size: 12.5px; line-height: 1.5;
+  background: var(--warn-bg); color: var(--warn-ink);
+}
+.family-chip-static.is-removing { opacity: .55; }
+.family-chip-static.is-removing b { text-decoration: line-through; }
+.family-chip-move { font-size: 11.5px; font-weight: 600; color: var(--warn-ink); }
+.family-remove-hint { margin: 6px 0 10px; font-size: 12px; }
+
+/* ---- Patients list: table / cards toggle, and the cards (Sept 29) --------- */
+.view-tabs { flex-wrap: wrap; }
+.layout-toggle {
+  margin-left: auto; display: inline-flex; border: 1px solid var(--border-strong);
+  border-radius: 10px; overflow: hidden; align-self: center;
+}
+.layout-toggle a {
+  display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px;
+  font-size: 12.5px; font-weight: 700; color: var(--ink-3); text-decoration: none;
+}
+.layout-toggle a + a { border-left: 1px solid var(--border); }
+.layout-toggle a.is-on { background: var(--accent); color: var(--on-accent); }
+.patient-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-top: 12px; }
+.patient-card {
+  border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px;
+  background: var(--surface); display: flex; flex-direction: column; gap: 8px; min-width: 0;
+}
+.pc-name { font-size: 19px; font-weight: 800; line-height: 1.25; color: var(--ink); text-decoration: none; overflow-wrap: anywhere; }
+.pc-name:hover { color: var(--accent-strong); }
+.pc-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12.5px; }
+.pc-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; margin: 2px 0 0; }
+.pc-meta dt { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--ink-4); }
+.pc-meta dd { margin: 1px 0 0; font-size: 14px; overflow-wrap: anywhere; }
+.pc-actions { display: flex; gap: 8px; margin-top: 2px; }
+
+/* ---- Patient page: the Forms box (Sept 29) --------------------------------- */
+.forms-box-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.form-tile {
+  display: flex; align-items: center; gap: 10px; padding: 11px 13px; text-decoration: none;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); color: var(--ink);
+}
+.form-tile:hover { border-color: var(--accent); background: var(--accent-softer); }
+.form-tile-ico { font-size: 22px; line-height: 1; flex: none; }
+.form-tile b { display: block; font-size: 14px; }
+.form-tile small { display: block; font-size: 12px; color: var(--ink-3); margin-top: 1px; }
+
+/* Calendar chips (Sept 29): each counts different people, so none overlap. */
+.cal-count.is-done { background: var(--ok-bg); color: var(--ok-ink); }
+.cal-count.is-booked { background: var(--info-bg); color: var(--info-ink); }
+.cal-cell.is-selected .cal-count.is-done,
+.cal-cell.is-selected .cal-count.is-booked,
+.cal-cell.is-selected .cal-count.is-missed { background: rgba(255,255,255,.22); color: var(--on-accent); }
+
+/* The batch rule, said once above the batch table (Sept 29). */
+.batch-rule {
+  margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; font-size: 12.5px; line-height: 1.55;
+  background: var(--surface-2); color: var(--ink-2);
+}
+
+/* Stock history key (Sept 29). */
+.ledger-key { margin: 0 0 14px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
+.ledger-key > summary { cursor: pointer; font-weight: 700; font-size: 13.5px; color: var(--accent-strong); }
+.ledger-key p { margin: 10px 0; font-size: 13px; line-height: 1.55; color: var(--ink-2); }
+.ledger-kinds { display: grid; gap: 8px; margin: 0; }
+.ledger-kinds > div { display: grid; grid-template-columns: 150px 1fr; gap: 10px; align-items: baseline; }
+.ledger-kinds dt { margin: 0; }
+.ledger-kinds dd { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink-2); }
+@media (max-width: 640px) { .ledger-kinds > div { grid-template-columns: 1fr; gap: 3px; } }
+
+/* Patient-side announcements as a dated timeline (Sept 29): one card each,
+   scrolling inside the panel once there are more than fit. */
+.ann-panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.ann-count { font-size: 12.5px; }
+.ann-timeline {
+  list-style: none; margin: 0; padding: 2px 6px 2px 0;
+  max-height: 340px; overflow-y: auto; overscroll-behavior: contain;
+}
+.ann-entry { display: grid; grid-template-columns: 56px 1fr; gap: 0 14px; position: relative; padding-bottom: 12px; }
+.ann-entry:last-child { padding-bottom: 2px; }
+/* The line runs between the dots; the last entry's stops at its dot. */
+.ann-entry::before {
+  content: ""; position: absolute; left: 67px; top: 14px; bottom: 0;
+  width: 2px; background: var(--border-strong);
+}
+.ann-entry:last-child::before { display: none; }
+.ann-entry::after {
+  content: ""; position: absolute; left: 62px; top: 8px;
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--warn, #d99411); box-shadow: 0 0 0 3px var(--surface);
+}
+.ann-date { font-size: 12.5px; font-weight: 800; color: var(--ink-2); text-align: right; padding-top: 4px; white-space: nowrap; }
+.ann-card {
+  margin-left: 14px; padding: 10px 13px; border: 1px solid var(--border);
+  border-radius: 12px; background: var(--surface-2); min-width: 0;
+}
+.ann-title { display: block; font-size: 14.5px; }
+.ann-card .ann-body { margin: 4px 0 0; }
+.ann-card .ann-meta { margin-top: 6px; }
+/* A phone has no room for a date column: the date sits above its card and the
+   line runs down a thin gutter on the left. */
+@media (max-width: 560px) {
+  .ann-entry { grid-template-columns: 1fr; padding-left: 22px; }
+  .ann-entry::before { left: 7px; top: 14px; }
+  .ann-entry::after { left: 2px; top: 3px; }
+  .ann-date { text-align: left; padding-top: 0; margin-bottom: 5px; }
+  .ann-card { margin-left: 0; }
+}

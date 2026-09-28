@@ -449,21 +449,33 @@ router.get("/reports/inventory", requireRole(...INVENTORY_ROLES), async (req, re
         subtitle: `As of ${F.longDate(today)} · dispensing ${F.longDate(from)} – ${F.longDate(to)}`,
         generatedBy: req.session.user.full_name,
         sections: [
+          // Sept 29: "Export PDF and Print have different templates — is that
+          // normalized?" They were not: the PDF had four columns and the page
+          // six. The page's Print button is gone and this PDF is the printable
+          // copy, with the page's columns, in the page's order, worded the same.
           {
             title: "Current inventory",
-            headers: ["Medicine", "Usable", "Next expiry", "Expired"],
-            rows: current.map((m) => [`${m.name}${m.dosage ? " " + m.dosage : ""}`, `${m.stock_quantity} ${m.unit || ""}`.trim(),
-              m.next_expiry ? F.longDate(m.next_expiry) : "—", m.expired_waiting || "—"]),
-            widths: [200, 100, 120, 75],
+            // "within", not "≤": the PDF's built-in Helvetica has no glyph for ≤.
+            headers: ["Medicine", "Usable stock", "Threshold", "Next expiry",
+                      `Expiring within ${stock.EXPIRING_SOON_DAYS} days`, "Expired, to dispose of"],
+            rows: current.map((m) => [
+              `${m.name}${m.dosage ? " " + m.dosage : ""}`,
+              `${m.stock_quantity} ${m.unit || ""}`.trim() + (m.status === "Low" ? " (Low)" : ""),
+              m.low_stock_threshold,
+              m.next_expiry ? F.longDate(m.next_expiry) : (m.no_expiry ? "not recorded" : "—"),
+              m.expiring_soon || "—",
+              m.expired_waiting || "—",
+            ]),
+            widths: [135, 75, 55, 95, 65, 70],
           },
           {
-            title: "Low stock",
-            headers: ["Medicine", "Unit", "Stock", "Threshold"],
-            rows: lowQ.rows.map((m) => [m.name, m.unit || "—", m.stock_quantity, m.low_stock_threshold]),
-            widths: [220, 90, 90, 95],
+            title: "Low stock right now",
+            headers: ["Medicine", "Stock", "Threshold"],
+            rows: lowQ.rows.map((m) => [m.name, `${m.stock_quantity} ${m.unit || ""}`.trim(), m.low_stock_threshold]),
+            widths: [255, 120, 120],
           },
           {
-            title: "Dispensed in range",
+            title: "Dispensed in a date range",
             headers: ["Medicine", "Dispenses", "Total qty"],
             rows: dispensedQ.rows.map((m) => [m.name, m.dispense_count, `${m.total_qty} ${m.unit || ""}`.trim()]),
             widths: [240, 120, 135],
@@ -545,7 +557,7 @@ router.get("/reports/expired", requireRole(...INVENTORY_ROLES), async (req, res,
 // disposal, count correction, archive and restore in the range, with what it
 // did to usable stock and what stock was right after.
 const MOVEMENT_KINDS = {
-  opening: "Opening balance", restock: "Restock", dispense: "Dispensed", expire: "Expired",
+  opening: "Starting stock", restock: "Restock", dispense: "Dispensed", expire: "Expired",
   dispose: "Disposed", adjust: "Correction", archive: "Archived", restore: "Restored",
 };
 router.get("/reports/stock-movements", requireRole(...INVENTORY_ROLES), async (req, res, next) => {
@@ -624,7 +636,7 @@ router.get("/reports/consumption", requireRole(...INVENTORY_ROLES), async (req, 
 
     if (req.query.format === "pdf") {
       return sendReportPdf(res, `consumption-${from}_to_${to}.pdf`, {
-        title: "Consumption report",
+        title: "Medicines distributed",
         subtitle: `${F.longDate(from)} – ${F.longDate(to)}`,
         generatedBy: req.session.user.full_name,
         sections: [
@@ -645,7 +657,7 @@ router.get("/reports/consumption", requireRole(...INVENTORY_ROLES), async (req, 
     }
 
     res.render("reports/consumption", {
-      title: "Consumption report · Sampaguita HC",
+      title: "Medicines distributed · Sampaguita HC",
       active: "reports",
       from,
       to,
@@ -690,7 +702,7 @@ router.get("/reports/senior-citizen", requireRole(...REPORT_ROLES), async (req, 
                 d.medicine_id, sum(d.quantity)::int AS qty
            FROM medicine_dispenses d
            JOIN patients p ON p.patient_id = d.patient_id
-          WHERE d.dispensed_at::date BETWEEN $1 AND $2
+          WHERE (d.dispensed_at AT TIME ZONE 'Asia/Manila')::date BETWEEN $1 AND $2
             AND d.medicine_id = ANY ($3)
             AND EXTRACT(YEAR FROM age($2::date, p.birthdate)) >= 60
           GROUP BY p.patient_id, p.full_name, p.sex, p.birthdate, d.medicine_id`,
@@ -712,6 +724,13 @@ router.get("/reports/senior-citizen", requireRole(...REPORT_ROLES), async (req, 
       });
       patientRows = [...byPatient.values()].sort((a, b) => a.full_name.localeCompare(b.full_name));
     }
+    // A column only for a medicine somebody in the list was actually given in
+    // this range. Every name-matched medicine used to get one, the archived
+    // duplicates included, so the Sept 29 review found three "Amlodipine"
+    // columns, two of them empty, and asked what they meant.
+    const given = new Set();
+    patientRows.forEach((p) => Object.keys(p.qty).forEach((id) => given.add(Number(id))));
+    const columns = meds.filter((m) => given.has(m.medicine_id));
 
     if (req.query.format === "pdf") {
       return sendReportPdf(res, `senior-citizen-meds-${from}_to_${to}.pdf`, {
@@ -721,14 +740,14 @@ router.get("/reports/senior-citizen", requireRole(...REPORT_ROLES), async (req, 
         sections: [
           {
             title: "Packs given per patient",
-            headers: ["Name", "Age", "Sex", ...meds.map((m) => `${m.name}${m.dosage ? " " + m.dosage : ""}`)],
+            headers: ["Name", "Age", "Sex", ...columns.map((m) => `${m.name}${m.dosage ? " " + m.dosage : ""}`)],
             rows: patientRows.map((p) => [
               p.full_name,
               p.age,
               p.sex || "—",
-              ...meds.map((m) => p.qty[m.medicine_id] ?? "—"),
+              ...columns.map((m) => p.qty[m.medicine_id] ?? "—"),
             ]),
-            widths: [110, 30, 35, ...meds.map(() => Math.floor(320 / Math.max(meds.length, 1)))],
+            widths: [110, 30, 35, ...columns.map(() => Math.floor(320 / Math.max(columns.length, 1)))],
           },
         ],
       });
@@ -741,6 +760,7 @@ router.get("/reports/senior-citizen", requireRole(...REPORT_ROLES), async (req, 
       to,
       period,
       meds,
+      columns,
       patientRows,
     });
   } catch (e) {

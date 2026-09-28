@@ -1,0 +1,11 @@
+<%# The one Back button. The Sept 29 review: "make it consistent that the back
+    button is always around top left", with an arrow and a background so it
+    reads as a button and not as a stray word. It sits ABOVE the page title on
+    every page that has somewhere to go back to; the old links were scattered
+    under titles and at the far right, each in its own style.
+    Expects `href`; `to` (optional) says where it goes, for the tooltip;
+    `label` (optional) replaces the word "Back". %>
+<a class="back-btn" href="<%= href %>" title="<%= typeof to !== 'undefined' && to ? to : '' %>">
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+  <span><%= typeof label !== "undefined" && label ? label : t("nav.back") %></span>
+</a>

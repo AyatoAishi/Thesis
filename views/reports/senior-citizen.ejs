@@ -29,7 +29,7 @@
       <thead>
         <tr>
           <th>Name</th><th>Age</th><th>Sex</th>
-          <% meds.forEach(m => { %><th><%= m.name %><%= m.dosage ? ` ${m.dosage}` : "" %></th><% }) %>
+          <% columns.forEach(m => { %><th><%= m.name %><%= m.dosage ? ` ${m.dosage}` : "" %></th><% }) %>
         </tr>
       </thead>
       <tbody>
@@ -38,11 +38,11 @@
             <td><a href="/patients/<%= p.patient_id %>"><%= p.full_name %></a></td>
             <td><%= p.age %></td>
             <td><%= p.sex || "—" %></td>
-            <% meds.forEach(m => { %><td><%= p.qty[m.medicine_id] ?? "—" %></td><% }) %>
+            <% columns.forEach(m => { %><td><%= p.qty[m.medicine_id] ?? "—" %></td><% }) %>
           </tr>
         <% }) %>
       </tbody>
     </table>
-    <p class="muted" style="font-size:12px;margin-top:10px">Numbers are total packs/units given per medicine within this date range. Diagnosis and PhilHealth number from the paper log aren't tracked in the system yet.</p>
+    <p class="muted" style="font-size:12px;margin-top:10px">Numbers are total packs/units given per medicine within this date range. Only medicines somebody was actually given get a column. Diagnosis and PhilHealth number from the paper log aren't tracked in the system yet.</p>
   <% } %>
 </div>

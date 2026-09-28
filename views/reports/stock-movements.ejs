@@ -42,6 +42,26 @@
     </label>
   </form>
 
+  <%# "What does it contain? What does the opening balance mean? Is its status
+      changeable?" (Sept 29). Answered on the page itself. %>
+  <details class="ledger-key">
+    <summary>What is this page, and what does each movement mean?</summary>
+    <p>
+      Every change to a medicine's usable stock, oldest to newest, with who made it, so the count on
+      the shelf can be explained line by line. Lines are never edited or deleted: a mistake is fixed
+      by adding a <b>Correction</b>, which keeps the history honest.
+    </p>
+    <dl class="ledger-kinds">
+      <div><dt><span class="badge info">Starting stock</span></dt><dd>What was already on the shelf when batch tracking began on Sept 25, 2026, or a new medicine's first count when it was added. It is where each medicine's history starts, not something that happens again.</dd></div>
+      <div><dt><span class="badge ok">Restock</span></dt><dd>A delivery arrived: a new batch, with its expiry date.</dd></div>
+      <div><dt><span class="badge info">Dispensed</span></dt><dd>Given to a patient.</dd></div>
+      <div><dt><span class="badge bad">Expired</span></dt><dd>A batch reached its expiry date and left usable stock by itself.</dd></div>
+      <div><dt><span class="badge warn">Disposed</span></dt><dd>An expired batch was taken off the shelf and recorded.</dd></div>
+      <div><dt><span class="badge warn">Correction</span></dt><dd>A physical count did not match; the difference, with the reason.</dd></div>
+      <div><dt><span class="badge info">Archived / Restored</span></dt><dd>The medicine left, or came back to, the active list.</dd></div>
+    </dl>
+  </details>
+
   <% if (!moves.length) { %>
     <p class="muted" style="padding:8px 2px">No stock movements match.</p>
   <% } else { %>

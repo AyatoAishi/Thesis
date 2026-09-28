@@ -5,6 +5,7 @@
     return `<span class="badge ${c}">${l}</span>`;
   }
 %>
+<%- include("../partials/back", { href: `/patients/${patient.patient_id}`, to: "Back to the patient" }) %>
 <div class="page-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
   <div>
     <h1><%= patient.full_name %> — Prenatal</h1>
@@ -12,7 +13,6 @@
   </div>
   <div style="display:flex;gap:8px">
     <a class="btn" href="/patients/<%= patient.patient_id %>/prenatal/new">+ Start prenatal record</a>
-    <a class="back-link" href="/patients/<%= patient.patient_id %>" style="display:inline-flex;align-items:center">Back to patient</a>
   </div>
 </div>
 

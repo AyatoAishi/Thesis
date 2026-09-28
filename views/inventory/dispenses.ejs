@@ -29,7 +29,12 @@
               <a href="/patients/<%= d.patient_id %>"><%= d.full_name %></a>
               <div class="muted mono" style="font-size:11px"><%= d.patient_number %></div>
             </td>
-            <td><a href="/inventory/<%= d.medicine_id %>"><%= d.medicine_name %></a></td>
+            <td>
+              <a href="/inventory/<%= d.medicine_id %>"><%= d.medicine_name %></a>
+              <%# "How often" — typed at dispensing, shown to the patient on their
+                  portal, and until Sept 29 to no staff member anywhere. %>
+              <% if (d.instructions) { %><div class="med-how">🕑 <%= d.instructions %></div><% } %>
+            </td>
             <td><%= d.quantity %> <%= d.unit || "" %></td>
             <td><%= d.dispensed_by_name || "—" %></td>
             <td class="muted" style="font-size:12.5px"><%= d.notes || "—" %></td>

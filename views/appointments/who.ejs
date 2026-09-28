@@ -1,9 +1,9 @@
 <%
   const dateQ = date ? `&date=${date}` : "";
 %>
+<%- include("../partials/back", { href: "/appointments", to: "Back to the schedule" }) %>
 <div class="page-head">
   <h1>Book appointment</h1>
-  <div class="sub"><a href="/appointments" class="back-link">← Back to the schedule</a></div>
 </div>
 
 <div class="card">

@@ -18,6 +18,7 @@
   }
   const r = record;
 %>
+<%- include("../partials/back", { href: `/patients/${patient.patient_id}/prenatal`, to: "Back to the prenatal records" }) %>
 <div class="page-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
   <div>
     <h1><%= patient.full_name %> — Prenatal <%- statusBadge(r.status) %></h1>
@@ -26,7 +27,6 @@
   <div style="display:flex;gap:8px;flex-wrap:wrap">
     <a class="mini-btn" href="/patients/<%= patient.patient_id %>/prenatal/<%= r.prenatal_id %>/export" target="_blank" rel="noopener">Export PDF</a>
     <a class="mini-btn" href="/patients/<%= patient.patient_id %>/prenatal/<%= r.prenatal_id %>/edit">Edit intake</a>
-    <a class="back-link" href="/patients/<%= patient.patient_id %>/prenatal" style="display:inline-flex;align-items:center">Back to list</a>
   </div>
 </div>
 

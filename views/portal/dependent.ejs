@@ -7,12 +7,12 @@
   const firstName = child.full_name.split(" ")[0];
 %>
 
+<%- include("../partials/back", { href: "/portal", to: "", label: t("por.back_me") }) %>
 <div class="page-head">
   <h1><%= child.full_name %></h1>
   <div class="sub mono"><%= child.patient_number %></div>
 </div>
 
-<p style="margin:-6px 0 18px"><a href="/portal"><%= t("por.back_me") %></a></p>
 
 <div class="card portal-flash">
   <%- t("por.dep_why") %>
@@ -57,7 +57,10 @@
         <% medicines.forEach(m => { %>
           <tr>
             <td><%= longDate(m.date) %></td>
-            <td><%= m.medicine_name %><%= m.dosage ? " " + m.dosage : "" %></td>
+            <td>
+              <%= m.medicine_name %><%= m.dosage ? " " + m.dosage : "" %>
+              <% if (m.instructions) { %><div class="med-how">🕑 <%= m.instructions %></div><% } %>
+            </td>
             <td class="mono"><%= m.quantity %> <%= m.unit || "" %></td>
           </tr>
         <% }) %>

@@ -29,6 +29,17 @@
     return { groups: out, loose };
   }
 
+  // The same page, switched to table or cards. Keeps the search, sort, tab and
+  // the overdue filter exactly as they are.
+  function layoutLink(l) {
+    const parts = ["layout=" + l];
+    if (q) parts.push("q=" + encodeURIComponent(q));
+    if (sort && sort !== "newest") parts.push("sort=" + encodeURIComponent(sort));
+    if (view === "household") parts.push("view=household");
+    if (overdueOnly) parts.push("overdue=1");
+    return "/patients?" + parts.join("&");
+  }
+
   // Keeps the search box and sort choice when flipping between the two views.
   function viewLink(v, keepOverdue) {
     const parts = [];
@@ -85,6 +96,18 @@
       <a class="view-tab <%= overdueOnly ? 'active' : '' %>" href="<%= viewLink(view, true) %>">
         <%= t("pat.tab_overdue") %> <span class="badge bad" style="margin-left:5px"><%= overdueTotal %></span>
       </a>
+    <% } %>
+    <% if (view !== "household") { %>
+      <div class="layout-toggle" role="group" aria-label="<%= t('pat.layout') %>">
+        <a href="<%= layoutLink('list') %>" class="<%= listLayout === 'list' ? 'is-on' : '' %>" aria-current="<%= listLayout === 'list' ? 'true' : 'false' %>">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+          <span><%= t("pat.layout_list") %></span>
+        </a>
+        <a href="<%= layoutLink('cards') %>" class="<%= listLayout === 'cards' ? 'is-on' : '' %>" aria-current="<%= listLayout === 'cards' ? 'true' : 'false' %>">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+          <span><%= t("pat.layout_cards") %></span>
+        </a>
+      </div>
     <% } %>
   </div>
 
@@ -155,6 +178,33 @@
         </table>
       </div>
     <% } %>
+  <% } else if (listLayout === "cards") { %>
+    <%# One card per patient, name first and large, every detail visible
+        without scrolling sideways (Sept 29, for phones). The card is not itself
+        a link: the overdue badge and the family number inside it are. %>
+    <div class="patient-cards">
+      <% patients.forEach(p => { %>
+        <div class="patient-card">
+          <a class="pc-name" href="/patients/<%= p.patient_id %>"><%= p.full_name %></a>
+          <div class="pc-badges">
+            <span class="mono muted"><%= p.patient_number %></span>
+            <% if (p.is_minor) { %><span class="badge info"><%= t("pat.minor") %></span><% } %>
+            <% if (p.deceased_at) { %><span class="badge bad"><%= t("pat.deceased") %></span><% } %>
+            <% const od = overdue.get(p.patient_id); %><% if (od) { %><a href="/patients/<%= p.patient_id %>/immunization" class="badge bad" style="text-decoration:none"><%= od.overdue %> overdue</a><% } %>
+          </div>
+          <dl class="pc-meta">
+            <div><dt><%= t("pat.col_age") %> · <%= t("pat.col_sex") %></dt><dd><%= age(p.birthdate) %> · <%= p.sex || "—" %></dd></div>
+            <div><dt><%= t("pat.col_mobile") %></dt><dd class="mono"><%= p.contact_number || "—" %></dd></div>
+            <div><dt><%= t("pat.col_email") %></dt><dd class="pc-email"><%= p.email || "—" %></dd></div>
+            <div><dt><%= t("pat.col_family") %></dt><dd class="mono"><% if (p.family_number) { %><a href="/families/<%= p.family_number %>"><%= p.family_number %></a><% } else { %>—<% } %></dd></div>
+          </dl>
+          <div class="pc-actions">
+            <a class="mini-btn" href="/patients/<%= p.patient_id %>"><%= t("pat.open") %></a>
+            <a class="mini-btn" href="/patients/<%= p.patient_id %>/edit"><%= t("pat.edit") %></a>
+          </div>
+        </div>
+      <% }) %>
+    </div>
   <% } else { %>
     <table class="tbl">
       <thead>

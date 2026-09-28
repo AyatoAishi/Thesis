@@ -7,6 +7,8 @@
 const express = require("express");
 const db = require("../db");
 const F = require("../lib/format");
+const cal = require("../lib/calendar");
+const names = require("../lib/names");
 const { ID_TYPES, UNVERIFIED: NO_ID } = require("../lib/idTypes");
 const { buildCard, overdueCounts } = require("../lib/immunizationCard");
 const { endOtherPatientSessions } = require("../lib/sessions");
@@ -23,7 +25,33 @@ const SORTS = {
   oldest: { label: "Oldest first", sql: "created_at ASC" },
   name_asc: { label: "Name A → Z", sql: "lower(full_name) ASC" },
   name_desc: { label: "Name Z → A", sql: "lower(full_name) DESC" },
+  // "In this way we can separately organize every family" (Sept 29). Records
+  // saved before the name had three parts sort by the last word of their name.
+  last_asc: { label: "Last name A → Z",
+    sql: "lower(coalesce(last_name, regexp_replace(trim(full_name), '^.*\\s', ''))) ASC, lower(full_name) ASC" },
 };
+
+// Which patients a search matches: by name, patient #, mobile # or family #
+// always — and by EMAIL only when the search has an "@" in it, or when nothing
+// matched any other way. Several patients can share one email (a mother and her
+// children, a family's single address), so a name search used to pull in
+// everyone whose email happened to contain that name: searching "geibrielle"
+// listed four people (Sept 29 review). Builds a CTE named `hits`; `cols` is the
+// column list the caller needs, and $1..$3 are taken.
+function searchHits(cols, q) {
+  return {
+    sql: `WITH hits AS (
+            SELECT ${cols},
+                   (full_name ILIKE $1 OR patient_number ILIKE $1 OR contact_number ILIKE $1
+                    OR family_number ILIKE $1 OR family_number = $2) AS by_name,
+                   (email ILIKE $1) AS by_email
+              FROM patients)
+          SELECT * FROM hits
+           WHERE by_name
+              OR (by_email AND ($3::boolean OR NOT EXISTS (SELECT 1 FROM hits h WHERE h.by_name)))`,
+    params: [`%${q}%`, familyNumberOf(q), q.includes("@")],
+  };
+}
 
 // Relations offered on the emergency-contact dropdown. "Other" reveals a free
 // text box, so anything already typed before this dropdown existed still
@@ -130,16 +158,46 @@ async function loadFamilyMembers(family_number, excludeId) {
 //
 // A household is one shared number, so this scales to a family of any size: the
 // third and fourth members simply join the number the first two already have.
-// Someone who already belongs to a DIFFERENT household is skipped rather than
-// silently moved — pulling a person out of one family and into another is not
-// something to do behind staff's back, so their name is reported back instead.
+// Someone who already belongs to a DIFFERENT household is moved, never
+// silently: their chip on the form says "moves from 26-0002" before Save, and
+// the patient page says who was moved afterwards.
+//
+// Sept 29: "Family member grouping — editing should be allowed as well, not just
+// on account creation, but also when editing a patient." Two things the edit
+// form could not do before:
+//   - add a relative who was already in ANOTHER household. They were skipped
+//     with "remove them from that household first", and nothing on any page
+//     could do that. Picking them now MOVES them here; the form shows
+//     "moves from 26-0002" on their chip before anything is saved.
+//   - take one member out. Only the patient being edited could leave. Each
+//     member now has an × on the edit form (family_remove_ids).
 async function resolveFamily(p, excludeId) {
-  const ids = (p.family_join_ids || "")
+  const parse = (str) => [...new Set((str || "")
     .split(",")
-    .map((s) => parseInt(s, 10))
-    .filter((n) => Number.isInteger(n) && n > 0 && n !== Number(excludeId));
+    .map((x) => parseInt(x, 10))
+    .filter((n) => Number.isInteger(n) && n > 0 && n !== Number(excludeId)))];
+  const ids = parse(p.family_join_ids);
+  const removeIds = parse(p.family_remove_ids);
+  const out = { family_number: p.family_number, joined: [], moved: [], removed: [] };
 
-  if (!ids.length) return { family_number: p.family_number, joined: [], skipped: [] };
+  // Only members of the household this patient is saved in right now, and only
+  // while this patient stays in it: the form hides the × once "take this
+  // patient out" is pressed, so the server does not guess at that combination.
+  if (excludeId && removeIds.length) {
+    const cur = await db.query("SELECT family_number FROM patients WHERE patient_id=$1", [excludeId]);
+    const orig = cur.rows[0] && cur.rows[0].family_number;
+    if (orig && p.family_number === orig) {
+      const { rows } = await db.query(
+        `UPDATE patients SET family_number = NULL, updated_at = now()
+          WHERE patient_id = ANY($1) AND family_number = $2
+          RETURNING patient_id, full_name`,
+        [removeIds, orig]
+      );
+      out.removed = rows.map((r) => ({ ...r, from: orig }));
+    }
+  }
+
+  if (!ids.length) return out;
 
   const { rows } = await db.query(
     "SELECT patient_id, full_name, family_number FROM patients WHERE patient_id = ANY($1)",
@@ -150,19 +208,30 @@ async function resolveFamily(p, excludeId) {
   const existing = rows.find((r) => r.family_number);
   const target =
     p.family_number || (existing && existing.family_number) || (await nextFamilyNumber());
+  out.family_number = target;
 
-  const joined = [];
-  const skipped = [];
   for (const r of rows) {
     if (r.family_number === target) continue;
-    if (r.family_number) { skipped.push(r.full_name); continue; }
     await db.query(
       "UPDATE patients SET family_number=$1, updated_at=now() WHERE patient_id=$2",
       [target, r.patient_id]
     );
-    joined.push(r);
+    if (r.family_number) out.moved.push({ ...r, from: r.family_number });
+    else out.joined.push(r);
   }
-  return { family_number: target, joined, skipped };
+  return out;
+}
+
+// One audit line per relative the save touched besides the patient itself.
+function auditFamily(userId, fam, p) {
+  fam.joined.forEach((m) =>
+    audit.log(userId, "update", "patient", m.patient_id, `added to the household of ${p.full_name}`));
+  fam.moved.forEach((m) =>
+    audit.log(userId, "update", "patient", m.patient_id,
+      `moved from household ${m.from} to ${fam.family_number}, with ${p.full_name}`));
+  fam.removed.forEach((m) =>
+    audit.log(userId, "update", "patient", m.patient_id,
+      `taken out of household ${m.from} while editing ${p.full_name}`));
 }
 
 // Minor status is never taken from the client — always derived from birthdate
@@ -178,6 +247,32 @@ function calcIsMinor(birthdate) {
   return age < 18;
 }
 
+// The name, from the three fields the form now has (Sept 29). full_name is built
+// from them and stays the column everything else reads. A form loaded before
+// this change — a tab left open across a deploy — still posts full_name alone,
+// and is accepted as it always was (its parts are then left empty).
+function nameFields(body) {
+  const hasParts = ["first_name", "middle_name", "last_name"].some((k) => k in body);
+  if (!hasParts) {
+    return { full_name: names.clean(body.full_name), first_name: null, middle_name: null,
+             last_name: null, name_parts: false };
+  }
+  const first = names.clean(body.first_name);
+  const middle = names.clean(body.middle_name);
+  const last = names.clean(body.last_name);
+  return { first_name: first || null, middle_name: middle || null, last_name: last || null,
+           full_name: names.compose({ first, middle, last }), name_parts: true };
+}
+
+// A saved record opened in Edit: if its name was never split (every record
+// from before Sept 29), offer a best guess for staff to check. Display only —
+// nothing is written until they press Save.
+function withNameParts(row) {
+  if (!row || row.first_name || row.last_name) return row;
+  const g = names.guessParts(row.full_name);
+  return { ...row, first_name: g.first, middle_name: g.middle, last_name: g.last, name_guessed: true };
+}
+
 // Pull + normalize the patient fields from a submitted form.
 function readForm(body) {
   const birthdate = body.birthdate || null;
@@ -188,7 +283,7 @@ function readForm(body) {
   // it. The checkbox is the statement of fact; it wins.
   const noOwnPhone = body.no_own_phone === "on" || body.no_own_phone === "true";
   return {
-    full_name: (body.full_name || "").trim(),
+    ...nameFields(body),
     birthdate,
     sex: body.sex || null,
     address: (body.address || "").trim() || null,
@@ -200,6 +295,8 @@ function readForm(body) {
     // resolveFamily() at save time. Kept as the raw string so a failed
     // validation round-trip can hand it straight back to the form.
     family_join_ids: (body.family_join_ids || "").trim(),
+    // Members of this patient's household that the edit form marked with ×.
+    family_remove_ids: (body.family_remove_ids || "").trim(),
     family_contact_name: (body.family_contact_name || "").trim() || null,
     family_contact_relation: readRelation(body),
     family_contact_number: normalizeMobile(body.family_contact_number) || null,
@@ -258,7 +355,23 @@ async function findLookalikes(p, excludeId) {
 // Shared validation. Returns an array of error strings (empty = valid).
 function validate(p) {
   const errors = [];
-  if (!p.full_name) errors.push("Full name is required.");
+  if (p.name_parts) {
+    if (!p.first_name) errors.push("First name is required.");
+    if (!p.last_name) errors.push("Last name is required.");
+  } else if (!p.full_name) {
+    errors.push("Full name is required.");
+  }
+  if (p.full_name && p.full_name.length > 150)
+    errors.push(`The name is too long (${p.full_name.length} of 150 characters).`);
+  // "My friend can set his birthday 1 day ahead. So basically he is born
+  // tomorrow" (Sept 29). A future birthdate also let the immunization
+  // scheduler plan a baby's doses before the baby existed. The lower bound is
+  // the "age 225" on the senior citizen report: a year typed as 1801.
+  if (p.birthdate) {
+    if (!cal.validDate(p.birthdate)) errors.push("Birthdate is not a real date.");
+    else if (p.birthdate > F.manilaToday()) errors.push("Birthdate can't be in the future.");
+    else if (p.birthdate < "1900-01-01") errors.push("Birthdate is before 1900 — check the year.");
+  }
   if (p.email && !EMAIL_RE.test(p.email)) errors.push("Patient email is not a valid email address.");
   if (p.family_email && !EMAIL_RE.test(p.family_email)) errors.push("Family email is not a valid email address.");
   // Choosing a channel this record has no address for would quietly mean "never
@@ -320,6 +433,16 @@ router.get("/patients", async (req, res, next) => {
     // says how many there are and now opens the list of exactly those rather
     // than all 13 patients with the reader left to spot the red badges.
     const overdueOnly = req.query.overdue === "1";
+    // Table or cards (Sept 29: "on mobile the list extends to the very right and
+    // you have to swipe just to see the details"). Remembered for this sign-in,
+    // so the live search — which re-fetches this page — keeps the same layout.
+    if (req.query.layout === "cards" || req.query.layout === "list") {
+      req.session.patientLayout = req.query.layout;
+    }
+    // Not called `layout`: express-ejs-layouts reads a `layout` local as the
+    // name of the page shell to wrap this view in, and went looking for
+    // views/list.ejs (every /patients page was a 500 until the crawl caught it).
+    const listLayout = req.session.patientLayout === "cards" ? "cards" : "list";
     const order =
       view === "household"
         ? "family_number NULLS LAST, birthdate ASC NULLS LAST, lower(full_name)"
@@ -338,15 +461,13 @@ router.get("/patients", async (req, res, next) => {
     // child still in the programme, which is a superset of this page and a
     // small one.
     const [{ rows: allRows }, overdue] = await Promise.all([
-      db.query(
-        `SELECT patient_id, patient_number, full_name, sex, birthdate,
-                contact_number, email, is_minor, family_number, deceased_at
-           FROM patients
-          ${q ? "WHERE full_name ILIKE $1 OR patient_number ILIKE $1 OR contact_number ILIKE $1 OR email ILIKE $1 OR family_number ILIKE $1 OR family_number = $2" : ""}
-          ORDER BY ${order}
-          LIMIT 200`,
-        q ? [`%${q}%`, familyNumberOf(q)] : []
-      ),
+      (() => {
+        const cols = `patient_id, patient_number, full_name, sex, birthdate, contact_number, email,
+                      is_minor, family_number, deceased_at, created_at, last_name`;
+        if (!q) return db.query(`SELECT ${cols} FROM patients ORDER BY ${order} LIMIT 200`);
+        const h = searchHits(cols, q);
+        return db.query(`${h.sql} ORDER BY ${order} LIMIT 200`, h.params);
+      })(),
       overdueCounts(null),
     ]);
     // Filtered here rather than in SQL because the overdue set is worked out
@@ -358,6 +479,7 @@ router.get("/patients", async (req, res, next) => {
       title: "Patients · Sampaguita HC",
       active: "patients",
       patients: rows,
+      listLayout,
       overdue,
       q,
       sort,
@@ -380,16 +502,10 @@ router.get("/patients/search.json", async (req, res, next) => {
   try {
     const q = (req.query.q || "").trim();
     if (q.length < 2) return res.json([]);
-    const { rows } = await db.query(
-      `SELECT patient_id, patient_number, full_name, is_minor
-         FROM patients
-        WHERE full_name ILIKE $1 OR patient_number ILIKE $1 OR contact_number ILIKE $1
-           OR email ILIKE $1 OR family_number ILIKE $1 OR family_number = $2
-        ORDER BY lower(full_name)
-        LIMIT 8`,
-      [`%${q}%`, familyNumberOf(q)]
-    );
-    res.json(rows);
+    const h = searchHits("patient_id, patient_number, full_name, is_minor", q);
+    const { rows } = await db.query(`${h.sql} ORDER BY lower(full_name) LIMIT 8`, h.params);
+    res.json(rows.map(({ patient_id, patient_number, full_name, is_minor }) =>
+      ({ patient_id, patient_number, full_name, is_minor })));
   } catch (e) {
     next(e);
   }
@@ -484,16 +600,15 @@ router.post("/patients", async (req, res, next) => {
         p.guardian_consent, p.privacy_consent, req.session.user.user_id,
       ]
     );
-    // The parents, in their own statement rather than as $19/$20 of the one
-    // above: renumbering eighteen positional parameters is how two columns end
-    // up silently swapped. Same row, same request, a moment later.
-    await db.query("UPDATE patients SET mother_name=$1, father_name=$2 WHERE patient_id=$3",
-      [p.mother_name, p.father_name, rows[0].patient_id]);
+    // The parents and the name parts, in their own statement rather than as
+    // $19+ of the one above: renumbering eighteen positional parameters is how
+    // two columns end up silently swapped. Same row, same request, a moment later.
+    await db.query(
+      `UPDATE patients SET mother_name=$1, father_name=$2, first_name=$3, middle_name=$4, last_name=$5
+        WHERE patient_id=$6`,
+      [p.mother_name, p.father_name, p.first_name, p.middle_name, p.last_name, rows[0].patient_id]);
     audit.log(req.session.user.user_id, "create", "patient", rows[0].patient_id, p.full_name);
-    fam.joined.forEach((m) =>
-      audit.log(req.session.user.user_id, "update", "patient", m.patient_id,
-        `added to the household of ${p.full_name}`)
-    );
+    auditFamily(req.session.user.user_id, fam, p);
     // Straight into the portal-account step (skippable) instead of dropping
     // staff on the profile page and hoping they scroll to the account card —
     // teammates' note: "para sure na magkaka-acc mga patients".
@@ -542,7 +657,7 @@ router.get("/patients/:id", async (req, res, next) => {
       ),
       // ---- 3) dispensesQ
       db.query(
-        `SELECT d.dispense_id, d.quantity, d.dispensed_at, d.notes,
+        `SELECT d.dispense_id, d.quantity, d.dispensed_at, d.notes, d.instructions,
                 m.medicine_id, m.name AS medicine_name, m.unit
            FROM medicine_dispenses d
            JOIN medicines m ON m.medicine_id = d.medicine_id
@@ -644,7 +759,7 @@ router.get("/patients/:id/edit", async (req, res, next) => {
       title: "Edit patient · Sampaguita HC",
       active: "patients",
       mode: "edit",
-      patient: rows[0],
+      patient: withNameParts(rows[0]),
       familyLookup: await loadFamilyLookup(req.params.id),
       familyMembers: await loadFamilyMembers(rows[0].family_number, req.params.id),
       relations: RELATIONS,
@@ -705,7 +820,7 @@ router.post("/patients/:id", async (req, res, next) => {
         title: "Edit patient · Sampaguita HC",
         active: "patients",
         mode: "edit",
-        patient: current.rows[0],   // redraw with what's actually saved now
+        patient: withNameParts(current.rows[0]),   // redraw with what's actually saved now
         familyLookup: await loadFamilyLookup(req.params.id),
         familyMembers: await loadFamilyMembers(current.rows[0].family_number, req.params.id),
         relations: RELATIONS,
@@ -737,24 +852,24 @@ router.post("/patients/:id", async (req, res, next) => {
       ]
     );
     if (!rowCount) return next();
-    // The parents, in their own statement rather than as $19/$20 of the one
-    // above: renumbering eighteen positional parameters is how two columns end
-    // up silently swapped. Same row, same request, a moment later.
-    await db.query("UPDATE patients SET mother_name=$1, father_name=$2 WHERE patient_id=$3",
-      [p.mother_name, p.father_name, req.params.id]);
+    // The parents and the name parts, in their own statement rather than as
+    // $19+ of the one above: renumbering eighteen positional parameters is how
+    // two columns end up silently swapped. Same row, same request, a moment later.
+    await db.query(
+      `UPDATE patients SET mother_name=$1, father_name=$2, first_name=$3, middle_name=$4, last_name=$5
+        WHERE patient_id=$6`,
+      [p.mother_name, p.father_name, p.first_name, p.middle_name, p.last_name, req.params.id]);
     audit.log(req.session.user.user_id, "update", "patient", req.params.id, p.full_name);
-    fam.joined.forEach((m) =>
-      audit.log(req.session.user.user_id, "update", "patient", m.patient_id,
-        `added to the household of ${p.full_name}`)
-    );
+    auditFamily(req.session.user.user_id, fam, p);
 
-    // Anyone who couldn't be pulled in has to be said out loud, or staff would
-    // walk away believing a link was made that wasn't.
-    const note = fam.skipped.length
-      ? `?fam_note=${encodeURIComponent(
-          `${fam.skipped.join(", ")} ${fam.skipped.length === 1 ? "is" : "are"} already in another household, so ${fam.skipped.length === 1 ? "that patient was" : "those patients were"} not added. Remove them from that household first if this is the correct family.`
-        )}`
-      : "";
+    // A change to somebody ELSE's record is said out loud, so nobody walks away
+    // unaware that another patient's household changed too.
+    const bits = [];
+    if (fam.moved.length)
+      bits.push(`Moved ${fam.moved.map((m) => `${m.full_name} (from ${m.from})`).join(", ")} into this household.`);
+    if (fam.removed.length)
+      bits.push(`Took ${fam.removed.map((m) => m.full_name).join(", ")} out of this household.`);
+    const note = bits.length ? `?fam_note=${encodeURIComponent(bits.join(" "))}` : "";
     res.redirect(`/patients/${req.params.id}${note}`);
   } catch (e) {
     next(e);

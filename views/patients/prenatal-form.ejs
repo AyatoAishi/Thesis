@@ -4,12 +4,10 @@
   const fmt = (v) => (v ? String(v).slice(0, 10) : "");
   const action = isEdit ? `/patients/${patient.patient_id}/prenatal/${r.prenatal_id}` : `/patients/${patient.patient_id}/prenatal`;
 %>
+<%- include("../partials/back", { href: isEdit ? `/patients/${patient.patient_id}/prenatal/${r.prenatal_id}` : `/patients/${patient.patient_id}/prenatal`, to: "Back to the prenatal record" }) %>
 <div class="page-head">
   <h1><%= isEdit ? "Edit prenatal record" : "New prenatal record" %></h1>
-  <div class="sub">
-    <a href="<%= isEdit ? `/patients/${patient.patient_id}/prenatal/${r.prenatal_id}` : `/patients/${patient.patient_id}/prenatal` %>" class="back-link">← Back</a>
-    — <%= patient.full_name %>
-  </div>
+  <div class="sub"><%= patient.full_name %></div>
 </div>
 
 <% if (errors && errors.length) { %>

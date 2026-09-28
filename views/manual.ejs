@@ -42,11 +42,13 @@
 <section class="card manual" id="patients">
   <h2>2. Patients</h2>
   <ol>
-    <li><b>Find a patient:</b> type in the search box at the top of any page, or on <b>Patients</b>. Results appear as you type — name, patient number, mobile number, email, or family number (26-0001 or just 26-1).</li>
-    <li><b>Add a patient:</b> <b>Patients → + Add patient</b>. Mobile numbers must be 11 digits (09xxxxxxxxx). If the patient has no phone, tick <b>Walang sariling telepono</b> and fill in the emergency contact's number instead.</li>
+    <li><b>Find a patient:</b> type in the search box at the top of any page, or on <b>Patients</b>. Results appear as you type — name, patient number, mobile number, or family number (26-0001 or just 26-1). An email is searched when you type its <b>@</b>, or when nothing else matches.</li>
+    <li><b>On a phone:</b> press <b>Cards</b> on the Patients list to see each patient as a card instead of a wide table. It stays that way until you press <b>List</b>.</li>
+    <li><b>Add a patient:</b> <b>Patients → + Add patient</b>. The name goes in three boxes: <b>First</b>, <b>Middle</b> and <b>Last</b>. Fields marked <b>*</b> are required. The birthdate cannot be in the future. Mobile numbers must be 11 digits (09xxxxxxxxx). If the patient has no phone, tick <b>Walang sariling telepono</b> and fill in the emergency contact's number instead.</li>
+    <li>Records saved before the name had three boxes open in <b>Edit</b> with the name already split; check each box before saving.</li>
     <li>Minors need a guardian's name and consent. Everyone needs the data privacy consent ticked — the <b>Read the Privacy Notice</b> link under it opens what they are agreeing to.</li>
     <li>If a patient with the same name and birthdate or number already exists, the system warns you before saving. Open the existing record instead of making a second one.</li>
-    <li><b>Mark as deceased</b> (nurse or admin), on the patient's page: this cancels upcoming appointments and stops reminders, vaccine scheduling and portal access. The record is kept.</li>
+    <li><b>Mark as deceased</b> (nurse or admin): the red button at the bottom of the patient's page. This cancels upcoming appointments and stops reminders, vaccine scheduling and portal access. The record is kept.</li>
   </ol>
 </section>
 
@@ -54,6 +56,8 @@
   <h2>3. Family records</h2>
   <ol>
     <li>On the patient form, under <b>Family (optional)</b>, search for a relative already registered. Saving puts them in the same household and gives the family a number like <b>26-0001</b> automatically.</li>
+    <li>A relative who is already in another household is <b>moved</b> into this one; the form says "moves from 26-0002" before you save.</li>
+    <li>To take someone out of a household, open any member's <b>Edit</b> and press the <b>×</b> beside that person.</li>
     <li>The patient page shows <b>Family Record 26-0001</b>. Open it to see every member, their upcoming appointments, and one list of everything recorded for the family.</li>
     <li><b>Patients → Family records</b> lists every household. Records are still edited on each member's own page.</li>
   </ol>
@@ -74,8 +78,9 @@
 <section class="card manual" id="forms">
   <h2>5. Immunization, prenatal and consultations</h2>
   <ol>
-    <li><b>Immunization:</b> patient page → <b>Immunization</b>. Press an empty dose box to record it. HPV is only offered to female patients.</li>
-    <li><b>Prenatal:</b> patient page → <b>Prenatal</b> → start a record. It follows the barangay's paper form: weight, height, PhilHealth, each screening test's result and date, symptoms at intake and notes, the children table, and a check-up for each visit.</li>
+    <li>Every patient's page has a <b>Forms</b> box: Immunization card, Prenatal record (female patients), Consultation and Dispense medicine. <b>Forms</b> in the menu does the same starting from the form instead of the patient.</li>
+    <li><b>Immunization:</b> patient page → <b>Forms → Immunization card</b>. Press an empty dose box to record it. HPV is only offered to female patients.</li>
+    <li><b>Prenatal:</b> patient page → <b>Forms → Prenatal record</b> → start a record. It follows the barangay's paper form: weight, height, PhilHealth, each screening test's result and date, symptoms at intake and notes, the children table, and a check-up for each visit.</li>
     <li><b>Consultation:</b> from the day's appointment list, record vital signs and the diagnosis.</li>
   </ol>
 </section>
@@ -84,8 +89,9 @@
   <h2>6. Medicine inventory</h2>
   <ol>
     <li><b>Add a medicine:</b> <b>Inventory → + Add medicine</b>. The strength goes in <b>Dosage</b> (500mg), never in the name. Choose the unit from the list. The opening stock needs the expiry date on the box.</li>
-    <li><b>A delivery arrives:</b> open the medicine → <b>+ Restock</b> → quantity and expiry date. Each delivery is its own batch.</li>
-    <li><b>Dispense:</b> <b>+ Dispense</b>, choose the patient, add one line per medicine, and optionally write <b>How often</b> (e.g. 1 tablet, 3x a day) — the patient sees it on their portal. The system takes stock from the batch that expires first.</li>
+    <li><b>A delivery arrives:</b> open the medicine → <b>+ Restock</b> → quantity and expiry date (required). Each delivery is its own batch, so old and new stock never mix.</li>
+    <li><b>Dispense:</b> <b>+ Dispense</b>, choose the patient, add one line per medicine, and optionally write <b>How often</b> (e.g. 1 tablet, 3x a day). The patient sees it on their portal; staff see it on the patient's page, the medicine's page and the dispense log.</li>
+    <li><b>Which batch is used:</b> the one that expires first. Old stock whose expiry was never recorded goes before all of them, because it is the oldest; record its date with <b>Manage → Save expiry</b> and it takes its proper place.</li>
     <li><b>Expired stock</b> leaves usable stock automatically the day after its expiry date and cannot be dispensed. It appears under <b>expired to dispose of</b>; when the boxes are removed, open the medicine → <b>Manage → Dispose</b>.</li>
     <li><b>After a physical count</b> that differs: <b>Manage → Correct count</b>, with the reason.</li>
     <li><b>Archive</b> a medicine the clinic no longer stocks. It leaves every list and count, and can be restored.</li>
@@ -95,8 +101,8 @@
 <section class="card manual" id="reports">
   <h2>7. Reports and exports</h2>
   <ol>
-    <li><b>Reports</b> in the menu. Everyone can open Inventory, Expired medicines, Stock history and Consumption; the patient reports are for nurses, recorders and the admin.</li>
-    <li>Every inventory report has <b>Export CSV (Excel)</b> and <b>Print</b>. Stock history shows every restock, dispense, expiry, disposal and correction.</li>
+    <li><b>Reports</b> in the menu. Everyone can open Inventory, Expired medicines, Stock history and Medicines distributed; the patient reports are for nurses, recorders and the admin.</li>
+    <li>Every inventory report has <b>Export CSV (Excel)</b>. The Inventory report's <b>PDF / Print</b> is the printable copy. Stock history shows every restock, dispense, expiry, disposal and correction, with a key explaining each one.</li>
     <li>Choose <b>This week / This month / This year</b> or a custom date range.</li>
   </ol>
 </section>

@@ -365,7 +365,7 @@ router.post("/inventory", async (req, res, next) => {
 router.get("/inventory/dispenses", async (req, res, next) => {
   try {
     const { rows } = await db.query(
-      `SELECT d.dispense_id, d.quantity, d.dispensed_at, d.notes,
+      `SELECT d.dispense_id, d.quantity, d.dispensed_at, d.notes, d.instructions,
               m.medicine_id, m.name AS medicine_name, m.unit,
               p.patient_id, p.patient_number, p.full_name,
               du.full_name AS dispensed_by_name
@@ -522,7 +522,7 @@ router.get("/inventory/:id", async (req, res, next) => {
            LEFT JOIN users ru ON ru.user_id = b.received_by
            LEFT JOIN users du ON du.user_id = b.disposed_by
           WHERE b.medicine_id = $1
-          ORDER BY (b.disposed_at IS NOT NULL), b.expiry_date NULLS LAST, b.received_at`,
+          ORDER BY (b.disposed_at IS NOT NULL), b.expiry_date NULLS FIRST, b.received_at`,
         [req.params.id]
       ),
       db.query(
@@ -535,7 +535,7 @@ router.get("/inventory/:id", async (req, res, next) => {
     ]);
 
     const { rows: dispenses } = await db.query(
-      `SELECT d.dispense_id, d.quantity, d.dispensed_at, d.notes,
+      `SELECT d.dispense_id, d.quantity, d.dispensed_at, d.notes, d.instructions,
               p.patient_id, p.patient_number, p.full_name,
               du.full_name AS dispensed_by_name
          FROM medicine_dispenses d
@@ -628,7 +628,10 @@ router.post("/inventory/:id/restock", async (req, res, next) => {
     const qty = intOf(req.body.quantity);
     const expiry = /^\d{4}-\d{2}-\d{2}$/.test(req.body.expiry_date || "") ? req.body.expiry_date : null;
     if (!Number.isInteger(qty) || qty <= 0) return back(res, id, "Enter how many arrived — a whole number above zero.", "err");
-    if (expiry && expiry < F.manilaToday()) return back(res, id, "That expiry date has already passed. Expired stock cannot be added as usable stock.", "err");
+    // Required, not just asked for by the form: a batch with no expiry is
+    // treated as the oldest stock on the shelf and handed out first (lib/stock.js).
+    if (!expiry) return back(res, id, "Enter the expiry date printed on the box — every new batch needs one.", "err");
+    if (expiry < F.manilaToday()) return back(res, id, "That expiry date has already passed. Expired stock cannot be added as usable stock.", "err");
     await stock.restock({
       medicineId: id, quantity: qty, expiryDate: expiry,
       source: (req.body.source || "").trim().slice(0, 150) || null,
@@ -636,7 +639,7 @@ router.post("/inventory/:id/restock", async (req, res, next) => {
       userId: req.session.user.user_id,
     });
     audit.log(req.session.user.user_id, "update", "medicine", id,
-      `${m.name}: restocked ${qty}${m.unit ? " " + m.unit : ""}${expiry ? `, expires ${expiry}` : ", no expiry recorded"}`);
+      `${m.name}: restocked ${qty}${m.unit ? " " + m.unit : ""}, expires ${expiry}`);
     back(res, id, `Added ${qty}${m.unit ? " " + m.unit : ""} as a new batch.`);
   } catch (e) {
     next(e);

@@ -3,9 +3,9 @@
   const action = isEdit ? `/appointments/${appt.appointment_id}` : "/appointments";
   const chain = typeof next !== "undefined" ? next : "";
 %>
+<%- include("../partials/back", { href: "/appointments", to: "Back to appointments" }) %>
 <div class="page-head">
   <h1><%= isEdit ? "Reschedule appointment" : "Book appointment" %></h1>
-  <div class="sub"><a href="/appointments" class="back-link">← Back to appointments</a></div>
 </div>
 
 <% if (errors && errors.length) { %>

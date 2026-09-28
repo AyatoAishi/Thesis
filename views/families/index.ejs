@@ -1,9 +1,9 @@
+<%- include("../partials/back", { href: "/patients", to: "Back to patients" }) %>
 <div class="page-head" style="display:flex;align-items:center;justify-content:space-between">
   <div>
-    <h1>Family records</h1>
+    <h1 class="page-title-lg">Family records</h1>
     <div class="sub"><%= families.length %> famil<%= families.length === 1 ? "y" : "ies" %><%= q ? ` matching “${q}”` : "" %></div>
   </div>
-  <a class="back-link" href="/patients" style="display:inline-flex;align-items:center"><%= t("nav.patients") %></a>
 </div>
 
 <div class="card">

@@ -1,0 +1,28 @@
+<%# How to reach the clinic, under the sign-in card (Sept 29 review). Reads
+    lib/clinicInfo.js through res.locals.clinic; anything left null is skipped. %>
+<% const _c = typeof clinic !== "undefined" && clinic ? clinic : null; %>
+<% if (_c) { %>
+  <footer class="clinic-footer">
+    <div class="clinic-footer-name"><b><%= _c.name %></b><% if (_c.place) { %> · <%= _c.place %><% } %></div>
+    <div class="clinic-footer-links">
+      <% if (_c.facebook) { %>
+        <a href="<%= _c.facebook %>" target="_blank" rel="noopener noreferrer">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M22 12a10 10 0 1 0-11.56 9.88v-6.99H7.9V12h2.54V9.8c0-2.5 1.49-3.89 3.78-3.89 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56V12h2.78l-.44 2.89h-2.34v6.99A10 10 0 0 0 22 12z"/></svg>
+          Facebook page
+        </a>
+      <% } %>
+      <% if (_c.email) { %>
+        <a href="mailto:<%= _c.email %>">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
+          <%= _c.email %>
+        </a>
+      <% } %>
+      <% if (_c.phone) { %>
+        <a href="tel:<%= String(_c.phone).replace(/[^\d+]/g, '') %>">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>
+          <%= _c.phone %>
+        </a>
+      <% } %>
+    </div>
+  </footer>
+<% } %>

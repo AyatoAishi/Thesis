@@ -18,6 +18,7 @@ const express = require("express");
 const db = require("../db");
 const F = require("../lib/format");
 const { overdueCounts } = require("../lib/immunizationCard");
+const audit = require("../lib/audit");
 
 const router = express.Router();
 
@@ -27,6 +28,7 @@ const FAMILY_RE = /^\d{2}-\d{4}$/;
 router.get("/families", async (req, res, next) => {
   try {
     const q = String(req.query.q || "").trim();
+    const overdueP = overdueCounts(null);   // for the "Overdue only" tab, same as /patients
     const { rows } = await db.query(
       `SELECT family_number,
               count(*)::int AS members,
@@ -43,6 +45,8 @@ router.get("/families", async (req, res, next) => {
       title: "Family records · Sampaguita HC",
       active: "patients",
       families: rows,
+      overdueTotal: (await overdueP).size,
+      flash: req.query.flash || null,
       q,
     });
   } catch (e) {
@@ -70,7 +74,7 @@ router.get("/families/:number", async (req, res, next) => {
 
     // Everything below runs together: four independent reads, one round trip
     // of waiting instead of four.
-    const [upcoming, visits, doses, dispenses, prenatal, overdue] = await Promise.all([
+    const [upcoming, visits, doses, dispenses, prenatal, overdue, others] = await Promise.all([
       db.query(
         `SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.status, a.notes,
                 s.name AS service_name, p.patient_id, p.full_name
@@ -114,6 +118,13 @@ router.get("/families/:number", async (req, res, next) => {
         [ids]
       ),
       overdueCounts(ids),
+      // Everyone NOT in this family, for "Add a member" on this page.
+      db.query(
+        `SELECT patient_id, patient_number, full_name, family_number
+           FROM patients WHERE family_number IS DISTINCT FROM $1
+          ORDER BY lower(full_name) LIMIT 500`,
+        [number]
+      ),
     ]);
 
     // One timeline across the household, newest first. Each kind keeps its own
@@ -138,7 +149,62 @@ router.get("/families/:number", async (req, res, next) => {
       pretty: F.prettyService,
       shortTime: F.shortTime,
       today,
+      others: others.rows,
+      flash: req.query.flash || null,
     });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ---- EDITING THE FAMILY FROM ITS OWN PAGE ------------------------------------
+// "Inside /families/26-0005, is the record editable? Alyanna wants to edit it
+// even from the grouped view" (Sept 29). The records themselves stay on each
+// member's own page (one place to edit a thing, or two versions of it appear);
+// every member now has an Edit button that goes straight there. What belongs
+// to the FAMILY — who is in it — is edited here: add a patient, take one out.
+// Both are the same writes the patient form makes, and both are audit-logged.
+
+// POST /families/:number/members  — add a patient (moved in if they belong to another family)
+router.post("/families/:number/members", async (req, res, next) => {
+  try {
+    const number = String(req.params.number || "");
+    if (!FAMILY_RE.test(number)) return next();
+    const back = (msg) => res.redirect(`/families/${number}?flash=${encodeURIComponent(msg)}`);
+    const exists = await db.query("SELECT 1 FROM patients WHERE family_number=$1 LIMIT 1", [number]);
+    if (!exists.rowCount) return next();
+    const id = parseInt(req.body.patient_id, 10) || 0;
+    const { rows } = await db.query(
+      "SELECT patient_id, full_name, family_number FROM patients WHERE patient_id=$1", [id]);
+    const p = rows[0];
+    if (!p) return back("Pick a patient from the list first.");
+    if (p.family_number === number) return back(`${p.full_name} is already in this family.`);
+    await db.query("UPDATE patients SET family_number=$1, updated_at=now() WHERE patient_id=$2", [number, p.patient_id]);
+    audit.log(req.session.user.user_id, "update", "patient", p.patient_id,
+      p.family_number ? `moved from household ${p.family_number} to ${number} (family page)` : `added to household ${number} (family page)`);
+    back(p.family_number ? `Moved ${p.full_name} from ${p.family_number} into this family.` : `Added ${p.full_name} to this family.`);
+  } catch (e) {
+    next(e);
+  }
+});
+
+// POST /families/:number/members/:id/remove  — take one member out
+router.post("/families/:number/members/:id/remove", async (req, res, next) => {
+  try {
+    const number = String(req.params.number || "");
+    if (!FAMILY_RE.test(number)) return next();
+    const { rows } = await db.query(
+      `UPDATE patients SET family_number = NULL, updated_at = now()
+        WHERE patient_id = $1 AND family_number = $2
+        RETURNING patient_id, full_name`,
+      [parseInt(req.params.id, 10) || 0, number]
+    );
+    if (!rows[0]) return next();
+    audit.log(req.session.user.user_id, "update", "patient", rows[0].patient_id, `taken out of household ${number} (family page)`);
+    const left = await db.query("SELECT count(*)::int n FROM patients WHERE family_number=$1", [number]);
+    const msg = encodeURIComponent(`Took ${rows[0].full_name} out of family ${number}.`);
+    // The last member out: the family no longer exists, so its page would 404.
+    res.redirect(left.rows[0].n ? `/families/${number}?flash=${msg}` : `/families?flash=${msg}`);
   } catch (e) {
     next(e);
   }

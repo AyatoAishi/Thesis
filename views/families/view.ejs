@@ -21,11 +21,18 @@
   </div>
 </div>
 
-<div class="card">
-  <div class="panel-title" style="margin-bottom:10px">Members</div>
+<% if (typeof flash !== "undefined" && flash) { %>
+  <div class="page-alert ok"><%= flash %></div>
+<% } %>
+
+<div class="card" style="overflow:visible">
+  <div class="panel-title" style="margin-bottom:4px">Members</div>
+  <p class="muted" style="font-size:12.5px;margin:0 0 10px">
+    <b>Edit</b> opens that member's own record. Who is in this family is changed right here.
+  </p>
   <div style="overflow-x:auto">
     <table class="tbl">
-      <thead><tr><th>Patient #</th><th>Name</th><th>Sex</th><th>Age</th><th>Mobile #</th><th>Email</th></tr></thead>
+      <thead><tr><th>Patient #</th><th>Name</th><th>Sex</th><th>Age</th><th>Mobile #</th><th>Email</th><th></th></tr></thead>
       <tbody>
         <% members.forEach(m => { %>
           <tr>
@@ -41,11 +48,32 @@
             <td><%= age(m.birthdate) %></td>
             <td class="mono"><%= m.contact_number || "—" %></td>
             <td><%= m.email || "—" %></td>
+            <td style="white-space:nowrap;text-align:right">
+              <a class="mini-btn" href="/patients/<%= m.patient_id %>/edit">Edit</a>
+              <form method="POST" action="/families/<%= number %>/members/<%= m.patient_id %>/remove" style="display:inline;margin:0"
+                    data-confirm-title="Take <%= m.full_name %> out of this family?"
+                    data-confirm="Their own record is not touched — only the family link is removed. | They can be added back any time."
+                    data-confirm-yes="Yes, take them out" data-confirm-no="Cancel"><%- include("../partials/csrf") %>
+                <button type="submit" class="logout-btn" title="Take out of this family">Remove</button>
+              </form>
+            </td>
           </tr>
         <% }) %>
       </tbody>
     </table>
   </div>
+
+  <form method="POST" action="/families/<%= number %>/members" class="form-inline family-add"><%- include("../partials/csrf") %>
+    <div style="flex:1;min-width:240px">
+      <%- include("../partials/search-picker", {
+            items: others.map(o => ({ id: o.patient_id, label: o.full_name, meta: o.patient_number + (o.family_number ? " · in " + o.family_number + ", will be moved" : "") })),
+            name: "patient_id",
+            selectedId: "",
+            placeholder: "Add a member — type a registered patient's name…",
+          }) %>
+    </div>
+    <button class="btn" type="submit">Add to family</button>
+  </form>
 </div>
 
 <div class="card">

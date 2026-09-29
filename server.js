@@ -34,6 +34,7 @@ const helpRoutes = require("./routes/help");
 const announcementRoutes = require("./routes/announcements");
 const reminders = require("./services/reminders");
 const smsSvc = require("./services/sms");
+const clinicInfo = require("./lib/clinicInfo");
 const immSchedule = require("./services/immunizationSchedule");
 const imm = require("./lib/immunizationCard");
 const { requireLogin } = require("./middleware/auth");
@@ -109,6 +110,7 @@ app.use((req, res, next) => {
   res.locals.t = (key, vars) => i18n.t(lang, key, vars);
   // Whether texts really leave the building; forms say so instead of guessing.
   res.locals.smsLive = smsSvc.isLive();
+  res.locals.clinic = clinicInfo;   // the sign-in pages' contact footer
   next();
 });
 

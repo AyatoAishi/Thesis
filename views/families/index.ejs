@@ -1,10 +1,19 @@
-<%- include("../partials/back", { href: "/patients", to: "Back to patients" }) %>
+<%# Family records is one of the Patients tabs (Sept 29 review: "when you hop
+    on Family records it looks different — make this consistent"). So it wears
+    the Patients page's own shell: the same title and Add button, the same
+    search card, the same tab row with this tab lit, and the table inside it.
+    No Back button: none of the other tabs has one, the tab row is the way back. %>
 <div class="page-head" style="display:flex;align-items:center;justify-content:space-between">
   <div>
-    <h1 class="page-title-lg">Family records</h1>
+    <h1><%= t("pat.title") %></h1>
     <div class="sub"><%= families.length %> famil<%= families.length === 1 ? "y" : "ies" %><%= q ? ` matching “${q}”` : "" %></div>
   </div>
+  <a class="btn" href="/patients/new"><%= t("pat.add") %></a>
 </div>
+
+<% if (typeof flash !== "undefined" && flash) { %>
+  <div class="page-alert ok"><%= flash %></div>
+<% } %>
 
 <div class="card">
   <form method="GET" action="/families" class="list-controls" data-live-search>
@@ -13,9 +22,21 @@
       <input class="search search-lg" type="search" name="q" value="<%= q %>"
              placeholder="Family number (26-0001) or a member's name…" autocomplete="off" />
     </div>
+    <button class="btn" type="submit"><%= t("pat.search_btn") %></button>
   </form>
 
   <div data-live-results>
+    <div class="view-tabs">
+      <a class="view-tab" href="/patients"><%= t("pat.tab_all") %></a>
+      <a class="view-tab" href="/patients?view=household"><%= t("pat.tab_household") %></a>
+      <a class="view-tab active" href="/families" aria-current="page"><%= t("pat.tab_families") %></a>
+      <% if (overdueTotal) { %>
+        <a class="view-tab" href="/patients?overdue=1">
+          <%= t("pat.tab_overdue") %> <span class="badge bad" style="margin-left:5px"><%= overdueTotal %></span>
+        </a>
+      <% } %>
+    </div>
+
     <% if (!families.length) { %>
       <p class="muted" style="padding:8px 2px">
         <% if (q) { %>No family matches “<%= q %>”.<% } else { %>
@@ -25,13 +46,14 @@
       </p>
     <% } else { %>
       <table class="tbl">
-        <thead><tr><th>Family #</th><th>Members</th><th>Names</th></tr></thead>
+        <thead><tr><th>Family #</th><th>Members</th><th>Names</th><th></th></tr></thead>
         <tbody>
           <% families.forEach(f => { %>
             <tr>
               <td class="mono"><a href="/families/<%= f.family_number %>"><%= f.family_number %></a></td>
               <td><%= f.members %><%= f.minors ? ` (${f.minors} minor${f.minors === 1 ? "" : "s"})` : "" %></td>
-              <td><a href="/families/<%= f.family_number %>" style="font-weight:500"><%= f.names %></a></td>
+              <td><a href="/families/<%= f.family_number %>"><%= f.names %></a></td>
+              <td style="text-align:right"><a href="/families/<%= f.family_number %>" class="muted"><%= t("pat.open") %></a></td>
             </tr>
           <% }) %>
         </tbody>

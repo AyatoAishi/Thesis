@@ -477,6 +477,26 @@ app.use((err, req, res, next) => {
     });
   }
   console.error("[error]", err);
+  // The database is unreachable: out of free-tier quota (53000, seen Sept 29),
+  // restarting, or the network. Said plainly, as 503 (temporary), and on a page
+  // that does not depend on anything the database would have supplied.
+  const dbDown = err && (["53000", "53300", "57P01", "57P03", "08001", "08006", "ECONNREFUSED", "ETIMEDOUT", "ENOTFOUND"].includes(err.code)
+    || /quota|terminating connection|Connection terminated/i.test(err.message || ""));
+  if (dbDown) {
+    return res.status(503).render("error-standalone", {
+      layout: false,
+      title: "The system is temporarily unavailable",
+      message: "The clinic's database cannot be reached right now, so no page can be shown. Nothing has been lost. Please try again later; if it continues, tell the admin.",
+      messageTl: "Hindi maabot ang database ng clinic sa ngayon. Walang nawalang record. Pakisubukan ulit mamaya.",
+    });
+  }
+  // Failed before the page settings were loaded: the normal page shell would
+  // crash on them, so use the plain page.
+  if (typeof res.locals.t !== "function") {
+    return res.status(500).render("error-standalone", {
+      layout: false, title: "Something went wrong", message: "Something went wrong on the server. Please try again.",
+    });
+  }
   res.status(500).render("error", {
     title: "Error",
     active: "",

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<%# The error page for when the normal page shell cannot be trusted: the
+    failure happened before the page settings (language, theme, user) were
+    loaded, which is exactly what happens when the database is down, because
+    the session is read from it first. Sept 29: the database hit its free-tier
+    quota, the normal error page then crashed on a missing setting, and
+    everybody got a bare "Internal Server Error" with no explanation. This
+    page needs nothing but the two values passed to it. %>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= title %> · Sampaguita HC</title>
+  <link rel="icon" href="/favicon.png" type="image/png" />
+  <style>
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px;
+           font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: #eef3ee; color: #1b2a1d; }
+    .box { max-width: 440px; background: #fff; border: 1px solid #d9e4d9; border-radius: 16px; padding: 28px; text-align: center; }
+    .box img { width: 64px; height: 64px; }
+    h1 { font-size: 20px; margin: 12px 0 8px; }
+    p { font-size: 14.5px; line-height: 1.55; color: #45574a; margin: 0 0 10px; }
+    .tl { font-size: 13.5px; color: #6b7c6f; }
+    a { display: inline-block; margin-top: 10px; background: #2e7d32; color: #fff; text-decoration: none;
+        font-weight: 700; padding: 10px 18px; border-radius: 10px; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <img src="/img/barangay-seal-160.png" alt="" />
+    <h1><%= title %></h1>
+    <p><%= message %></p>
+    <% if (typeof messageTl !== "undefined" && messageTl) { %><p class="tl"><%= messageTl %></p><% } %>
+    <a href="/">Try again</a>
+  </div>
+</body>
+</html>

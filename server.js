@@ -66,8 +66,13 @@ app.use(express.static(path.join(__dirname, "public")));
 // memory over time and — worse on Render's free tier — is wiped every time
 // the app sleeps and wakes back up, silently logging everyone out. Falls back
 // to the in-memory store only if DATABASE_URL isn't set yet (local first run).
+// Expired-session cleanup runs once a day, not the library's default 15
+// minutes: each run wakes the Neon compute, and on the free plan every wake
+// spends compute hours (the September quota ran out on 2026-09-29).
+// Expired sessions are already refused on read, so a slower sweep is safe.
 const sessionStore = process.env.DATABASE_URL
-  ? new pgSession({ pool: db.getPool(), tableName: "session", createTableIfMissing: true })
+  ? new pgSession({ pool: db.getPool(), tableName: "session", createTableIfMissing: true,
+      pruneSessionInterval: 24 * 60 * 60 })
   : undefined;
 
 app.use(

@@ -21,6 +21,7 @@ const ENDED = {
   "password-changed":
     "The password for this account was changed, so you were signed out. Sign in again with the new password.",
   inactive: "Your session ended because this account is no longer active. Ask an admin.",
+  "form-expired": "This sign-in page was open too long and expired. Please sign in again.",
 };
 
 // Where to send someone after they sign in. middleware/auth.js only remembers

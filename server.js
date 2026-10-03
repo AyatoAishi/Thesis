@@ -97,8 +97,6 @@ app.use(
 // including /login and the portal, because a forged sign-in is its own
 // attack: log somebody into an account the attacker controls, and whatever
 // they do next is recorded against it.
-app.use(csrf);
-
 // Locals available to every view
 app.use((req, res, next) => {
   res.locals.appName = "Sampaguita Health Clinic";
@@ -120,6 +118,12 @@ app.use((req, res, next) => {
   res.locals.idFormats = ID_FORMATS; // example + length per valid-ID type (partials/id-form-script)
   next();
 });
+
+// After the locals above, not before. A rejected form goes straight to the
+// error handler, and the page it renders needs lang, t and the theme. With
+// csrf first, a sign-in form left open too long (Oct 3, in the logs) crashed
+// the error page itself: "lang is not defined", a bare 500.
+app.use(csrf);
 
 // ----- The language toggle ------------------------------------------------------
 // A plain link, not a form: it changes nothing but which language this reader
@@ -186,6 +190,21 @@ app.get("/health", async (req, res) => {
 // waits an extra day for its reminder and a parent gets a reminder for a
 // session that has already been and gone.
 async function runDailyJobs() {
+  // is_minor is worked out from the birthdate when a record is saved, so a
+  // child who turns 18 kept the flag until somebody edited them — and with it
+  // their guardian's portal view of their records. Re-derived every morning,
+  // same rule as calcIsMinor in routes/patients.js (under 18, Manila date).
+  try {
+    await db.query(
+      `UPDATE patients
+          SET is_minor = (age($1::date, birthdate) < interval '18 years'), updated_at = now()
+        WHERE birthdate IS NOT NULL
+          AND is_minor IS DISTINCT FROM (age($1::date, birthdate) < interval '18 years')`,
+      [F.manilaToday()]
+    );
+  } catch (e) {
+    console.error("[daily] is_minor refresh:", e.message);   // never stop the reminders over it
+  }
   const immResult = await immSchedule.runDaily();
   const remResult = await reminders.processReminders({});
   return { immunization: immResult, reminders: remResult };
@@ -476,6 +495,15 @@ app.use((err, req, res, next) => {
   // The usual cause is innocent: a page left open past the 8-hour session.
   if (err && err.csrf) {
     console.warn("[csrf] rejected", req.method, req.originalUrl);
+    // A sign-in page left open long enough for its session to lapse is the
+    // common case, and there is no work to lose: send them back to a fresh
+    // sign-in page that says why, instead of an error page.
+    if (req.method === "POST" && (req.path === "/login" || req.path === "/portal/login")) {
+      return res.redirect(`${req.path}?ended=form-expired`);
+    }
+    if (typeof res.locals.t !== "function") {
+      return res.status(403).render("error-standalone", { layout: false, title: "Form expired", message: err.message });
+    }
     return res.status(403).render("error", {
       title: "Form expired",
       active: "",

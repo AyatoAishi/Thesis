@@ -74,7 +74,9 @@ router.get("/portal/login", (req, res) => {
     layout: false,
     error: null,
     username: "",
-    notice: req.query.ended
+    notice: req.query.ended === "form-expired"
+      ? "Matagal nang nakabukas ang page na ito kaya nag-expire. Mag-sign in po ulit."
+      : req.query.ended
       ? "Nabago ang password ng account mo, kaya na-sign out ka rito. Mag-sign in ulit gamit ang bagong password."
       : req.query.reset
       ? "Nailigtas na ang bagong password mo. Mag-sign in na gamit ito."

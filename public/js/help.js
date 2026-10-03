@@ -209,9 +209,9 @@
           return;
         }
 
-        var n = '<div class="sam-none"><div class="sam-none-t">Pasensya na po, wala po akong alam diyan.</div>' +
-                '<div class="sam-none-p">Alam ko lang po kung saan ang mga bagay dito sa sistema. ' +
-                "Hindi po ako marunong sa gamot o sa lunas — sa nurse po iyon.</div></div>";
+        var n = '<div class="sam-none"><div class="sam-none-t">Pasensya na po, wala pa po akong sagot diyan.</div>' +
+                '<div class="sam-none-p">Ang kaya ko lang pong sagutin ay kung paano gamitin ang sistemang ito. ' +
+                "Para sa mga tanong tungkol sa gamot o kalusugan, magtanong po sa nurse ng center.</div></div>";
         if (d.nearest && d.nearest.length) {
           n += '<div class="sam-label" style="margin-top:14px">Ito kaya ang ibig niyong sabihin?</div>' +
                questionButtons(d.nearest);

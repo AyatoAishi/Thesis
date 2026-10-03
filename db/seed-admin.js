@@ -28,6 +28,12 @@ const EMAIL = process.env.ADMIN_EMAIL || null;
                      updated_at    = now()`,
       [NAME, USER, EMAIL, hash]
     );
+    // The first admin is the super admin, unless one already exists.
+    await db.query(
+      `UPDATE users SET is_super_admin = true
+        WHERE username = $1 AND NOT EXISTS (SELECT 1 FROM users WHERE is_super_admin)`,
+      [USER]
+    );
     console.log("\n  ✓ Admin account ready");
     console.log(`     username: ${USER}`);
     console.log(`     password: ${PASS}`);

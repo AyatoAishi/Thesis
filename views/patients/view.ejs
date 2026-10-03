@@ -228,7 +228,8 @@
     <span class="panel-title">Account settings <span class="muted" style="font-weight:500">· patient portal</span></span>
     <% if (account) { %>
       <% if (account.is_verified) { %><span class="badge ok">Verified</span>
-      <% } else { %><span class="badge warn">Pending ID check</span><% } %>
+      <% } else if (account.valid_id_type) { %><span class="badge warn">Pending ID check</span>
+      <% } else { %><span class="badge warn">Unverified · no ID yet</span><% } %>
     <% } %>
   </div>
 
@@ -255,7 +256,7 @@
   <% if (account) { %>
     <dl class="kv">
       <div><dt>Username</dt><dd class="mono"><%= account.username %></dd></div>
-      <div><dt>Valid ID</dt><dd><%= account.valid_id_type || "—" %><%= account.valid_id_number ? ` · ${account.valid_id_number}` : "" %></dd></div>
+      <div><dt>Valid ID</dt><dd><% if (account.valid_id_type) { %><%= account.valid_id_type %><%= account.valid_id_number ? ` · ${account.valid_id_number}` : "" %><% } else { %><span class="muted">No ID presented yet — the account stays unverified (appointments only) until one is checked</span><% } %></dd></div>
     </dl>
 
     <%# The lasting record of what happened to this account's password. The
@@ -491,29 +492,4 @@
 
 <p class="muted" style="font-size:12px">Added <%= fmt(p.created_at) %><%= p.created_by_name ? ` by ${p.created_by_name}` : "" %>.</p>
 
-<script>
-  // The ID number is evidence for the ID type beside it. Choosing "No ID on
-  // hand" means there is nothing to write down, so the field stops being
-  // required and gets out of the way instead of blocking the save.
-  (function () {
-    document.querySelectorAll("[data-id-form]").forEach(function (form) {
-      var type = form.querySelector("[data-id-type]");
-      var num = form.querySelector("[data-id-number]");
-      var wrap = form.querySelector("[data-id-number-field]");
-      var note = form.querySelector("[data-id-note]");
-      if (!type || !num) return;
-      function sync() {
-        var none = type.value === "__no_id__";
-        num.required = !none;
-        num.disabled = none;
-        if (none) num.value = "";
-        if (wrap) wrap.style.opacity = none ? "0.45" : "";
-        if (note) note.textContent = none
-          ? "The account is created unverified: they can sign in and see their appointments, but no health records until an ID is checked here."
-          : "";
-      }
-      type.addEventListener("change", sync);
-      sync();
-    });
-  })();
-</script>
+<%- include("../partials/id-form-script") %>

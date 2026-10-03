@@ -34,6 +34,37 @@ async function recentFailures() {
   return rows[0];
 }
 
+// A text is logged `pending` the moment the gateway accepts it, before the
+// phone has sent anything. Nothing ever went back to ask, so a text that had
+// long since arrived stayed "pending" in the log forever (Oct 2026 review).
+// Each visit to this page asks the gateway about the recent pending ones and
+// records what the phone reports. Bounded (last 3 days, 25 rows) so a page
+// load never turns into a long chain of network calls.
+async function refreshPendingSms() {
+  if (sms.provider() !== "smsgate") return;
+  const { rows } = await db.query(
+    `SELECT notification_id, provider_message_id
+       FROM notifications
+      WHERE channel='sms' AND status='pending' AND provider_message_id IS NOT NULL
+        AND created_at > now() - interval '3 days'
+      ORDER BY created_at DESC LIMIT 25`
+  );
+  await Promise.all(rows.map(async (n) => {
+    const st = await sms.messageState(n.provider_message_id);
+    if (!st || !st.state) return;                       // gateway silent: leave it pending
+    const done = ["Sent", "Delivered"].includes(st.state);
+    if (!done && st.state !== "Failed") return;         // still Pending/Processed on the phone
+    await db.query(
+      `UPDATE notifications
+          SET status=$2::varchar, sent_at = CASE WHEN $2::varchar = 'sent' THEN now() ELSE sent_at END,
+              provider_response = $3
+        WHERE notification_id=$1 AND status='pending'`,
+      [n.notification_id, done ? "sent" : "failed",
+       `The phone reports: ${st.state}${st.reason ? ` — ${st.reason}` : ""}.`]
+    );
+  }));
+}
+
 // Everything the page needs. Shared by the plain view and by the actions that
 // finish by redrawing it (a self-test result is too long for a query string).
 async function renderIndex(req, res, extra = {}) {
@@ -46,6 +77,12 @@ async function renderIndex(req, res, extra = {}) {
   // sa recent reminders, kung ano ung sent reminders sa date na yon, ayun lang
   // din dapat ung lalabas." Blank means everything, newest first.
   const logDate = isDate(req.query.log_date) ? req.query.log_date : "";
+
+  try {
+    await refreshPendingSms();
+  } catch (e) {
+    console.error("[reminders] pending SMS refresh:", e.message);  // never block the page on it
+  }
 
   const [logQ, cntQ, balance, fails] = await Promise.all([
     db.query(

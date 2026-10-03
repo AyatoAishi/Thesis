@@ -44,8 +44,34 @@
 
 <div class="card">
   <div class="panel-title" style="margin-bottom:10px">All announcements</div>
+  <%# Sort and filter (Oct 2026 review). A plain GET form: the choice survives
+      Back and a shared link. Changing a select applies it straight away. %>
+  <form method="GET" action="/announcements" class="list-controls" style="margin-bottom:14px">
+    <div class="search-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-3.6-3.6"/></svg>
+      <input class="search" type="search" name="q" value="<%= filters.q %>" placeholder="Search title or text" autocomplete="off" />
+    </div>
+    <label class="field list-sort"><span>Show</span>
+      <select name="status" onchange="this.form.submit()">
+        <% Object.keys(statuses).forEach(k => { %>
+          <option value="<%= k %>" <%= filters.status === k ? 'selected' : '' %>><%= statuses[k].label %></option>
+        <% }) %>
+      </select>
+    </label>
+    <label class="field list-sort"><span>Sort by</span>
+      <select name="sort" onchange="this.form.submit()">
+        <% Object.keys(sorts).forEach(k => { %>
+          <option value="<%= k %>" <%= filters.sort === k ? 'selected' : '' %>><%= sorts[k].label %></option>
+        <% }) %>
+      </select>
+    </label>
+    <button class="btn" type="submit">Apply</button>
+    <% if (filters.q || filters.status !== "all" || filters.sort !== "default") { %>
+      <a class="mini-btn" href="/announcements">Clear</a>
+    <% } %>
+  </form>
   <% if (!rows.length) { %>
-    <p class="muted" style="margin:0">Nothing posted yet.</p>
+    <p class="muted" style="margin:0"><%= (filters.q || filters.status !== "all") ? "No announcements match." : "Nothing posted yet." %></p>
   <% } else { %>
     <div class="ann-list">
       <% rows.forEach(a => { %>
@@ -57,7 +83,7 @@
           <p class="ann-body"><%= a.body %></p>
           <div class="muted ann-meta">
             <%= longDate(a.starts_on) %> – <%= a.ends_on ? longDate(a.ends_on) : "until removed" %>
-            <% if (a.posted_by) { %> · posted by <%= a.posted_by %><% } %>
+            · posted <%= postedOn(a.created_at) %><% if (a.posted_by) { %> by <%= a.posted_by %><% } %>
           </div>
           <% if (canPost) { %>
             <div class="ann-actions">

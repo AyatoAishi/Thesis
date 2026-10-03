@@ -27,7 +27,7 @@
             </td>
             <td class="mono"><%= a.username %></td>
             <td style="font-size:13px">
-              <%= a.valid_id_type || "—" %>
+              <% if (a.valid_id_type) { %><%= a.valid_id_type %><% } else { %><span class="muted">No ID presented yet</span><% } %>
               <% if (a.valid_id_number) { %><div class="muted mono" style="font-size:11px"><%= a.valid_id_number %></div><% } %>
             </td>
             <td>

@@ -35,6 +35,7 @@ const announcementRoutes = require("./routes/announcements");
 const reminders = require("./services/reminders");
 const smsSvc = require("./services/sms");
 const clinicInfo = require("./lib/clinicInfo");
+const { ID_FORMATS } = require("./lib/idTypes");
 const immSchedule = require("./services/immunizationSchedule");
 const imm = require("./lib/immunizationCard");
 const { requireLogin } = require("./middleware/auth");
@@ -116,6 +117,7 @@ app.use((req, res, next) => {
   // Whether texts really leave the building; forms say so instead of guessing.
   res.locals.smsLive = smsSvc.isLive();
   res.locals.clinic = clinicInfo;   // the sign-in pages' contact footer
+  res.locals.idFormats = ID_FORMATS; // example + length per valid-ID type (partials/id-form-script)
   next();
 });
 

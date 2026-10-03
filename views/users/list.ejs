@@ -1,13 +1,9 @@
 <div class="page-head" style="display:flex;align-items:center;justify-content:space-between">
   <div>
     <h1>Staff accounts</h1>
-    <div class="sub"><%= staff.length %> account<%= staff.length === 1 ? "" : "s" %></div>
+    <div class="sub"><%= staff.length %> account<%= staff.length === 1 ? "" : "s" %><%= removed ? ` · ${removed} removed (kept for their records)` : "" %></div>
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap">
-    <%# A full copy of the clinic's data. It holds every patient record, so it
-        belongs on the clinic's own storage — never email, never a public
-        folder. See docs/OPERATIONS.md. %>
-    <a class="mini-btn" href="/admin/backup" title="Downloads every record as one file. Keep it on the clinic's own storage.">Download backup</a>
     <a class="btn" href="/admin/users/new">+ Add staff</a>
   </div>
 </div>
@@ -47,14 +43,18 @@
               · <%= new Date(r.requested_at).toLocaleString("en-PH", { timeZone: "Asia/Manila", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) %>
             </small>
           </div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap">
-            <form method="POST" action="/admin/password-requests/<%= r.request_id %>/approve" style="margin:0"><%- include("../partials/csrf") %>
-              <button type="submit" class="btn">Approve</button>
-            </form>
-            <form method="POST" action="/admin/password-requests/<%= r.request_id %>/reject" style="margin:0"><%- include("../partials/csrf") %>
-              <button type="submit" class="mini-btn">Reject</button>
-            </form>
-          </div>
+          <% if (r.locked) { %>
+            <span class="muted" style="font-size:12px"><%= r.locked %></span>
+          <% } else { %>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <form method="POST" action="/admin/password-requests/<%= r.request_id %>/approve" style="margin:0"><%- include("../partials/csrf") %>
+                <button type="submit" class="btn">Approve</button>
+              </form>
+              <form method="POST" action="/admin/password-requests/<%= r.request_id %>/reject" style="margin:0"><%- include("../partials/csrf") %>
+                <button type="submit" class="mini-btn">Reject</button>
+              </form>
+            </div>
+          <% } %>
         </div>
       <% }) %>
     </div>
@@ -67,22 +67,34 @@
     <a href="/admin/audit-log" class="tab">Activity log</a>
   </div>
 
+  <% if (!me.is_super_admin) { %>
+    <p class="muted" style="font-size:12.5px;margin:0 0 10px">
+      Administrator accounts and the super admin can only be changed by the super admin.
+    </p>
+  <% } %>
+
   <table class="tbl">
     <thead>
-      <tr><th>Name</th><th>Username</th><th>Role &amp; status</th></tr>
+      <tr><th>Name</th><th>Username</th><th>Role &amp; status</th><th style="text-align:right">Account</th></tr>
     </thead>
     <tbody>
       <% staff.forEach(s => { %>
         <tr>
-          <td><%= s.full_name %></td>
+          <td>
+            <%= s.full_name %>
+            <% if (s.is_super_admin) { %><span class="badge info" style="margin-left:6px" title="The account no other admin can change">Super admin</span><% } %>
+          </td>
           <td class="mono"><%= s.username %></td>
           <td>
             <% if (s.user_id === user.user_id) { %>
               <span class="muted" style="font-size:12px"><%= s.role %> · <%= s.status %> (you)</span>
+            <% } else if (s.locked) { %>
+              <span class="muted" style="font-size:12px"><%= s.role %> · <%= s.status %></span>
             <% } else { %>
               <form method="POST" action="/admin/users/<%= s.user_id %>/update" style="display:inline-flex;gap:6px;align-items:center"><%- include("../partials/csrf") %>
                 <select name="role">
                   <% ["nurse","facilitator","recorder","admin"].forEach(r => { %>
+                    <% if (r === "admin" && !me.is_super_admin && s.role !== "admin") return; %>
                     <option value="<%= r %>" <%= s.role === r ? "selected" : "" %>><%= r %></option>
                   <% }) %>
                 </select>
@@ -94,8 +106,55 @@
               </form>
             <% } %>
           </td>
+          <td style="text-align:right">
+            <% if (s.user_id === user.user_id) { %>
+              <a class="mini-btn" href="/account">My account</a>
+            <% } else if (s.locked) { %>
+              <span class="muted" style="font-size:12px" title="<%= s.locked %>">🔒 Super admin only</span>
+            <% } else { %>
+              <details class="staff-actions" style="display:inline-block;text-align:left">
+                <summary class="mini-btn" style="list-style:none;cursor:pointer">Manage ▾</summary>
+                <div style="margin-top:8px;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);min-width:240px">
+                  <form method="POST" action="/admin/users/<%= s.user_id %>/password" style="margin:0;display:grid;gap:6px"><%- include("../partials/csrf") %>
+                    <b style="font-size:12.5px">Set a new password</b>
+                    <input type="password" name="new_password" placeholder="New password (8+ characters)" minlength="8" required autocomplete="new-password" />
+                    <input type="password" name="confirm_password" placeholder="Type it again" minlength="8" required autocomplete="new-password" />
+                    <button type="submit" class="mini-btn">Change password</button>
+                    <small class="muted">They are signed out everywhere. Hand the new password over in person.</small>
+                  </form>
+                  <hr style="border:0;border-top:1px solid var(--border);margin:12px 0" />
+                  <form method="POST" action="/admin/users/<%= s.user_id %>/delete" style="margin:0"
+                        data-confirm-title="Delete <%= s.full_name %>'s account?"
+                        data-confirm="They are signed out and can no longer sign in. | If they already recorded work, the account is kept hidden so their name stays on those records."
+                        data-confirm-yes="Yes, delete" data-confirm-no="Cancel"><%- include("../partials/csrf") %>
+                    <button type="submit" class="logout-btn">Delete account</button>
+                  </form>
+                </div>
+              </details>
+            <% } %>
+          </td>
         </tr>
       <% }) %>
     </tbody>
   </table>
+</div>
+
+<%# A full copy of the clinic's data, now password-protected (Oct 2026). It
+    holds every patient record: it belongs on the clinic's own storage, never
+    email or a public folder. See docs/OPERATIONS.md. %>
+<div class="card">
+  <div class="panel-title" style="margin-bottom:6px">Download backup</div>
+  <p class="muted" style="font-size:12.5px;margin:0 0 10px">
+    One file with every record, locked with a passphrase you choose now. Without the passphrase
+    the file cannot be opened — not by us, not by anyone — so write it down somewhere safe.
+  </p>
+  <form method="POST" action="/admin/backup" class="form-grid" style="align-items:end"><%- include("../partials/csrf") %>
+    <label class="field"><span>Passphrase (10+ characters)</span>
+      <input type="password" name="passphrase" minlength="10" required autocomplete="new-password" />
+    </label>
+    <label class="field"><span>Type it again</span>
+      <input type="password" name="passphrase_confirm" minlength="10" required autocomplete="new-password" />
+    </label>
+    <div><button type="submit" class="btn">Download encrypted backup</button></div>
+  </form>
 </div>

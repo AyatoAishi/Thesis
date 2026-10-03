@@ -56,20 +56,58 @@ function stateOf(a, today) {
   return { key: "live", label: "Showing to patients" };
 }
 
-async function list() {
+// List controls (Oct 2026 review: "sorting of date, when the announcement was
+// made, and etc."). Keys are whitelisted; the ORDER BY text never comes from
+// the request.
+const SORTS = {
+  default:     { label: "Showing now first", sql: "(a.ends_on IS NOT NULL AND a.ends_on < $1), a.starts_on DESC, a.announcement_id DESC" },
+  posted_new:  { label: "Date posted (newest)", sql: "a.created_at DESC, a.announcement_id DESC" },
+  posted_old:  { label: "Date posted (oldest)", sql: "a.created_at ASC, a.announcement_id ASC" },
+  starts_new:  { label: "Show date (latest)",  sql: "a.starts_on DESC, a.announcement_id DESC" },
+  starts_old:  { label: "Show date (earliest)", sql: "a.starts_on ASC, a.announcement_id ASC" },
+  title:       { label: "Title (A–Z)",          sql: "lower(a.title) ASC, a.announcement_id ASC" },
+};
+const STATUSES = {
+  all:      { label: "All" },
+  live:     { label: "Showing to patients" },
+  upcoming: { label: "Upcoming" },
+  ended:    { label: "Ended" },
+};
+
+function readFilters(query) {
+  return {
+    sort: SORTS[query.sort] ? query.sort : "default",
+    status: STATUSES[query.status] ? query.status : "all",
+    q: String(query.q || "").trim().slice(0, 80),
+  };
+}
+
+async function list({ sort = "default", status = "all", q = "" } = {}) {
+  const today = F.manilaToday();
+  const where = [];
+  if (status === "live") where.push("a.starts_on <= $1 AND (a.ends_on IS NULL OR a.ends_on >= $1)");
+  if (status === "upcoming") where.push("a.starts_on > $1");
+  if (status === "ended") where.push("a.ends_on IS NOT NULL AND a.ends_on < $1");
+  const params = [today];
+  if (q) {
+    params.push(`%${q.replace(/[\\%_]/g, (c) => "\\" + c)}%`);   // typed % or _ match literally
+    where.push(`(a.title ILIKE $2 OR a.body ILIKE $2)`);
+  }
   const { rows } = await db.query(
     `SELECT a.announcement_id, a.title, a.body,
             to_char(a.starts_on, 'YYYY-MM-DD') AS starts_on,
             to_char(a.ends_on, 'YYYY-MM-DD') AS ends_on,
-            u.full_name AS posted_by
+            a.created_at, u.full_name AS posted_by,
+            $1::date AS today   -- keeps $1 typed when no filter or sort uses it
        FROM announcements a LEFT JOIN users u ON u.user_id = a.created_by
-      ORDER BY (a.ends_on IS NOT NULL AND a.ends_on < $1), a.starts_on DESC, a.announcement_id DESC`,
-    [F.manilaToday()]
+      ${where.length ? "WHERE " + where.join(" AND ") : ""}
+      ORDER BY ${SORTS[sort].sql}`,
+    params
   );
   return rows;
 }
 
-function renderIndex(res, req, { form, errors = [], editing = null, flash = null, rows }) {
+function renderIndex(res, req, { form, errors = [], editing = null, flash = null, rows, filters = readFilters({}) }) {
   const today = F.manilaToday();
   res.status(errors.length ? 422 : 200).render("announcements/index", {
     title: "Announcements · Sampaguita HC",
@@ -79,14 +117,18 @@ function renderIndex(res, req, { form, errors = [], editing = null, flash = null
     form, errors, editing, flash, today,
     action: editing ? `/announcements/${editing}` : "/announcements",
     TITLE_MAX, BODY_MAX, longDate: F.longDate,
+    filters, sorts: SORTS, statuses: STATUSES,
+    postedOn: (d) => new Date(d).toLocaleString("en-PH", { timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }),
   });
 }
 
 // ---- LIST + NEW FORM  GET /announcements -------------------------------------
 router.get("/announcements", async (req, res, next) => {
   try {
+    const filters = readFilters(req.query);
     renderIndex(res, req, {
-      rows: await list(),
+      rows: await list(filters),
+      filters,
       form: { title: "", body: "", starts_on: F.manilaToday(), ends_on: "" },
       flash: req.query.flash || null,
     });

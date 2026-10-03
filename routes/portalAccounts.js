@@ -14,7 +14,7 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const db = require("../db");
-const { ID_TYPES, UNVERIFIED: NO_ID } = require("../lib/idTypes");
+const { ID_TYPES, UNVERIFIED: NO_ID, idNumberProblem } = require("../lib/idTypes");
 const { endOtherPatientSessions } = require("../lib/sessions");
 
 const router = express.Router();
@@ -105,6 +105,8 @@ router.post("/portal-accounts/:id/verify", async (req, res, next) => {
     const idType = (req.body.valid_id_type || "").trim();
     const idNumber = (req.body.valid_id_number || "").trim();
     if (idType && !ID_TYPES.includes(idType))
+      return res.redirect(safeBack(req.body.back, "/portal-accounts"));
+    if (idNumberProblem(idType, idNumber))   // the form's maxlength, bypassed
       return res.redirect(safeBack(req.body.back, "/portal-accounts"));
     await db.query(
       `UPDATE patient_accounts
@@ -232,6 +234,8 @@ router.post("/patients/:id/portal-account", async (req, res, next) => {
     if (!noId && !ID_TYPES.includes(valid_id_type))
       return oops("Choose which valid ID was presented, or “No ID on hand”.");
     if (!noId && !valid_id_number) return oops("Enter the valid ID number.");
+    const idErr = noId ? null : idNumberProblem(valid_id_type, valid_id_number);
+    if (idErr) return oops(idErr);
 
     const existing = await db.query(
       "SELECT 1 FROM patient_accounts WHERE patient_id = $1", [patient_id]

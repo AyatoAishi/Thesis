@@ -21,15 +21,59 @@ const USERNAME_RE = /^[a-z0-9._]{3,30}$/;
 // prenatal), which 403'd for every non-admin. Keep the "/admin" prefix here.
 router.use("/admin", requireRole("admin"));
 
+// ---- Who may change whom (Oct 2026: the super admin) -----------------------
+// One account, the original admin, is the super admin (users.is_super_admin;
+// see db/migrations/2026-10-04-super-admin.js). The point is that an admin
+// account added later, if it is misused, cannot take the clinic away from the
+// person responsible for it:
+//   - nobody but the super admin can change, remove or reset the super admin;
+//   - only the super admin can create, change, remove or reset an admin.
+// Every other admin keeps full control of nurse, facilitator and recorder
+// accounts. Read fresh from the database on each request, never the session.
+async function actorOf(req) {
+  const { rows } = await db.query(
+    "SELECT user_id, role, is_super_admin FROM users WHERE user_id = $1",
+    [req.session.user.user_id]
+  );
+  return rows[0] || { user_id: req.session.user.user_id, role: "admin", is_super_admin: false };
+}
+
+// Returns why `actor` may NOT act on `target` (optionally giving it `newRole`),
+// or null when they may.
+function refusal(actor, target, newRole) {
+  if (target.is_super_admin && target.user_id !== actor.user_id)
+    return "Only the super admin can change the super admin account.";
+  if (!actor.is_super_admin && target.user_id !== actor.user_id &&
+      (target.role === "admin" || newRole === "admin"))
+    return "Only the super admin can manage administrator accounts.";
+  return null;
+}
+
+async function loadStaff(id) {
+  const { rows } = await db.query(
+    `SELECT user_id, full_name, username, role, status, is_super_admin, deleted_at
+       FROM users WHERE user_id = $1 AND deleted_at IS NULL`,
+    [id]
+  );
+  return rows[0] || null;
+}
+
+const back = (res, msg) => res.redirect("/admin/users?flash=" + encodeURIComponent(msg));
+
 router.get("/admin/users", async (req, res, next) => {
   try {
     const [{ rows }, pending] = await Promise.all([
       db.query(
-        `SELECT user_id, full_name, username, email, role, status, created_at
-           FROM users ORDER BY created_at DESC`
+        `SELECT user_id, full_name, username, email, role, status, is_super_admin, created_at
+           FROM users WHERE deleted_at IS NULL
+          ORDER BY is_super_admin DESC, created_at DESC`
       ),
       pw.listPending(),
     ]);
+    const me = await actorOf(req);
+    rows.forEach((s) => { s.locked = refusal(me, s); });
+    const removed = (await db.query(
+      "SELECT count(*)::int AS n FROM users WHERE deleted_at IS NOT NULL")).rows[0].n;
 
     // A temporary password from an approved 'forgot' request, shown exactly
     // once and then gone from the session. It is the only moment it exists in
@@ -41,7 +85,12 @@ router.get("/admin/users", async (req, res, next) => {
       title: "Staff accounts · Sampaguita HC",
       active: "settings",
       staff: rows,
-      pending,
+      me,
+      removed,
+      pending: pending.map((r) => Object.assign(r, {
+        locked: r.role === "admin" && !me.is_super_admin
+          ? "Only the super admin can decide an administrator's password request." : null,
+      })),
       issued,
       flash: req.query.flash || null,
     });
@@ -72,6 +121,8 @@ router.post("/admin/users", async (req, res, next) => {
   if (!USERNAME_RE.test(username)) errors.push("Username must be 3-30 chars: lowercase letters, numbers, dot, underscore.");
   if (!ROLES.includes(role)) errors.push("Choose a valid role.");
   if (password.length < 8) errors.push("Password must be at least 8 characters.");
+  if (role === "admin" && !(await actorOf(req)).is_super_admin)
+    errors.push("Only the super admin can create another administrator.");
 
   if (errors.length) {
     return res.status(400).render("users/form", {
@@ -125,6 +176,10 @@ router.post("/admin/users/:id/update", async (req, res, next) => {
   }
 
   try {
+    const target = await loadStaff(targetId);
+    if (!target) return next();
+    const why = refusal(await actorOf(req), target, role);
+    if (why) return back(res, why);
     const { rows } = await db.query(
       `UPDATE users SET role=$1, status=$2, updated_at=now() WHERE user_id=$3 RETURNING username`,
       [role, status, targetId]
@@ -144,8 +199,22 @@ router.post("/admin/users/:id/update", async (req, res, next) => {
 });
 
 // ---- PASSWORD REQUESTS  POST /admin/password-requests/:id/(approve|reject) --
+// The request's owner, so an ordinary admin cannot approve a password for an
+// administrator account (that would be a way into one).
+async function requestOwner(requestId) {
+  const { rows } = await db.query(
+    `SELECT u.user_id, u.role, u.is_super_admin FROM password_requests r
+       JOIN users u ON u.user_id = r.user_id WHERE r.request_id = $1`,
+    [requestId]
+  );
+  return rows[0] || null;
+}
+
 router.post("/admin/password-requests/:id/approve", async (req, res, next) => {
   try {
+    const owner = await requestOwner(parseInt(req.params.id, 10));
+    const why = owner && refusal(await actorOf(req), owner);
+    if (why) return back(res, why);
     const done = await pw.approve(parseInt(req.params.id, 10), req.session.user.user_id);
     if (!done) {
       return res.redirect("/admin/users?flash=" +
@@ -174,6 +243,9 @@ router.post("/admin/password-requests/:id/approve", async (req, res, next) => {
 
 router.post("/admin/password-requests/:id/reject", async (req, res, next) => {
   try {
+    const owner = await requestOwner(parseInt(req.params.id, 10));
+    const why = owner && refusal(await actorOf(req), owner);
+    if (why) return back(res, why);
     const done = await pw.reject(parseInt(req.params.id, 10), req.session.user.user_id, req.body.note);
     if (done) {
       audit.log(req.session.user.user_id, "password_change", "user", done.user_id,
@@ -186,23 +258,129 @@ router.post("/admin/password-requests/:id/reject", async (req, res, next) => {
   }
 });
 
+// ---- SET A STAFF PASSWORD  POST /admin/users/:id/password --------------------
+// "As admin it should have an ability to ... change password of staffs." The
+// admin types the new password (twice) and hands it over in person. Every
+// session on that account ends, and any request they had pending is closed,
+// since this decision replaces it. Your own password: My account, as before.
+router.post("/admin/users/:id/password", async (req, res, next) => {
+  try {
+    const targetId = parseInt(req.params.id, 10);
+    if (targetId === req.session.user.user_id)
+      return back(res, "Change your own password from My account.");
+    const target = await loadStaff(targetId);
+    if (!target) return next();
+    const why = refusal(await actorOf(req), target);
+    if (why) return back(res, why);
+
+    const pass = String(req.body.new_password || "");
+    if (pass.length < 8) return back(res, `Not changed: ${target.full_name}'s new password must be at least 8 characters.`);
+    if (pass !== String(req.body.confirm_password || ""))
+      return back(res, "Not changed: the two passwords did not match.");
+
+    await db.query("UPDATE users SET password_hash=$1, updated_at=now() WHERE user_id=$2",
+      [await bcrypt.hash(pass, 10), targetId]);
+    await db.query(
+      `UPDATE password_requests SET status='cancelled', decided_by=$2, decided_at=now(),
+              decision_note='replaced: the admin set the password directly'
+        WHERE user_id=$1 AND status='pending'`,
+      [targetId, req.session.user.user_id]
+    );
+    const ended = await endOtherStaffSessions(targetId, req.sessionID, REASONS.password);
+    audit.log(req.session.user.user_id, "password_change", "user", targetId,
+      `set a new password for ${target.username}` + (ended ? ` (${ended} session${ended === 1 ? "" : "s"} signed out)` : ""));
+    back(res, `${target.full_name}'s password was changed. Give it to them in person.`);
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ---- DELETE A STAFF ACCOUNT  POST /admin/users/:id/delete --------------------
+// An account that never recorded anything is deleted outright. One that did
+// (registered patients, gave doses, signed in) cannot be: the clinic's records
+// must keep saying who did each thing. That account is REMOVED instead:
+// signed out, unable to sign in, gone from this list, and its name stays on
+// its past work. The database decides which case it is: the delete is tried,
+// and a foreign-key refusal (23503) means the account has history.
+router.post("/admin/users/:id/delete", async (req, res, next) => {
+  const targetId = parseInt(req.params.id, 10);
+  if (targetId === req.session.user.user_id) return back(res, "You can't delete your own account.");
+  let client;
+  try {
+    const target = await loadStaff(targetId);
+    if (!target) return next();
+    const why = refusal(await actorOf(req), target);
+    if (why) return back(res, why);
+
+    client = await db.getClient();
+    let hard = true;
+    await client.query("BEGIN");
+    try {
+      await client.query("DELETE FROM password_requests WHERE user_id = $1", [targetId]);
+      await client.query("DELETE FROM users WHERE user_id = $1", [targetId]);
+      await client.query("COMMIT");
+    } catch (e) {
+      await client.query("ROLLBACK");
+      if (e.code !== "23503") throw e;
+      hard = false;
+    }
+    if (!hard) {
+      await db.query(
+        `UPDATE users SET status='inactive', deleted_at=now(), updated_at=now() WHERE user_id=$1`,
+        [targetId]
+      );
+      await db.query(
+        `UPDATE password_requests SET status='cancelled', decided_by=$2, decided_at=now(),
+                decision_note='account removed'
+          WHERE user_id=$1 AND status='pending'`,
+        [targetId, req.session.user.user_id]
+      );
+      await endOtherStaffSessions(targetId, req.sessionID, REASONS.password);
+    }
+    audit.log(req.session.user.user_id, "delete", "user", targetId,
+      hard ? `deleted staff account ${target.username} (no records)`
+           : `removed staff account ${target.username} (kept for the records it made)`);
+    back(res, hard
+      ? `${target.full_name}'s account was deleted.`
+      : `${target.full_name}'s account was removed. They can no longer sign in; their name stays on the records they made.`);
+  } catch (e) {
+    next(e);
+  } finally {
+    if (client) client.release();
+  }
+});
+
 // ---- BACKUP  GET /admin/backup ---------------------------------------------------
 // "Need backup database." The same snapshot `npm run backup` writes, as a
 // download, so the admin can take a copy from the clinic's own computer
 // without a terminal. Admin-only (this router's /admin guard) and written to
 // the activity log every time, because a file holding every patient record
 // leaving the system is exactly the kind of event that log exists for.
+//
+// Oct 2026: the download is ENCRYPTED with a passphrase the admin types in the
+// form (lib/backupCrypto.js — OpenSSL-compatible, so it opens without this
+// system too). A plain copy of every patient record no longer leaves through
+// the browser. The old GET link only explains where the button went.
 const { snapshot, filenameFor } = require("../lib/backup");
-router.get("/admin/backup", async (req, res, next) => {
+const backupCrypto = require("../lib/backupCrypto");
+router.get("/admin/backup", (req, res) => back(res,
+  "Backups are now password-protected: use Download backup on this page and choose a passphrase."));
+router.post("/admin/backup", async (req, res, next) => {
   try {
+    const pass = String(req.body.passphrase || "");
+    if (pass.length < backupCrypto.MIN_PASSPHRASE)
+      return back(res, `No backup made: the passphrase must be at least ${backupCrypto.MIN_PASSPHRASE} characters.`);
+    if (pass !== String(req.body.passphrase_confirm || ""))
+      return back(res, "No backup made: the two passphrases did not match.");
     const data = await snapshot();
     const total = Object.values(data.counts).reduce((a, b) => a + b, 0);
+    const file = backupCrypto.encrypt(Buffer.from(JSON.stringify(data), "utf8"), pass);
     audit.log(req.session.user.user_id, "create", "backup", null,
-      `downloaded a full backup (${Object.keys(data.counts).length} tables, ${total} rows)`);
-    res.setHeader("Content-Type", "application/json; charset=utf-8");
-    res.setHeader("Content-Disposition", `attachment; filename="${filenameFor()}"`);
+      `downloaded an encrypted full backup (${Object.keys(data.counts).length} tables, ${total} rows)`);
+    res.setHeader("Content-Type", "application/octet-stream");
+    res.setHeader("Content-Disposition", `attachment; filename="${filenameFor()}.enc"`);
     res.setHeader("Cache-Control", "no-store");
-    res.send(JSON.stringify(data));
+    res.send(file);
   } catch (e) {
     next(e);
   }

@@ -45,9 +45,14 @@ CREATE TABLE users (
                   CHECK (role IN ('nurse','facilitator','recorder','admin')),
     status        VARCHAR(10)  NOT NULL DEFAULT 'active'
                   CHECK (status IN ('active','inactive')),
+    -- The one account no other admin can change (2026-10-04 migration).
+    is_super_admin BOOLEAN     NOT NULL DEFAULT false,
+    -- Removed staff who had already recorded work: kept for the history.
+    deleted_at    TIMESTAMPTZ,
     created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
     updated_at    TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
+CREATE UNIQUE INDEX users_one_super_admin ON users ((true)) WHERE is_super_admin;
 
 
 -- 2) PATIENTS — demographics + designated family contact + minor/guardian -------

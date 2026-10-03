@@ -79,11 +79,22 @@ A real fault looks like: **every page** failing, an error page with a number on 
 - **Account ownership.** Render, Neon, Brevo, PhilSMS, cron-job.org, and the SMS phone's SIM are all currently under a student's name. On handover these must move to a clinic-owned address, or the clinic loses the system when that address is abandoned. **This is the one item that cannot wait for a problem to appear.**
 - **Free-tier limits.** Neon's free plan allows 191.9 compute-hours a month. If use grows past it, somebody has to pay or upgrade.
 - **Backups.** Neon's free plan keeps only a short restore window, so the system exports its own:
-  the admin presses **Download backup** on Staff accounts, or a developer runs `npm run backup`
+  the admin uses **Download backup** on Staff accounts, or a developer runs `npm run backup`
   (writes to `backups/`, which is gitignored — this repository is public). Once a week and before
   any big change is a sensible rhythm. The file holds every patient record: keep it on the clinic's
   own storage, never in email or a public folder. Restoring from it needs a developer; Neon's own
   restore window covers a mistake made in the last few hours.
+  - Since Oct 2026 the downloaded file is **encrypted** (`.json.enc`) with a passphrase the admin
+    types at download time. Nothing stores that passphrase: lose it and the file cannot be opened.
+    To open it: `npm run backup:decrypt -- <file>`, or with plain OpenSSL:
+    `openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -md sha256 -in <file> -out backup.json`.
+- **The super admin.** The original `admin` account is the super admin (`users.is_super_admin`).
+  Other admins manage nurses, facilitators and recorders, but only the super admin can create,
+  change, delete or reset an administrator, and nobody else can touch the super admin. At handover,
+  the super admin's password goes to the clinic's head, not to a staff member.
+- **Deleting staff.** An account that never recorded anything is deleted. One that did is
+  *removed*: it can no longer sign in and disappears from the list, but stays in the database so
+  the records it made still say who made them.
 - **Dependency updates.** `npm audit` once or twice a year.
 - **Keys.** The Brevo and PhilSMS keys can expire or be rotated. The SMS phone's gateway username and password change if the app is reinstalled — copy the new ones to Render.
 

@@ -1,0 +1,38 @@
+<%# Shared by every form that records a valid ID (data-id-form): the guided
+    new-account step and the account card on the patient profile. The ID
+    number is evidence for the ID type beside it, so its example and length
+    follow the chosen type. "No ID on hand" means there is nothing to write
+    down, so the field stops being required and gets out of the way. %>
+<script>
+  (function () {
+    var FORMATS = <%- JSON.stringify(idFormats) %>;  <%# fixed list from lib/idTypes.js, no user input %>
+    document.querySelectorAll("[data-id-form]").forEach(function (form) {
+      var type = form.querySelector("[data-id-type]");
+      var num = form.querySelector("[data-id-number]");
+      var wrap = form.querySelector("[data-id-number-field]");
+      var note = form.querySelector("[data-id-note]");
+      if (!type || !num) return;
+      function sync() {
+        var none = type.value === "__no_id__";
+        var f = FORMATS[type.value];
+        num.required = !none;
+        num.disabled = none;
+        if (none) num.value = "";
+        num.placeholder = none ? "Not needed — no ID on hand"
+          : f ? f.placeholder : "Choose the ID type first";
+        if (f) {
+          num.maxLength = f.max;
+          if (num.value.length > f.max) num.value = num.value.slice(0, f.max);
+        } else {
+          num.removeAttribute("maxlength");
+        }
+        if (wrap) wrap.style.opacity = none ? "0.45" : "";
+        if (note) note.textContent = none
+          ? "The account is created unverified: they can sign in and see their appointments, but no health records until an ID is checked here."
+          : "";
+      }
+      type.addEventListener("change", sync);
+      sync();
+    });
+  })();
+</script>

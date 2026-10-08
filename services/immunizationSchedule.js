@@ -38,6 +38,7 @@
 // ============================================================================
 const db = require("../db");
 const F = require("../lib/format");
+const { parseDays } = require("../lib/clinicSchedule");
 const VACCINES = require("../lib/vaccines");
 const audit = require("../lib/audit");
 
@@ -67,13 +68,14 @@ VACCINES.filter((v) => v.dueWeeks).forEach((v) => {
 // The next immunization session on or after `dateStr`. Sessions run one day a
 // week (services.schedule_day) — booking a baby for the Thursday when the
 // vaccine cooler only comes out on Tuesday is a date nobody can keep.
+// `weekdayName` may be one day ("Thursday") or a list ("Monday,Wednesday");
+// the earliest matching day on or after dateStr wins.
 function nextSessionOnOrAfter(dateStr, weekdayName) {
-  if (!weekdayName) return dateStr;
-  const want = F.DAYS.indexOf(weekdayName);
-  if (want < 0) return dateStr;
+  const want = parseDays(weekdayName).map((d) => F.DAYS.indexOf(d));
+  if (!want.length) return dateStr;
   for (let i = 0; i < 7; i++) {
     const d = F.addDays(dateStr, i);
-    if (F.weekdayOf(d) === want) return d;
+    if (want.includes(F.weekdayOf(d))) return d;
   }
   return dateStr;
 }

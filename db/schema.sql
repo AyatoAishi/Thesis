@@ -111,7 +111,7 @@ CREATE TABLE patient_accounts (
 CREATE TABLE services (
     service_id    SERIAL PRIMARY KEY,
     name          VARCHAR(50) NOT NULL UNIQUE,
-    schedule_day  VARCHAR(15),                      -- 'Tuesday', 'Thursday', 'Friday'
+    schedule_day  VARCHAR(60),                      -- one day or a list: 'Monday,Wednesday,Friday'
     description   VARCHAR(255)
 );
 
@@ -323,6 +323,6 @@ CREATE INDEX idx_prenatal_visits_record ON prenatal_visits (prenatal_id);
 
 -- ---- Seed the 3 services so the app has something to point at -----------------
 INSERT INTO services (name, schedule_day, description) VALUES
-  ('immunization',        'Tuesday',  'Child immunization / vaccination day'),
-  ('prenatal',            'Thursday', 'Prenatal check-ups for pregnant patients'),
-  ('medicine_distribution','Friday',  'Maintenance medicine distribution (e.g., hypertension)');
+  ('immunization',        'Thursday', 'Child immunization / vaccination day'),
+  ('prenatal',            'Tuesday',  'Prenatal check-ups for pregnant patients'),
+  ('medicine_distribution','Monday,Wednesday,Friday', 'Maintenance medicine distribution (e.g., hypertension)');

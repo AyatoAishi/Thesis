@@ -385,6 +385,10 @@ function validate(p) {
   // Panel requirement: minors need guardian + consent.
   if (p.is_minor) {
     if (!p.guardian_name) errors.push("Guardian name is required for a minor.");
+    // A minor's reminders go to the emergency contact first (the guardian),
+    // so that number has to exist.
+    if (!p.family_contact_number)
+      errors.push("For a minor, the emergency contact # is required — put the guardian's number there. That is where the child's reminders go.");
     if (!p.guardian_consent)
       errors.push("Guardian consent must be recorded for a minor.");
   }

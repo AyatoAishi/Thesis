@@ -153,7 +153,8 @@
           <option value="none"  <%= rc === 'none'  ? 'selected' : '' %>>Do not send reminders</option>
         </select>
         <span class="muted" style="font-size:11.5px;font-weight:500">
-          The patient's own address is tried first; the emergency contact below is the fallback.
+          Adults: their own number/email first, the emergency contact if they have none.
+          Minors: the emergency contact (the guardian) gets the reminders first.
           <% if (typeof smsLive !== "undefined" && !smsLive) { %>SMS is not connected to a provider yet, so those are recorded but not actually sent.<% } %>
         </span>
       </label>
@@ -205,6 +206,9 @@
     <div class="panel-title" style="margin-bottom:4px">Guardian details</div>
     <p class="muted" style="margin:0 0 10px;font-size:13px" data-minor-note>
       Minor status is calculated automatically from the birthdate above.
+      <span data-minor-only style="<%= p.is_minor ? '' : 'display:none' %>">
+        <br /><b>Reminders for a minor go to the emergency contact # above</b> — enter the guardian's number and email there.
+      </span>
     </p>
     <div class="minor-fields" data-minor-fields style="<%= p.is_minor ? '' : 'display:none' %>">
       <div class="form-grid">
@@ -256,8 +260,15 @@
       if (m < 0 || (m === 0 && today.getDate() < bd.getDate())) age--;
       return age < 18;
     }
+    var minorOnly = document.querySelector("[data-minor-only]");
+    var guardianNo = document.querySelector("[data-phone-fallback]");
+    var noPhoneBox = document.querySelector("[data-no-phone]");
     function sync() {
-      if (bdInput && fields) fields.style.display = isMinor(bdInput.value) ? "" : "none";
+      var minor = bdInput ? isMinor(bdInput.value) : false;
+      if (fields) fields.style.display = minor ? "" : "none";
+      if (minorOnly) minorOnly.style.display = minor ? "" : "none";
+      // A minor's reminders go to the guardian = the emergency contact #.
+      if (guardianNo) guardianNo.required = minor || !!(noPhoneBox && noPhoneBox.checked);
     }
     if (bdInput) bdInput.addEventListener("change", sync);
     sync();
@@ -305,7 +316,10 @@
       // which is the whole point of the box.
       primary.disabled = !!declared;
       if (declared) primary.value = "";
-      fallback.required = !!declared;
+      // Also required while the patient is a minor (guardian's number; see the
+      // birthdate script above, which shows [data-minor-only] for minors).
+      var minorOnlyNote = document.querySelector("[data-minor-only]");
+      fallback.required = !!declared || !!(minorOnlyNote && minorOnlyNote.style.display !== "none");
 
       if (hint) hint.textContent = declared
         ? "Sa emergency contact # ipapadala."

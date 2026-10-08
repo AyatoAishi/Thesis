@@ -112,7 +112,7 @@ async function sendBookingConfirmation(appointment_id, kind = "booked") {
   const { rows } = await db.query(
     `SELECT a.appointment_id, a.appointment_date, a.appointment_time,
             s.name AS service_name,
-            p.patient_id, p.full_name, p.email, p.family_email, p.reminder_channel
+            p.patient_id, p.full_name, p.email, p.family_email, p.reminder_channel, p.is_minor
        FROM appointments a
        JOIN services s ON s.service_id = a.service_id
        JOIN patients p ON p.patient_id = a.patient_id
@@ -148,21 +148,29 @@ async function sendBookingConfirmation(appointment_id, kind = "booked") {
   };
 }
 
-// Resolve who to text: the patient first, then the family contact fallback.
+// Who gets the reminder (Alyanna, Oct 2026):
+//   - an adult: their own number/email; if they have none, the emergency
+//     contact's ("kapag walang sariling contact info si patient, dapat rekta
+//     sa emergency contact").
+//   - a minor: the emergency contact FIRST, because for a child that is the
+//     guardian ("pag minor naman matic sa guardian nagssend"). The child's own
+//     number is used only if no emergency contact number was given.
+// The guardian section stores a name only; the guardian's number and email
+// are the emergency contact fields, and the form says so for minors.
+function contactOrder(p) {
+  return p.is_minor ? ["family", "patient"] : ["patient", "family"];
+}
+
 function resolveRecipient(p) {
-  const patientNo = sms.normalizePH(p.contact_number);
-  if (patientNo) return { number: patientNo, type: "patient" };
-  const familyNo = sms.normalizePH(p.family_contact_number);
-  if (familyNo) return { number: familyNo, type: "family" };
+  const nums = { patient: sms.normalizePH(p.contact_number), family: sms.normalizePH(p.family_contact_number) };
+  for (const type of contactOrder(p)) if (nums[type]) return { number: nums[type], type };
   return null;
 }
 
-// Resolve who to email: the patient first, then the family email fallback.
 function resolveEmailRecipient(p) {
-  const pe = (p.email || "").trim().toLowerCase();
-  if (EMAIL_RE.test(pe)) return { address: pe, type: "patient" };
-  const fe = (p.family_email || "").trim().toLowerCase();
-  if (EMAIL_RE.test(fe)) return { address: fe, type: "family" };
+  const clean = (e) => { const x = (e || "").trim().toLowerCase(); return EMAIL_RE.test(x) ? x : null; };
+  const mails = { patient: clean(p.email), family: clean(p.family_email) };
+  for (const type of contactOrder(p)) if (mails[type]) return { address: mails[type], type };
   return null;
 }
 
@@ -204,7 +212,7 @@ async function processReminders({ date, force = false, only = null } = {}) {
     `SELECT a.appointment_id, a.appointment_date, a.appointment_time,
             s.name AS service_name,
             p.patient_id, p.full_name, p.contact_number, p.family_contact_number,
-            p.email, p.family_email, p.reminder_channel
+            p.email, p.family_email, p.reminder_channel, p.is_minor
        FROM appointments a
        JOIN services s ON s.service_id = a.service_id
        JOIN patients p ON p.patient_id = a.patient_id

@@ -384,7 +384,11 @@ function validate(p) {
   if (p.sex && !["male", "female"].includes(p.sex)) errors.push("Invalid sex.");
   // Panel requirement: minors need guardian + consent.
   if (p.is_minor) {
-    if (!p.guardian_name) errors.push("Guardian name is required for a minor.");
+    // Who is responsible for the child: the mother, the father or another
+    // guardian. Any one is enough (group review, Oct 10) — a separate guardian
+    // name on top of a filled-in mother's name was a field typed twice.
+    if (!p.guardian_name && !p.mother_name && !p.father_name)
+      errors.push("For a minor, fill in at least one of: mother's name, father's name, or guardian name.");
     // A minor's reminders go to the emergency contact first (the guardian),
     // so that number has to exist.
     if (!p.family_contact_number)

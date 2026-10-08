@@ -211,6 +211,7 @@
       </span>
     </p>
     <div class="minor-fields" data-minor-fields style="<%= p.is_minor ? '' : 'display:none' %>">
+      <p class="muted" style="margin:0 0 8px;font-size:12.5px">Fill in at least one: the mother's, the father's, or a guardian's name. *</p>
       <div class="form-grid">
         <label class="field"><span>Mother's name</span>
           <input type="text" name="mother_name" maxlength="150" value="<%= p.mother_name || '' %>" />
@@ -218,7 +219,7 @@
         <label class="field"><span>Father's name</span>
           <input type="text" name="father_name" maxlength="150" value="<%= p.father_name || '' %>" />
         </label>
-        <label class="field"><span>Guardian name *</span>
+        <label class="field"><span>Guardian name <span class="muted">(if not the mother or father)</span></span>
           <input type="text" name="guardian_name" value="<%= p.guardian_name || '' %>" />
         </label>
       </div>

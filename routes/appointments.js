@@ -3,8 +3,11 @@
 // Behind requireLogin (mounted after the gate in server.js).
 //
 // Domain rules enforced here:
-//   - Services are just a category (v1 update) — no fixed weekday. Staff/patients
-//     pick the service and the date independently.
+//   - Each regular service is held on its own day(s) (services.schedule_day,
+//     read by lib/clinicSchedule.parseDays): prenatal Tuesday, immunization
+//     Thursday, medicine distribution Monday/Wednesday/Friday. A booking must
+//     fall on one of them. "Other" has no fixed day. (Restored Oct 10 at the
+//     group's request; v1 had decoupled them.)
 //   - No double-booking the same patient for the same service on the same date.
 //   - No booking in the past.
 // The daily schedule is the view staff use every clinic day, and is what the
@@ -16,6 +19,12 @@ const booking = require("../lib/booking");
 const F = require("../lib/format");
 const audit = require("../lib/audit");
 const { sendBookingConfirmation } = require("../services/reminders");
+const { parseDays } = require("../lib/clinicSchedule");
+
+// "Monday, Wednesday and Friday" / "Tuesday"
+function dayWords(days) {
+  return days.length < 2 ? days.join("") : `${days.slice(0, -1).join(", ")} and ${days[days.length - 1]}`;
+}
 
 const router = express.Router();
 
@@ -103,8 +112,13 @@ function validateAppt(body, services) {
     errors.push('You chose "Other" as the service, so please say what was done in the notes — vitals, blood pressure, a dressing change. That note is the only record of this visit.');
   }
 
-  // Services are no longer locked to a fixed weekday (v1 update) — staff choose
-  // the service and the date independently.
+  // The service's own day(s). Refused here even though the form steers the
+  // date: the form is a courtesy, the rule is the server's.
+  const svc = services.find((s) => s.service_id === service_id);
+  const days = svc ? parseDays(svc.schedule_day) : [];
+  if (days.length && isDate(date) && !days.includes(F.weekdayName(date))) {
+    errors.push(`${F.prettyService(svc.name)} is held only on ${dayWords(days)}, and ${F.longDate(date)} is not one of them. Pick a ${dayWords(days).replace(" and ", " or ")}.`);
+  }
   return { errors, value: { patient_id, service_id, date, time: booking.toHHMM(time), notes } };
 }
 
@@ -179,13 +193,18 @@ router.get("/appointments", async (req, res, next) => {
       ),
     ]);
 
-    // Build sections: one per service that actually has a booking on this date
-    // (services no longer map to a fixed weekday — v1 update).
+    // Build sections: every service held on this weekday (shown even when
+    // empty, so the day's plan is visible), plus any service that actually
+    // has a booking on this date.
     const byId = new Map();
     const section = (id, name, day) => {
       if (!byId.has(id)) byId.set(id, { service_id: id, name, day, items: [] });
       return byId.get(id);
     };
+    const wname = F.weekdayName(date);
+    services.forEach((s) => {
+      if (parseDays(s.schedule_day).includes(wname)) section(s.service_id, s.name, s.schedule_day);
+    });
     rows.forEach((r) => section(r.service_id, r.service_name, r.schedule_day).items.push(r));
     const groups = [...byId.values()].sort((a, b) => a.service_id - b.service_id);
 

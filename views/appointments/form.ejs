@@ -56,8 +56,9 @@
           %>
           <% services.forEach(s => { %>
             <% if (knownMale && s.name === "prenatal") return; %>
-            <option value="<%= s.service_id %>" data-svc="<%= s.name %>" <%= String(appt.service_id) === String(s.service_id) ? 'selected' : '' %>>
-              <%= pretty(s.name) %>
+            <% const _days = String(s.schedule_day || "").split(",").map(d => d.trim()).filter(Boolean); %>
+            <option value="<%= s.service_id %>" data-svc="<%= s.name %>" data-days="<%= _days.join(',') %>" <%= String(appt.service_id) === String(s.service_id) ? 'selected' : '' %>>
+              <%= pretty(s.name) %><%= _days.length ? ` (${_days.map(d => d.slice(0, 3)).join(", ")})` : "" %>
             </option>
           <% }) %>
         </select>
@@ -65,6 +66,7 @@
 
       <label class="field"><span>Date *</span>
         <input type="date" name="appointment_date" id="dateInput" value="<%= appt.appointment_date || '' %>" min="<%= today %>" required />
+        <span class="muted" style="font-size:12.5px;font-weight:500" data-day-hint></span>
       </label>
 
       <%# A list of one-hour slots, not a free time box — 8 to 5, with lunch
@@ -102,6 +104,45 @@
 
   <button type="submit" class="btn"><%= isEdit ? "Save changes" : "Book appointment" %></button>
 </form>
+
+<script>
+  // Each service has its own day(s): choosing one fills in its next day, and a
+  // date on the wrong weekday says so right away. The server refuses it anyway.
+  (function () {
+    var DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    var svc = document.getElementById("svcSelect");
+    var date = document.getElementById("dateInput");
+    var hint = document.querySelector("[data-day-hint]");
+    if (!svc || !date) return;
+    var TODAY = date.getAttribute("min");
+    function wd(s) { var p = s.split("-"); return new Date(Date.UTC(+p[0], +p[1] - 1, +p[2])).getUTCDay(); }
+    function add(s, n) { var p = s.split("-"); var d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2])); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+    function allowed() {
+      var o = svc.options[svc.selectedIndex];
+      var raw = o ? (o.getAttribute("data-days") || "") : "";
+      return raw ? raw.split(",") : [];
+    }
+    function words(days) { return days.length < 2 ? days.join("") : days.slice(0, -1).join(", ") + " or " + days[days.length - 1]; }
+    function check() {
+      var days = allowed();
+      var bad = days.length && date.value && days.indexOf(DAYS[wd(date.value)]) === -1;
+      if (hint) hint.textContent = bad ? "This service is only on " + words(days) + " — pick one of those days." : "";
+      date.setCustomValidity(bad ? "Pick a " + words(days) + "." : "");
+    }
+    function fill() {
+      var days = allowed();
+      if (days.length && (!date.value || days.indexOf(DAYS[wd(date.value)]) === -1)) {
+        var c = TODAY;
+        for (var i = 0; i < 7; i++) { if (days.indexOf(DAYS[wd(c)]) !== -1) { date.value = c; break; } c = add(c, 1); }
+        date.dispatchEvent(new Event("change"));
+      }
+      check();
+    }
+    svc.addEventListener("change", fill);
+    date.addEventListener("change", check);
+    check();
+  })();
+</script>
 
 <script>
   // "Notes (optional)" stops being true the moment "Other" is the service, and

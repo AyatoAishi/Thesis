@@ -11,7 +11,7 @@
   <div class="page-alert bad">
     <span>
       <b><%= failures.n %> reminder<%= failures.n === 1 ? "" : "s" %> failed to send in the last 30 days.</b>
-      Those patients were never told about their appointment. Press <b>Test email now</b> below to find out why.
+      Those patients were never told about their appointment. Send a <b>test email</b> below to check.
     </span>
   </div>
 <% } %>
@@ -27,20 +27,24 @@
         <span class="badge warn">Not set up</span>
       <% } %>
     </div>
-    <form method="POST" action="/reminders/test-email" style="margin:0"><%- include("../partials/csrf") %>
-      <button class="logout-btn" type="submit" style="cursor:pointer">Test email now</button>
-    </form>
   </div>
   <p class="muted" style="margin:8px 2px 0;font-size:13px">
     Reminders are emailed to the patient (or the family contact as fallback) the day before the
     appointment. A confirmation also goes out the moment an appointment is booked.
   </p>
+  <form method="POST" action="/reminders/test-email" class="daynav-left" style="gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:12px"><%- include("../partials/csrf") %>
+    <label class="field" style="gap:4px"><span>Send a test email to</span>
+      <input type="email" name="to" placeholder="name@gmail.com" required
+             value="<%= emailTest && emailTest.to ? emailTest.to : '' %>" />
+    </label>
+    <button type="submit" class="mini-btn">Send test email</button>
+  </form>
 
   <% if (emailTest) { %>
     <div class="mail-test">
       <div class="page-alert <%= emailTest.ok ? "ok" : "bad" %>" style="margin:0">
         <span>
-          <b><%= emailTest.ok ? "Email is working." : "Email cannot go out from this server." %></b>
+          <b><%= emailTest.ok ? "Sent." : "Not sent." %></b>
           <%= emailTest.detail %>
         </span>
       </div>

@@ -137,13 +137,36 @@ router.get("/reminders", requireRole("admin"), async (req, res, next) => {
 });
 
 // ---- POST /reminders/test-email  (admin) -----------------------------------
-// Opens a real connection to the mail provider and sends nothing. Safe to press
-// as often as you like, and it is the only way to tell from inside the clinic
-// whether email is actually working — the delivery log only shows the damage
-// after the fact.
+// One real email to an address the admin types — the same check Send test SMS
+// gives for texts (Oct 10: "I was expecting a box to write the email in").
+// Not tied to a patient, so it goes to the activity log, not the reminder log.
 router.post("/reminders/test-email", requireRole("admin"), async (req, res, next) => {
   try {
-    await renderIndex(req, res, { emailTest: await emailSvc.selfTest() });
+    const to = String(req.body.to || "").trim().toLowerCase();
+    const started = Date.now();
+    const from = emailSvc.describe().from_email;
+    let emailTest;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+      emailTest = { ok: false, to, detail: "That is not an email address.", from_email: from, ms: 0 };
+    } else {
+      const r = await emailSvc.sendMail({
+        to,
+        subject: "Test email — Sampaguita Health Clinic",
+        text: "This is a test email from the Sampaguita Health Clinic system. If you can read this, appointment reminders by email are working.",
+        html: '<div style="font-family:Arial,sans-serif;font-size:14px;color:#222">' +
+              "<p>This is a <b>test email</b> from the Sampaguita Health Clinic system.</p>" +
+              "<p>If you can read this, appointment reminders by email are working.</p></div>",
+      });
+      emailTest = {
+        ok: !!r.sent && !r.simulated, to, from_email: from, ms: Date.now() - started,
+        detail: r.sent
+          ? (r.simulated ? "Email is not set up, so nothing actually left the system." : `Sent to ${to}. Check the inbox (and the spam folder).`)
+          : `It could not be sent: ${r.response || "no reason given"}`,
+      };
+      audit.log(req.session.user.user_id, "create", "notification", null,
+        `sent a test email to ${to}: ${emailTest.ok ? "sent" : "not sent"}`);
+    }
+    await renderIndex(req, res, { emailTest });
   } catch (e) {
     next(e);
   }

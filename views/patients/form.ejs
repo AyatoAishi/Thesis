@@ -141,6 +141,14 @@
           <small><%= t("pat.no_phone_hint") %></small>
         </span>
       </label>
+      <label class="check-inline" style="grid-column:1/-1">
+        <input type="checkbox" name="no_contact" value="on" data-no-contact
+               <%= (p.patient_id && !p.contact_number && !p.family_contact_number) || p.no_contact ? "checked" : "" %> />
+        <span>
+          <b><%= t("pat.no_contact") %></b>
+          <small><%= t("pat.no_contact_hint") %></small>
+        </span>
+      </label>
       <label class="field"><span>Patient email <span class="muted">(for reminders)</span></span>
         <input type="email" name="email" value="<%= p.email || '' %>" placeholder="name@gmail.com" />
       </label>
@@ -269,7 +277,8 @@
       if (fields) fields.style.display = minor ? "" : "none";
       if (minorOnly) minorOnly.style.display = minor ? "" : "none";
       // A minor's reminders go to the guardian = the emergency contact #.
-      if (guardianNo) guardianNo.required = minor || !!(noPhoneBox && noPhoneBox.checked);
+      var noContactBox = document.querySelector("[data-no-contact]");
+      if (guardianNo) guardianNo.required = (minor || !!(noPhoneBox && noPhoneBox.checked)) && !(noContactBox && noContactBox.checked);
     }
     if (bdInput) bdInput.addEventListener("change", sync);
     sync();
@@ -305,8 +314,19 @@
     var fallback = document.querySelector("[data-phone-fallback]");
     var hint = document.querySelector("[data-phone-hint]");
     var noPhone = document.querySelector("[data-no-phone]");
+    var noContact = document.querySelector("[data-no-contact]");
     function syncRequired() {
       if (!primary || !fallback) return;
+      // "No contact number at all": both numbers out of play, nothing required.
+      if (noContact && noContact.checked) {
+        primary.required = false; primary.disabled = true; primary.value = "";
+        fallback.required = false; fallback.disabled = true; fallback.value = "";
+        if (noPhone) { noPhone.checked = false; noPhone.disabled = true; }
+        if (hint) hint.textContent = "Walang contact number — walk-in, walang SMS na paalala.";
+        return;
+      }
+      fallback.disabled = false;
+      if (noPhone) noPhone.disabled = false;
       var declared = noPhone && noPhone.checked;
       var covered = declared || fallback.value.replace(/\D/g, "").length >= 7;
 
@@ -330,6 +350,7 @@
     }
     if (fallback) fallback.addEventListener("input", syncRequired);
     if (noPhone) noPhone.addEventListener("change", syncRequired);
+    if (noContact) noContact.addEventListener("change", syncRequired);
     syncRequired();
   })();
 

@@ -282,13 +282,18 @@ function readForm(body) {
   // hand-made request, the box could be ticked and a number sent alongside
   // it. The checkbox is the statement of fact; it wins.
   const noOwnPhone = body.no_own_phone === "on" || body.no_own_phone === "true";
+  // "No contact number at all" (Oct 10): an elderly walk-in with no phone and
+  // nobody to list must still be registered for a check-up. Ticking it is the
+  // statement of fact and wins over anything typed in either number field.
+  const noContact = body.no_contact === "on" || body.no_contact === "true";
   return {
     ...nameFields(body),
     birthdate,
     sex: body.sex || null,
     address: (body.address || "").trim() || null,
-    no_own_phone: noOwnPhone,
-    contact_number: noOwnPhone ? null : normalizeMobile(body.contact_number) || null,
+    no_own_phone: noOwnPhone || noContact,
+    no_contact: noContact,
+    contact_number: noOwnPhone || noContact ? null : normalizeMobile(body.contact_number) || null,
     email: (body.email || "").trim().toLowerCase() || null,
     family_number: (body.family_number || "").trim() || null,
     // Relatives queued on the form but not yet in any household — resolved by
@@ -299,7 +304,7 @@ function readForm(body) {
     family_remove_ids: (body.family_remove_ids || "").trim(),
     family_contact_name: (body.family_contact_name || "").trim() || null,
     family_contact_relation: readRelation(body),
-    family_contact_number: normalizeMobile(body.family_contact_number) || null,
+    family_contact_number: noContact ? null : normalizeMobile(body.family_contact_number) || null,
     family_email: (body.family_email || "").trim().toLowerCase() || null,
     // How this patient wants to be reminded. Defaults to both so an existing
     // record that predates the field behaves exactly as it always did.
@@ -391,7 +396,7 @@ function validate(p) {
       errors.push("For a minor, fill in at least one of: mother's name, father's name, or guardian name.");
     // A minor's reminders go to the emergency contact first (the guardian),
     // so that number has to exist.
-    if (!p.family_contact_number)
+    if (!p.family_contact_number && !p.no_contact)
       errors.push("For a minor, the emergency contact # is required — put the guardian's number there. That is where the child's reminders go.");
     if (!p.guardian_consent)
       errors.push("Guardian consent must be recorded for a minor.");
@@ -403,13 +408,13 @@ function validate(p) {
     errors.push(mobileError("Mobile contact #", p.contact_number));
   if (p.family_contact_number && !isMobile(p.family_contact_number))
     errors.push(mobileError("Emergency contact #", p.family_contact_number));
-  if (!p.contact_number && !p.family_contact_number)
-    errors.push("A contact number is required — either the patient's own, or the emergency contact's.");
+  if (!p.contact_number && !p.family_contact_number && !p.no_contact)
+    errors.push("A contact number is required — either the patient's own, or the emergency contact's. If there is truly none, tick “No contact number at all”.");
   // Ticking the box moves the requirement rather than removing it. Saying
   // this patient has no phone and then leaving the fallback blank would
   // produce a record nobody can be reached on at all, which is the one
   // outcome the emergency contact exists to prevent.
-  if (p.no_own_phone && !p.family_contact_number)
+  if (p.no_own_phone && !p.no_contact && !p.family_contact_number)
     errors.push("You marked this patient as having no phone of their own, so the emergency contact # is required — that is where their reminders will go.");
   // The emergency contact exists so there is a SECOND way to reach this
   // person. The same number in both fields looks filled in and is worth

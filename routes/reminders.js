@@ -186,7 +186,7 @@ router.post("/reminders/test-sms/check", requireRole("admin"), async (req, res, 
       ok: !!(st && ["Sent", "Delivered", "Processed"].includes(st.state)),
       status: st ? String(st.state || "unknown").toLowerCase() : "unknown",
       number: String(req.body.number || "").slice(0, 16), id,
-      response: st ? `The phone reports: ${st.state || "no state yet"}${st.reason ? ` — ${st.reason}` : ""}.` : "The gateway did not answer.",
+      response: st ? `The phone reports: ${st.state || "no state yet"}${st.reason ? ` — ${st.reason}` : ""}.` : "The clinic phone could not be reached.",
     };
     await renderIndex(req, res, { smsTest });
   } catch (e) {

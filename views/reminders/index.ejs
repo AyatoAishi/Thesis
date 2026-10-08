@@ -20,12 +20,11 @@
   <div class="svc-head">
     <div>
       <span class="panel-title">Email</span>
-      <% if (emailInfo.mode === "api") { %>
-        <span class="badge ok">LIVE — Brevo API</span>
-      <% } else if (emailInfo.mode === "smtp") { %>
-        <span class="badge ok">LIVE — SMTP (<%= emailInfo.smtp_host %>)</span>
+      <%# Plain words for staff (Oct 10): whether it works, not which service runs it. %>
+      <% if (emailInfo.mode === "api" || emailInfo.mode === "smtp") { %>
+        <span class="badge ok">On</span>
       <% } else { %>
-        <span class="badge warn">SIMULATION — no mail credentials</span>
+        <span class="badge warn">Not set up</span>
       <% } %>
     </div>
     <form method="POST" action="/reminders/test-email" style="margin:0"><%- include("../partials/csrf") %>
@@ -46,17 +45,7 @@
         </span>
       </div>
       <dl class="mail-facts">
-        <dt>Sending by</dt>
-        <dd><%= emailTest.mode === "api" ? "Brevo HTTP API" : emailTest.mode === "smtp" ? "SMTP" : "nothing (simulation)" %></dd>
-        <% if (emailTest.mode === "smtp") { %>
-          <dt>Server</dt><dd><%= emailTest.smtp_host %>:<%= emailTest.smtp_port %></dd>
-          <dt>Username</dt><dd><%= emailTest.smtp_user_set ? "set" : "MISSING" %></dd>
-          <dt>Password</dt><dd><%= emailTest.smtp_pass_set ? "set" : "MISSING" %></dd>
-        <% } %>
-        <% if (emailTest.mode === "api") { %>
-          <dt>API key</dt><dd><%= emailTest.api_key_set ? "set" : "MISSING" %></dd>
-        <% } %>
-        <dt>From</dt><dd><%= emailTest.from_email %></dd>
+        <dt>Sent from</dt><dd><%= emailTest.from_email %></dd>
         <dt>Took</dt><dd><%= emailTest.ms %> ms</dd>
       </dl>
       <% if (!emailTest.ok && emailTest.mode === "smtp") { %>
@@ -73,9 +62,9 @@
     <div>
       <span class="panel-title">SMS</span>
       <% if (live) { %>
-        <span class="badge ok">LIVE — <%= smsProvider %></span>
+        <span class="badge ok">On</span>
       <% } else { %>
-        <span class="badge info">NO PROVIDER — simulation only</span>
+        <span class="badge warn">Not set up</span>
       <% } %>
     </div>
     <% if (live && balance !== null) { %>
@@ -84,22 +73,16 @@
   </div>
   <% if (!live) { %>
     <p class="muted" style="margin:8px 2px 0;font-size:13px;opacity:.75">
-      No text message has actually been sent. SMS rows in the log below are a dry run — the message
-      was composed and recorded, but nothing left the building. To go live, set
-      <code class="mono">SMSGATE_USERNAME</code> and <code class="mono">SMSGATE_PASSWORD</code> (the clinic's
-      Android phone), or <code class="mono">PHILSMS_TOKEN</code>, or <code class="mono">SEMAPHORE_API_KEY</code>.
-      See docs/OPERATIONS.md.
+      Text messages are not set up yet, so SMS reminders are recorded in the log below but not sent.
+      Setup steps are in docs/OPERATIONS.md.
     </p>
   <% } else { %>
     <% if (smsKind === "smsgate") { %>
       <%# Said on the page, so nobody — staff or panel — has to guess where the
           texts come from. %>
       <p class="muted" style="margin:8px 2px 0;font-size:13px;line-height:1.55">
-        Texts go out through the clinic's Android phone, on its own SIM and load, using the
-        <b>SMS Gateway for Android</b> app. Patients see that phone's number as the sender.
-        <% if (smsEncrypted) { %>Messages are <b>end-to-end encrypted</b>: the relay server that passes them to the phone cannot read them.
-        <% } else { %><b>Encryption is off</b> — set <code class="mono">SMSGATE_PASSPHRASE</code> (and the same passphrase in the app) so the relay cannot read patient names.<% } %>
-        The phone has to stay on, online and charged, with the app allowed to run in the background.
+        Texts are sent from the clinic's phone — patients see its number as the sender.
+        Keep the phone on, charged, connected to the internet, and with load.
       </p>
     <% } %>
     <form method="POST" action="/reminders/test-sms" class="daynav-left" style="gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:12px"><%- include("../partials/csrf") %>

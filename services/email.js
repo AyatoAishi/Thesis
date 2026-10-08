@@ -228,7 +228,7 @@ async function selfTest() {
         signal: ctl.signal,
         headers: { "api-key": process.env.BREVO_API_KEY, accept: "application/json" },
       });
-      if (res.ok) return done(true, "Connected to Brevo and the API key was accepted. Email can go out from this server.");
+      if (res.ok) return done(true, "Reminders and booking confirmations can be emailed.");
       if (res.status === 401) return done(false, "Brevo rejected the API key. Check the key in the Render dashboard.");
       return done(false, `Brevo answered ${res.status}: ${(await res.text()).slice(0, 200)}`);
     } catch (e) {

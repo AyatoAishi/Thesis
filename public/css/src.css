@@ -1741,7 +1741,14 @@ body { font-size: 15px; }
 .restock-box { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
 .restock-box > summary { cursor: pointer; font-weight: 700; color: var(--accent-strong); list-style: none; }
 .restock-box > summary::-webkit-details-marker { display: none; }
-@media (max-width: 640px) { .batch-menu { position: static; width: auto; margin-top: 8px; } }
+/* The Manage panel opens INSIDE its row, under the button, and the row grows
+   to fit. As a floating panel it was cut off by the table's scroll box and by
+   the card around it (Oct 10) - anything that floats out of a clipping box
+   gets clipped, so it no longer floats. */
+.batch-wrap { overflow-x: auto; padding-bottom: 4px; }
+.batch-menu { position: static; width: 280px; max-width: 100%; margin: 8px 0 4px auto; box-shadow: none; }
+/* While a row's panel is open, its other cells line up with the top of it. */
+.tbl tr:has(.batch-actions[open]) > td { vertical-align: top; padding-top: 14px; }
 /* ===========================================================================
    Patient portal, second pass (2026-09-25 review).
 

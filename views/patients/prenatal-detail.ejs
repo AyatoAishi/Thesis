@@ -44,11 +44,11 @@
     <div><dt>PhilHealth no.</dt><dd class="mono"><%= r.philhealth_no || "—" %></dd></div>
     <div><dt>Pregnancy test</dt><dd><%= r.pregnancy_test_result === "positive" ? "Positive (+)" : r.pregnancy_test_result === "negative" ? "Negative (−)" : "—" %><%= r.pregnancy_test_date ? " · " + fmtDate(r.pregnancy_test_date) : "" %></dd></div>
     <div><dt>Gravida / Para</dt><dd>G<%= r.gravida ?? "—" %> P<%= r.para ?? "—" %></dd></div>
-    <div><dt>LMP</dt><dd><%= fmtDate(r.lmp) %></dd></div>
-    <div><dt>EDD</dt><dd><%= fmtDate(r.edd) %></dd></div>
-    <div><dt>AOG at intake</dt><dd><%= r.aog_at_intake || "—" %></dd></div>
-    <div><dt>BP at intake</dt><dd><%= r.bp_at_intake || "—" %></dd></div>
-    <div><dt>BMI</dt><dd><%= r.bmi ?? "—" %></dd></div>
+    <div><dt>LMP <span class="muted" style="font-weight:500">(last menstrual period)</span></dt><dd><%= fmtDate(r.lmp) %></dd></div>
+    <div><dt>EDD <span class="muted" style="font-weight:500">(expected date of delivery)</span></dt><dd><%= fmtDate(r.edd) %></dd></div>
+    <div><dt>AOG at intake <span class="muted" style="font-weight:500">(age of gestation)</span></dt><dd><%= r.aog_at_intake || "—" %></dd></div>
+    <div><dt>BP at intake <span class="muted" style="font-weight:500">(blood pressure)</span></dt><dd><%= r.bp_at_intake || "—" %></dd></div>
+    <div><dt>BMI <span class="muted" style="font-weight:500">(body mass index)</span></dt><dd><%= r.bmi ?? "—" %></dd></div>
   </dl>
 </div>
 
@@ -60,11 +60,11 @@
         found. A reactive result is shown in red, because that is the one line
         on this card somebody must not miss. %>
     <% const res = (v) => v ? (v === "reactive" ? '<span class="badge bad">Reactive</span>' : v === "non-reactive" ? '<span class="badge ok">Non-reactive</span>' : '<span class="badge warn">Pending</span>') : ""; %>
-    <div><dt>VDRL</dt><dd><%- res(r.vdrl_result) %> <%= fmtDate(r.vdrl_date) %></dd></div>
-    <div><dt>HBsAg</dt><dd><%- res(r.hbsag_result) %> <%= fmtDate(r.hbsag_date) %></dd></div>
-    <div><dt>HIV screening</dt><dd><%- res(r.hiv_result) %> <%= fmtDate(r.hiv_screening_date) %></dd></div>
-    <div><dt>OGTT/FBS/HbA1c</dt><dd><%= r.ogtt_fbs_hba1c || "—" %></dd></div>
-    <div><dt>CBC</dt><dd><%= r.cbc_result ? r.cbc_result + " · " : "" %><%= fmtDate(r.cbc_date) %></dd></div>
+    <div><dt>VDRL <span class="muted" style="font-weight:500">(syphilis test)</span></dt><dd><%- res(r.vdrl_result) %> <%= fmtDate(r.vdrl_date) %></dd></div>
+    <div><dt>HBsAg <span class="muted" style="font-weight:500">(hepatitis B test)</span></dt><dd><%- res(r.hbsag_result) %> <%= fmtDate(r.hbsag_date) %></dd></div>
+    <div><dt>HIV screening <span class="muted" style="font-weight:500">(human immunodeficiency virus)</span></dt><dd><%- res(r.hiv_result) %> <%= fmtDate(r.hiv_screening_date) %></dd></div>
+    <div><dt>OGTT/FBS/HbA1c <span class="muted" style="font-weight:500">(blood sugar tests)</span></dt><dd><%= r.ogtt_fbs_hba1c || "—" %></dd></div>
+    <div><dt>CBC <span class="muted" style="font-weight:500">(complete blood count)</span></dt><dd><%= r.cbc_result ? r.cbc_result + " · " : "" %><%= fmtDate(r.cbc_date) %></dd></div>
     <div><dt>Urinalysis</dt><dd><%= r.urinalysis_result ? r.urinalysis_result + " · " : "" %><%= fmtDate(r.urinalysis_date) %></dd></div>
   </dl>
 </div>

@@ -107,7 +107,9 @@
     </a>
     <% if (typeof showPrenatal !== "undefined" ? showPrenatal : p.sex !== "male") { %>
       <a class="form-tile" href="/patients/<%= p.patient_id %>/prenatal?back=/patients/<%= p.patient_id %>">
-        <span class="form-tile-ico" aria-hidden="true">🤰</span><span><b>Prenatal record</b><small>check-ups, labs, tetanus</small></span>
+        <%# No record yet: the tile is how a patient is marked pregnant (panel
+            review, Oct 2026) — starting the record is that status change. %>
+        <span class="form-tile-ico" aria-hidden="true">🤰</span><span><% if (p.has_prenatal) { %><b>Prenatal record</b><small>check-ups, labs, tetanus</small><% } else { %><b>Mark as pregnant</b><small>starts her prenatal record</small><% } %></span>
       </a>
     <% } %>
     <% if (typeof canRecordVisit !== "undefined" && canRecordVisit && !isDeceased) { %>

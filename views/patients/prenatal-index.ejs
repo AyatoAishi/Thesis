@@ -25,7 +25,7 @@
     <p class="muted" style="margin:0">No prenatal record yet. Click <b>+ Start prenatal record</b> to begin one.</p>
   <% } else { %>
     <table class="tbl">
-      <thead><tr><th>Started</th><th>LMP</th><th>EDD</th><th>Gravida / Para</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>Started</th><th title="Last menstrual period">LMP <span class="muted" style="font-weight:500">(last period)</span></th><th title="Expected date of delivery">EDD <span class="muted" style="font-weight:500">(due date)</span></th><th>Gravida / Para</th><th>Status</th><th></th></tr></thead>
       <tbody>
         <% records.forEach(r => { %>
           <tr>

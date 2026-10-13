@@ -53,9 +53,23 @@ check("'Male' in any case is still male", b.patientRules({ sex: "MALE" }, prenat
 check("deceased refused for anything", b.patientRules({ deceased_at: "2026-09-01" }, immun).length === 1);
 check("deceased male + prenatal gives both reasons", b.patientRules({ sex: "male", deceased_at: "2026-09-01" }, prenatal).length === 2);
 
+// ---- prenatal only for ages 10 to 55 (panel review, Oct 2026) -----------------
+const D = "2026-10-13";
+check("1-year-old girl + prenatal refused", b.patientRules({ sex: "female", birthdate: "2025-08-01" }, prenatal, D).length === 1);
+check("9-year-old refused, 10-year-old allowed",
+  b.patientRules({ sex: "female", birthdate: "2016-10-14" }, prenatal, D).length === 1 &&
+  b.patientRules({ sex: "female", birthdate: "2016-10-13" }, prenatal, D).length === 0);
+check("25-year-old allowed", b.patientRules({ sex: "female", birthdate: "2001-05-05" }, prenatal, D).length === 0);
+check("55 allowed, 56 refused",
+  b.patientRules({ sex: "female", birthdate: "1971-10-13" }, prenatal, D).length === 0 &&
+  b.patientRules({ sex: "female", birthdate: "1970-10-13" }, prenatal, D).length === 1);
+check("no birthdate on file is not refused on age", b.patientRules({ sex: "female", birthdate: null }, prenatal, D).length === 0);
+check("age rule leaves other services alone", b.patientRules({ sex: "female", birthdate: "2025-08-01" }, immun, D).length === 0);
+check("prenatalProblem says why", /10 to 55/.test(b.prenatalProblem({ sex: "female", birthdate: "2025-08-01" }, D) || ""));
+
 // ---- labels ------------------------------------------------------------------
 check("label for a slot", b.slotLabel("13:00") === "1:00 PM – 2:00 PM");
 check("label for an old off-grid time falls back to the time", b.slotLabel("19:58:00") === "19:58");
 
-console.log(bad ? `\n${bad} check(s) failed.` : "\nThe booking rules hold: eight slots, closed when they end, no prenatal for men, nothing for the deceased.");
+console.log(bad ? `\n${bad} check(s) failed.` : "\nThe booking rules hold: eight slots, closed when they end, no prenatal for men or outside ages 10 to 55, nothing for the deceased.");
 process.exit(bad ? 1 : 0);

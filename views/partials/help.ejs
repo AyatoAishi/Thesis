@@ -66,6 +66,9 @@
   <div class="sam-body" data-sam-body aria-live="polite"></div>
 
   <footer class="sam-foot">
+    <%# Video tutorials (panel review, Oct 2026): the manual for staff, the
+        portal tab for patients. %>
+    <a class="sam-videos" href="<%= typeof helpBase !== 'undefined' && helpBase === '/portal/help' ? '/portal?tab=videos' : '/manual#videos' %>"><%= t("sam.videos") %></a>
     Tumatakbo ito sa loob mismo ng sistema. Walang internet na kailangan, at
     nakasulat na ang lahat ng sagot dito — kaya hindi siya makakapagsinungaling.
   </footer>

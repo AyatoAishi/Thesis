@@ -19,16 +19,15 @@
   <% } else { %>
     <table class="tbl">
       <thead>
-        <tr><th>When</th><th>Patient</th><th>Medicine</th><th>Qty</th><th>Dispensed by</th><th>Notes</th></tr>
+        <tr><th>When</th><th>Patient no.</th><th>Medicine</th><th>Qty</th><th>Dispensed by</th><th>Notes</th></tr>
       </thead>
       <tbody>
         <% rows.forEach(d => { %>
           <tr>
             <td class="mono" style="font-size:12px"><%= fmt(d.dispensed_at) %></td>
-            <td>
-              <a href="/patients/<%= d.patient_id %>"><%= d.full_name %></a>
-              <div class="muted mono" style="font-size:11px"><%= d.patient_number %></div>
-            </td>
+            <%# Patient number only — the panel's privacy point (Oct 2026). It still
+                opens the record for anyone who needs the name. %>
+            <td class="mono"><a href="/patients/<%= d.patient_id %>"><%= d.patient_number %></a></td>
             <td>
               <a href="/inventory/<%= d.medicine_id %>"><%= d.medicine_name %></a>
               <%# "How often" — typed at dispensing, shown to the patient on their

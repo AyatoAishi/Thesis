@@ -15,6 +15,9 @@
 
 <nav class="card manual-toc">
   <b>Contents</b>
+  <% if (staffVideos.length || (typeof user !== "undefined" && user && user.role === "admin")) { %>
+    <p style="margin:6px 0 0"><a href="#videos">▶ Video tutorials</a></p>
+  <% } %>
   <ol>
     <li><a href="#signin">Signing in and your password</a></li>
     <li><a href="#patients">Patients</a></li>
@@ -28,6 +31,69 @@
     <li><a href="#help">When something goes wrong</a></li>
   </ol>
 </nav>
+
+<%# Video tutorials (panel review, Oct 2026). The group records them; the admin
+    pastes each link below. Hidden from print — a printed page cannot play one. %>
+<% const _isAdmin = typeof user !== "undefined" && user && user.role === "admin"; %>
+<% if (staffVideos.length || _isAdmin) { %>
+<section class="card manual no-print" id="videos">
+  <h2>Video tutorials</h2>
+  <% if (videoFlash) { %><div class="page-alert info" style="margin:0 0 12px"><%= videoFlash %></div><% } %>
+  <% if (staffVideos.length) { %>
+    <%- include("partials/tutorial-videos", { videos: staffVideos }) %>
+  <% } else { %>
+    <p class="muted" style="margin:0 0 6px">No staff videos yet.</p>
+  <% } %>
+
+  <% if (_isAdmin) { %>
+    <div class="video-admin">
+      <b>Manage videos</b> <span class="muted" style="font-size:12.5px">(only the admin sees this)</span>
+      <p class="muted" style="font-size:12.5px;margin:4px 0 10px">
+        Upload the video to YouTube (Unlisted is fine) or Google Drive (shared as "Anyone with the link"),
+        then paste its link here. Staff videos appear above; patient videos appear on the patient portal
+        under <b>Video tutorials</b>.
+      </p>
+      <form method="POST" action="/admin/tutorials" class="form-grid"><%- include("partials/csrf") %>
+        <label class="field"><span>For</span>
+          <select name="audience" required>
+            <option value="staff">Staff</option>
+            <option value="patient">Patients (portal)</option>
+          </select>
+        </label>
+        <label class="field"><span>Title</span>
+          <input type="text" name="title" maxlength="120" required placeholder="e.g. How to register a new patient" />
+        </label>
+        <label class="field" style="grid-column:1/-1"><span>Video link</span>
+          <input type="url" name="url" maxlength="300" required placeholder="https://youtu.be/… or https://drive.google.com/file/d/…" />
+        </label>
+        <button type="submit" class="btn" style="align-self:flex-end">Add video</button>
+      </form>
+      <% const _all = staffVideos.concat(patientVideos); %>
+      <% if (_all.length) { %>
+        <table class="tbl" style="margin-top:14px">
+          <thead><tr><th>Title</th><th>For</th><th>Link</th><th></th></tr></thead>
+          <tbody>
+            <% _all.forEach(function (v) { %>
+              <tr>
+                <td><%= v.title %></td>
+                <td><%= v.audience === "staff" ? "Staff" : "Patients" %></td>
+                <td style="font-size:12px;word-break:break-all"><a href="<%= v.url %>" target="_blank" rel="noopener noreferrer"><%= v.url %></a></td>
+                <td style="text-align:right">
+                  <form method="POST" action="/admin/tutorials/<%= v.video_id %>/delete" style="margin:0"
+                        data-confirm-title="Remove video" data-confirm="Remove “<%= v.title %>” from the <%= v.audience === 'staff' ? 'manual' : 'patient portal' %>? The video itself stays on YouTube or Drive."
+                        data-confirm-yes="Yes, remove it" data-confirm-no="No, keep it"><%- include("partials/csrf") %>
+                    <button type="submit" class="mini-btn">Remove</button>
+                  </form>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } %>
+    </div>
+  <% } %>
+</section>
+<% } %>
 
 <section class="card manual" id="signin">
   <h2>1. Signing in and your password</h2>
@@ -55,11 +121,11 @@
 <section class="card manual" id="families">
   <h2>3. Family records</h2>
   <ol>
-    <li>On the patient form, under <b>Family (optional)</b>, search for a relative already registered. Saving puts them in the same household and gives the family a number like <b>26-0001</b> automatically.</li>
-    <li>A relative who is already in another household is <b>moved</b> into this one; the form says "moves from 26-0002" before you save.</li>
-    <li>To take someone out of a household, open any member's <b>Edit</b> and press the <b>×</b> beside that person.</li>
+    <li>On the patient form, under <b>Family (optional)</b>, search for a relative already registered. Saving puts them in the same family and gives the family a number like <b>26-0001</b> automatically.</li>
+    <li>A relative who is already in another family is <b>moved</b> into this one; the form says "moves from 26-0002" before you save.</li>
+    <li>To take someone out of a family, open any member's <b>Edit</b> and press the <b>×</b> beside that person.</li>
     <li>The patient page shows <b>Family Record 26-0001</b>. Open it to see every member, their upcoming appointments, and one list of everything recorded for the family.</li>
-    <li><b>Patients → Family records</b> lists every household. Records are still edited on each member's own page.</li>
+    <li><b>Patients → Family records</b> lists every family. Records are still edited on each member's own page.</li>
   </ol>
 </section>
 

@@ -1,0 +1,26 @@
+<%#
+  "Others" symptoms on the prenatal intake and check-up forms (panel review,
+  Oct 2026). Expects `options` (symptoms staff added before) and `selected`
+  (this record's). Ticked ones are sent as sx_other; anything typed in the
+  box is sent as sx_other_new and becomes a checkbox next time
+  (lib/prenatalSymptoms.js).
+%>
+<%
+  const _opts = typeof options !== "undefined" && options ? options : [];
+  const _sel = (typeof selected !== "undefined" && selected ? selected : []).map(s => String(s).toLowerCase());
+  // A symptom saved on this record but no longer in the list still shows, ticked.
+  const _all = _opts.slice();
+  (typeof selected !== "undefined" && selected ? selected : []).forEach(s => {
+    if (!_all.some(o => o.toLowerCase() === String(s).toLowerCase())) _all.push(s);
+  });
+  const _hasTyped = typeof typedOthers !== "undefined" && typedOthers;
+%>
+<% _all.forEach(function (label) { %>
+  <label class="check"><input type="checkbox" name="sx_other" value="<%= label %>" <%= _sel.includes(label.toLowerCase()) ? "checked" : "" %> /> <span><%= label %></span></label>
+<% }) %>
+<details class="other-sx" <%= _hasTyped ? "open" : "" %> style="grid-column:1/-1">
+  <summary class="mini-btn" style="list-style:none;cursor:pointer;display:inline-block">+ Others</summary>
+  <label class="field" style="margin-top:8px"><span>Other symptoms <span class="muted">(separate with commas — each one becomes a checkbox next time)</span></span>
+    <input type="text" name="sx_other_new" maxlength="300" value="<%= _hasTyped ? typedOthers : '' %>" placeholder="e.g. Headache, Blurred vision" />
+  </label>
+</details>

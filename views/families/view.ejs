@@ -66,7 +66,7 @@
   <form method="POST" action="/families/<%= number %>/members" class="form-inline family-add"><%- include("../partials/csrf") %>
     <div style="flex:1;min-width:240px">
       <%- include("../partials/search-picker", {
-            items: others.map(o => ({ id: o.patient_id, label: o.full_name, meta: o.patient_number + (o.family_number ? " · in " + o.family_number + ", will be moved" : "") })),
+            items: others.map(o => ({ id: o.patient_id, label: o.full_name, meta: patientMeta(o) + (o.family_number ? " · in family " + o.family_number + ", will be moved" : "") })),
             name: "patient_id",
             selectedId: "",
             placeholder: "Add a member — type a registered patient's name…",

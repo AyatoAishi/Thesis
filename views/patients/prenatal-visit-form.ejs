@@ -22,7 +22,7 @@
       <label class="field"><span>AOG <span class="muted">(age of gestation)</span></span>
         <input type="text" name="aog" value="<%= values.aog || '' %>" placeholder="e.g. 28 3/7 wks" />
       </label>
-      <label class="field"><span>BP</span>
+      <label class="field"><span>BP <span class="muted">(blood pressure)</span></span>
         <input type="text" name="bp" value="<%= values.bp || '' %>" placeholder="e.g. 120/80" />
       </label>
       <label class="field"><span>Weight (kg)</span>
@@ -43,10 +43,11 @@
       <label class="check"><input type="checkbox" name="abdominal_contractions" <%= values.abdominal_contractions ? 'checked' : '' %> /><span>Abdominal contractions</span></label>
       <label class="check"><input type="checkbox" name="vaginal_spotting" <%= values.vaginal_spotting ? 'checked' : '' %> /><span>Vaginal spotting</span></label>
       <label class="check"><input type="checkbox" name="vaginal_discharge" <%= values.vaginal_discharge ? 'checked' : '' %> /><span>Vaginal discharge</span></label>
-      <label class="check"><input type="checkbox" name="dysuria" <%= values.dysuria ? 'checked' : '' %> /><span>Dysuria</span></label>
+      <label class="check"><input type="checkbox" name="dysuria" <%= values.dysuria ? 'checked' : '' %> /><span>Dysuria (painful urination)</span></label>
       <label class="check"><input type="checkbox" name="low_back_pain" <%= values.low_back_pain ? 'checked' : '' %> /><span>Low back pain</span></label>
-      <label class="check"><input type="checkbox" name="hypogastric_pain" <%= values.hypogastric_pain ? 'checked' : '' %> /><span>Hypogastric pain</span></label>
+      <label class="check"><input type="checkbox" name="hypogastric_pain" <%= values.hypogastric_pain ? 'checked' : '' %> /><span>Hypogastric pain (lower belly)</span></label>
       <label class="check"><input type="checkbox" name="edema" <%= values.edema ? 'checked' : '' %> /><span>Edema</span></label>
+      <%- include("../partials/other-symptoms", { options: typeof symptomOptions !== "undefined" ? symptomOptions : [], selected: values.other_symptoms || [] }) %>
     </div>
     <p class="muted" style="font-size:11.5px;margin:10px 0 0">Leave unchecked if not present — this list is what to watch for, not a default assumption.</p>
   </div>

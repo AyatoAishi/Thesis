@@ -1,5 +1,5 @@
 -- ============================================================================
--- Barangay Sampaguita Health Clinic — Web-Based EMR + Appointment System
+-- Barangay Sampaguita Health Clinic — Online EMR + Appointment System
 -- PostgreSQL database schema (starter / v1)
 -- Group 7
 --
@@ -38,6 +38,7 @@ CREATE TABLE users (
     username      VARCHAR(60)  NOT NULL UNIQUE,
     email         VARCHAR(150) UNIQUE,
     password_hash VARCHAR(255) NOT NULL,           -- store a HASH, never the raw password
+    password_changed_at TIMESTAMPTZ,                 -- NULL = still on a password the admin set (asked to change at sign-in)
     role          VARCHAR(20)  NOT NULL
                   -- No 'doctor'. There is no doctor at this clinic; the role was
                   -- removed 2026-09-04 (db/migrations/2026-09-04-remove-doctor-role.js).
@@ -93,8 +94,7 @@ CREATE TABLE patient_accounts (
     patient_id      INTEGER NOT NULL UNIQUE REFERENCES patients(patient_id) ON DELETE CASCADE,
     username        VARCHAR(60) NOT NULL UNIQUE,
     password_hash   VARCHAR(255) NOT NULL,
-    valid_id_type   VARCHAR(50),                   -- e.g. 'National ID', 'PhilHealth'
-    valid_id_number VARCHAR(60),
+    valid_id_type   VARCHAR(50),                   -- e.g. 'National ID', 'PhilHealth' (the kind only; the number is never stored)
     is_verified     BOOLEAN NOT NULL DEFAULT false, -- staff confirms the valid ID
     recovery_id     VARCHAR(60),                    -- unused since v1.2 (patient-held recovery codes were dropped)
     -- Password state. Only the hash above is stored, so the temporary password
@@ -169,6 +169,8 @@ CREATE TABLE medicines (
     source              VARCHAR(150),                -- hospital / pharmacy it came from
     requires_doctor_approval BOOLEAN NOT NULL DEFAULT false, -- gates dispensing behind doctor sign-off (M6)
     is_family_planning  BOOLEAN NOT NULL DEFAULT false, -- feeds the Family Planning Acceptors report
+    package_unit        VARCHAR(20),                 -- 'box','pack','bottle','strip','carton' — restocked by the package
+    pieces_per_package  INTEGER CHECK (pieces_per_package IS NULL OR pieces_per_package BETWEEN 2 AND 10000),
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -326,3 +328,23 @@ INSERT INTO services (name, schedule_day, description) VALUES
   ('immunization',        'Thursday', 'Child immunization / vaccination day'),
   ('prenatal',            'Tuesday',  'Prenatal check-ups for pregnant patients'),
   ('medicine_distribution','Monday,Wednesday,Friday', 'Maintenance medicine distribution (e.g., hypertension)');
+
+
+-- PATIENT_PHOTOS — optional profile photo the patient adds on the portal (Oct 2026)
+CREATE TABLE patient_photos (
+    patient_id INTEGER PRIMARY KEY REFERENCES patients(patient_id) ON DELETE CASCADE,
+    mime       VARCHAR(20) NOT NULL CHECK (mime IN ('image/jpeg', 'image/png')),
+    data       BYTEA NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+
+-- TUTORIAL_VIDEOS — links to the staff / patient video tutorials (Oct 2026)
+CREATE TABLE tutorial_videos (
+    video_id   SERIAL PRIMARY KEY,
+    audience   VARCHAR(10) NOT NULL CHECK (audience IN ('staff', 'patient')),
+    title      VARCHAR(120) NOT NULL,
+    url        VARCHAR(300) NOT NULL,
+    created_by INTEGER REFERENCES users(user_id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

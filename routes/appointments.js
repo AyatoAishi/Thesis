@@ -20,6 +20,7 @@ const F = require("../lib/format");
 const audit = require("../lib/audit");
 const { sendBookingConfirmation } = require("../services/reminders");
 const { parseDays } = require("../lib/clinicSchedule");
+const visitPurpose = require("../lib/visitPurpose");
 
 // "Monday, Wednesday and Friday" / "Tuesday"
 function dayWords(days) {
@@ -128,10 +129,10 @@ function validateAppt(body, services) {
 async function patientErrors(patientId, serviceId, services) {
   if (!patientId) return [];
   const { rows } = await db.query(
-    "SELECT sex, deceased_at FROM patients WHERE patient_id=$1", [patientId]
+    "SELECT sex, deceased_at, birthdate FROM patients WHERE patient_id=$1", [patientId]
   );
   const service = services.find((s) => s.service_id === serviceId) || null;
-  return booking.patientRules(rows[0] || null, service);
+  return booking.patientRules(rows[0] || null, service, F.manilaToday());
 }
 
 // Re-render the form after a validation failure (keeps the user's input).
@@ -140,7 +141,7 @@ async function rerenderForm(res, { mode, body, services, errors, appointment_id 
   let patients = null;
   if (body.patient_id) {
     const r = await db.query(
-      "SELECT patient_id, patient_number, full_name, sex, deceased_at FROM patients WHERE patient_id=$1",
+      "SELECT patient_id, patient_number, full_name, sex, deceased_at, birthdate, address FROM patients WHERE patient_id=$1",
       [parseInt(body.patient_id, 10) || 0]
     );
     patient = r.rows[0] || null;
@@ -148,7 +149,7 @@ async function rerenderForm(res, { mode, body, services, errors, appointment_id 
   if (!patient) {
     patients = (
       await db.query(
-        "SELECT patient_id, patient_number, full_name, sex FROM patients WHERE deceased_at IS NULL ORDER BY full_name LIMIT 500"
+        "SELECT patient_id, patient_number, full_name, sex, birthdate, address FROM patients WHERE deceased_at IS NULL ORDER BY full_name LIMIT 500"
       )
     ).rows;
   }
@@ -160,7 +161,7 @@ async function rerenderForm(res, { mode, body, services, errors, appointment_id 
     services,
     patient,
     patients,
-    next: body.next === "book" ? "book" : "",
+    next: visitPurpose.isChain(body.next) ? body.next : "",
     errors,
     pretty: F.prettyService,
     today: F.manilaToday(),
@@ -281,7 +282,7 @@ router.get("/appointments/new", async (req, res, next) => {
     let patient = null;
     if (req.query.patient_id) {
       const r = await db.query(
-        "SELECT patient_id, patient_number, full_name, sex, deceased_at FROM patients WHERE patient_id=$1",
+        "SELECT patient_id, patient_number, full_name, sex, deceased_at, birthdate, address FROM patients WHERE patient_id=$1",
         [parseInt(req.query.patient_id, 10) || 0]
       );
       patient = r.rows[0] || null;
@@ -302,7 +303,7 @@ router.get("/appointments/new", async (req, res, next) => {
       ? null
       : (
           await db.query(
-            "SELECT patient_id, patient_number, full_name, sex FROM patients WHERE deceased_at IS NULL ORDER BY full_name LIMIT 500"
+            "SELECT patient_id, patient_number, full_name, sex, birthdate, address FROM patients WHERE deceased_at IS NULL ORDER BY full_name LIMIT 500"
           )
         ).rows;
 
@@ -310,11 +311,15 @@ router.get("/appointments/new", async (req, res, next) => {
       title: "Book appointment · Sampaguita HC",
       active: "appointments",
       mode: "new",
-      appt: { appointment_date: isDate(req.query.date) ? req.query.date : "" },
+      appt: {
+        appointment_date: isDate(req.query.date) ? req.query.date : "",
+        // ?service=immunization from the visit purpose picks the service ahead.
+        service_id: (services.find((x) => x.name === req.query.service) || {}).service_id || "",
+      },
       services,
       patient,
       patients,
-      next: req.query.next === "book" ? "book" : "",
+      next: visitPurpose.isChain(req.query.next) ? req.query.next : "",
       errors: [],
       pretty: F.prettyService,
       today: F.manilaToday(),

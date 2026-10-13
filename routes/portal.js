@@ -34,6 +34,9 @@ const emailSvc = require("../services/email");
 const reset = require("../lib/passwordReset");
 const guard = require("../lib/loginGuard");
 const audit = require("../lib/audit");
+const prompt = require("../lib/passwordPrompt");
+const photos = require("../lib/patientPhoto");
+const tutorials = require("../lib/tutorials");
 
 const router = express.Router();
 
@@ -109,7 +112,7 @@ router.post("/portal/login", async (req, res, next) => {
       return fail(guard.lockoutMessageTagalog(gate.retryAfterMinutes));
     }
     const { rows } = await db.query(
-      `SELECT a.account_id, a.patient_id, a.password_hash, p.full_name
+      `SELECT a.account_id, a.patient_id, a.password_hash, a.password_changed_at, p.full_name
          FROM patient_accounts a
          JOIN patients p ON p.patient_id = a.patient_id
         WHERE lower(a.username) = $1
@@ -143,11 +146,78 @@ router.post("/portal/login", async (req, res, next) => {
       if (regenErr) return next(regenErr);
       if (staffHalf) req.session.user = staffHalf;
       req.session.patient = { account_id: acct.account_id, patient_id: acct.patient_id };
-      req.session.save((saveErr) => (saveErr ? next(saveErr) : res.redirect("/portal")));
+      // Still on the clinic's temporary password: ask for their own first
+      // (panel review, Oct 2026). Skippable; asked again at every sign-in.
+      const temp = !acct.password_changed_at;
+      if (temp) prompt.mark(req.session, "patient", "/portal");
+      req.session.save((saveErr) => (saveErr ? next(saveErr) : res.redirect(temp ? "/portal/new-password" : "/portal")));
     });
   } catch (e) {
     next(e);
   }
+});
+
+// ---- RIGHT AFTER SIGN-IN: set your own password ---------------------------------
+// See lib/passwordPrompt.js. No current password asked: they typed it seconds
+// ago, and the screen only works while that sign-in is fresh.
+function portalPromptView(extra) {
+  return Object.assign({
+    title: "Bagong password · Sampaguita HC",
+    layout: false,
+    side: "patient",
+    action: "/portal/new-password",
+    skipAction: "/portal/new-password/skip",
+    error: null,
+  }, extra);
+}
+
+router.get("/portal/new-password", requirePatient, (req, res) => {
+  if (!prompt.fresh(req.session, "patient")) return res.redirect("/portal");
+  res.render("new-password", portalPromptView());
+});
+
+router.post("/portal/new-password", requirePatient, async (req, res, next) => {
+  try {
+    if (!prompt.fresh(req.session, "patient")) return res.redirect("/portal?tab=password");
+    const pid = req.session.patient.patient_id;
+    const pass = req.body.new_password || "";
+    const again = (msg) => res.status(400).render("new-password", portalPromptView({ error: msg }));
+
+    if (pass.length < 8) return again("Dapat 8 characters pataas ang bagong password.");
+    if (pass !== (req.body.confirm_password || "")) return again("Hindi magkatugma ang dalawang password.");
+
+    const { rows } = await db.query(
+      `SELECT a.account_id, a.password_hash, a.password_changed_at, a.username, p.full_name
+         FROM patient_accounts a JOIN patients p ON p.patient_id = a.patient_id
+        WHERE a.patient_id = $1`,
+      [pid]
+    );
+    const acct = rows[0];
+    if (!acct) return res.redirect("/portal/login");
+    if (acct.password_changed_at) {           // already done (another tab)
+      prompt.clear(req.session, "patient");
+      return res.redirect("/portal");
+    }
+    if (await bcrypt.compare(pass, acct.password_hash))
+      return again("Iyan ang password na ibinigay ng clinic. Pumili ng iba.");
+
+    await db.query(
+      "UPDATE patient_accounts SET password_hash = $1, password_changed_at = now() WHERE account_id = $2",
+      [await bcrypt.hash(pass, 10), acct.account_id]
+    );
+    audit.log(null, "password_change", "patient_account", acct.account_id,
+      `${acct.full_name || "patient"} set their own portal password at sign-in (${acct.username})`);
+    await endOtherPatientSessions(pid, req.sessionID);
+    prompt.clear(req.session, "patient");
+    req.session.save(() => res.redirect("/portal?tab=password&pw=1"));
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post("/portal/new-password/skip", requirePatient, (req, res) => {
+  prompt.clear(req.session, "patient");
+  req.session.save(() => res.redirect("/portal"));
 });
 
 // Only clears the PATIENT half of the session (a staff login in the same
@@ -504,6 +574,54 @@ router.post("/portal/password", requirePatient, async (req, res, next) => {
   }
 });
 
+// ---- PROFILE PHOTO (panel review, Oct 2026) ---------------------------------------
+// The patient's own, optional, and only theirs to add — staff never upload one.
+// Verified accounts only: staff use the photo to put a face to the record, so
+// it must come from an account the clinic has matched to the patient.
+router.get("/portal/photo", requirePatient, async (req, res, next) => {
+  try {
+    const photo = await photos.get(req.session.patient.patient_id);
+    if (!photo) return res.status(404).end();
+    photos.send(res, photo);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post("/portal/photo", requirePatient, async (req, res, next) => {
+  try {
+    const pid = req.session.patient.patient_id;
+    const { rows } = await db.query(
+      `SELECT a.account_id, a.is_verified, p.full_name
+         FROM patient_accounts a JOIN patients p ON p.patient_id = a.patient_id
+        WHERE a.patient_id = $1`,
+      [pid]
+    );
+    if (!rows[0] || !rows[0].is_verified) return res.redirect("/portal?tab=info");
+    const parsed = photos.parse(req.body.photo);
+    if (!parsed) return res.redirect("/portal?tab=info&photo=bad");
+    await photos.save(pid, parsed);
+    audit.log(null, "update", "patient_account", rows[0].account_id,
+      `${rows[0].full_name} added a profile photo on the portal`);
+    res.redirect("/portal?tab=info&photo=saved");
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post("/portal/photo/delete", requirePatient, async (req, res, next) => {
+  try {
+    const pid = req.session.patient.patient_id;
+    if (await photos.remove(pid)) {
+      audit.log(null, "update", "patient_account", req.session.patient.account_id,
+        "patient removed their profile photo on the portal");
+    }
+    res.redirect("/portal?tab=info&photo=removed");
+  } catch (e) {
+    next(e);
+  }
+});
+
 // ---- HOME (the whole portal on one friendly page) -----------------------------
 router.get("/portal", requirePatient, async (req, res, next) => {
   try {
@@ -513,7 +631,8 @@ router.get("/portal", requirePatient, async (req, res, next) => {
     const acctQ = await db.query(
       `SELECT a.account_id, a.username, a.is_verified, a.created_at, a.password_changed_at,
               p.patient_id, p.patient_number, p.full_name, p.birthdate, p.sex,
-              p.address, p.contact_number, p.email
+              p.address, p.contact_number, p.email,
+              (SELECT ph.updated_at FROM patient_photos ph WHERE ph.patient_id = p.patient_id) AS photo_at
          FROM patient_accounts a
          JOIN patients p ON p.patient_id = a.patient_id
         WHERE a.patient_id = $1`,
@@ -624,7 +743,10 @@ router.get("/portal", requirePatient, async (req, res, next) => {
     // Which section of the portal is open (Richelle's sidebar). A link, not a
     // script: Back works, and a section can be bookmarked. Anything unknown,
     // or a records section on an unverified account, falls back to Overview.
-    const TABS = ["overview", "appointments", "immunization", "records", "info", "password"];
+    // Video tutorials get a tab only once the clinic has added one.
+    const videos = await tutorials.list("patient");
+    const TABS = ["overview", "appointments", "immunization", "records", "info", "password",
+                  ...(videos.length ? ["videos"] : [])];
     let tab = TABS.includes(req.query.tab) ? req.query.tab : "overview";
     if (!me.is_verified && (tab === "immunization" || tab === "records")) tab = "overview";
 
@@ -637,6 +759,7 @@ router.get("/portal", requirePatient, async (req, res, next) => {
       upcoming,
       missed,
       tab,
+      videos,
       announcements: await announcements.activeSafe(),
       schedule: await clinicSchedule.weeklySafe(),
       todayName: F.weekdayName(today),
@@ -652,6 +775,10 @@ router.get("/portal", requirePatient, async (req, res, next) => {
         pwOk: req.query.pw === "1",
         pwErr: req.query.pw_err || null,
       },
+      photoFlash: req.query.photo === "saved" ? { ok: true, text: res.locals.t("photo.saved") }
+        : req.query.photo === "removed" ? { ok: true, text: res.locals.t("photo.removed") }
+        : req.query.photo === "bad" ? { ok: false, text: res.locals.t("photo.bad") }
+        : null,
       pretty: F.prettyService,
       longDate: F.longDate,
       shortTime: F.shortTime,

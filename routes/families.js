@@ -120,7 +120,7 @@ router.get("/families/:number", async (req, res, next) => {
       overdueCounts(ids),
       // Everyone NOT in this family, for "Add a member" on this page.
       db.query(
-        `SELECT patient_id, patient_number, full_name, family_number
+        `SELECT patient_id, patient_number, full_name, family_number, birthdate, address
            FROM patients WHERE family_number IS DISTINCT FROM $1
           ORDER BY lower(full_name) LIMIT 500`,
         [number]
@@ -181,7 +181,7 @@ router.post("/families/:number/members", async (req, res, next) => {
     if (p.family_number === number) return back(`${p.full_name} is already in this family.`);
     await db.query("UPDATE patients SET family_number=$1, updated_at=now() WHERE patient_id=$2", [number, p.patient_id]);
     audit.log(req.session.user.user_id, "update", "patient", p.patient_id,
-      p.family_number ? `moved from household ${p.family_number} to ${number} (family page)` : `added to household ${number} (family page)`);
+      p.family_number ? `moved from family ${p.family_number} to ${number} (family page)` : `added to family ${number} (family page)`);
     back(p.family_number ? `Moved ${p.full_name} from ${p.family_number} into this family.` : `Added ${p.full_name} to this family.`);
   } catch (e) {
     next(e);
@@ -200,7 +200,7 @@ router.post("/families/:number/members/:id/remove", async (req, res, next) => {
       [parseInt(req.params.id, 10) || 0, number]
     );
     if (!rows[0]) return next();
-    audit.log(req.session.user.user_id, "update", "patient", rows[0].patient_id, `taken out of household ${number} (family page)`);
+    audit.log(req.session.user.user_id, "update", "patient", rows[0].patient_id, `taken out of family ${number} (family page)`);
     const left = await db.query("SELECT count(*)::int n FROM patients WHERE family_number=$1", [number]);
     const msg = encodeURIComponent(`Took ${rows[0].full_name} out of family ${number}.`);
     // The last member out: the family no longer exists, so its page would 404.

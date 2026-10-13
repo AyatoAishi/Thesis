@@ -41,12 +41,25 @@
 <% const canMarkDeceased = typeof user !== "undefined" && user && ["admin", "nurse"].includes(user.role); %>
 <%- include("../partials/back", { href: "/patients", to: "Back to patients" }) %>
 <div class="page-head" style="display:flex;align-items:center;justify-content:space-between">
+  <div style="display:flex;align-items:center;gap:14px">
+  <%# The patient's own photo, added on their portal (panel review, Oct 2026). %>
+  <% if (p.photo_at) { %>
+    <img class="avatar avatar-lg" src="/patients/<%= p.patient_id %>/photo?v=<%= new Date(p.photo_at).getTime() %>" alt="Photo of <%= p.full_name %>" title="Added by the patient on their portal" />
+  <% } %>
   <div>
     <h1><%= p.full_name %>
       <% if (p.is_minor) { %><span class="badge info" style="vertical-align:middle">Minor</span><% } %>
       <% if (isDeceased) { %><span class="badge bad" style="vertical-align:middle">Deceased</span><% } %>
     </h1>
     <div class="sub mono"><%= p.patient_number %></div>
+    <% if (p.photo_at && typeof user !== "undefined" && user && user.role === "admin") { %>
+      <form method="POST" action="/patients/<%= p.patient_id %>/photo/delete" style="margin:6px 0 0"
+            data-confirm-title="Remove photo" data-confirm="Remove the profile photo <%= p.full_name %> added on the portal? Only the patient can add one again."
+            data-confirm-yes="Yes, remove it" data-confirm-no="No, keep it"><%- include("../partials/csrf") %>
+        <button type="submit" class="mini-btn" style="font-size:11.5px">Remove photo</button>
+      </form>
+    <% } %>
+  </div>
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap">
     <a class="mini-btn" href="/reports/export/patient/<%= p.patient_id %>" target="_blank" rel="noopener">Export PDF</a>
@@ -92,7 +105,7 @@
     <a class="form-tile" href="/patients/<%= p.patient_id %>/immunization?back=/patients/<%= p.patient_id %>">
       <span class="form-tile-ico" aria-hidden="true">💉</span><span><b>Immunization card</b><small>Todo Ligtas doses</small></span>
     </a>
-    <% if (p.sex !== "male") { %>
+    <% if (typeof showPrenatal !== "undefined" ? showPrenatal : p.sex !== "male") { %>
       <a class="form-tile" href="/patients/<%= p.patient_id %>/prenatal?back=/patients/<%= p.patient_id %>">
         <span class="form-tile-ico" aria-hidden="true">🤰</span><span><b>Prenatal record</b><small>check-ups, labs, tetanus</small></span>
       </a>
@@ -164,13 +177,13 @@
   </div>
 <% } %>
 
-<% if (typeof nextStep !== "undefined" && nextStep === "book") { %>
+<% if (typeof nextStep !== "undefined" && nextStep) { %>
   <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;background:var(--accent-softer);border-color:var(--accent-soft)">
     <div>
       <b>Almost done.</b>
-      <span class="muted" style="font-size:13px">Hand over the credentials above, then book the appointment.</span>
+      <span class="muted" style="font-size:13px">Hand over the credentials above, then continue with the visit.</span>
     </div>
-    <a class="btn" href="/appointments/new?patient_id=<%= p.patient_id %>&next=book">Continue → Book appointment</a>
+    <a class="btn" href="<%= nextStep.href %>">Continue → <%= nextStep.label %></a>
   </div>
 <% } %>
 
@@ -256,7 +269,7 @@
   <% if (account) { %>
     <dl class="kv">
       <div><dt>Username</dt><dd class="mono"><%= account.username %></dd></div>
-      <div><dt>Valid ID</dt><dd><% if (account.valid_id_type) { %><%= account.valid_id_type %><%= account.valid_id_number ? ` · ${account.valid_id_number}` : "" %><% } else { %><span class="muted">No ID presented yet — the account stays unverified (appointments only) until one is checked</span><% } %></dd></div>
+      <div><dt>Valid ID</dt><dd><% if (account.valid_id_type) { %><%= account.valid_id_type %><% } else { %><span class="muted">No ID presented yet — the account stays unverified (appointments only) until one is checked</span><% } %></dd></div>
     </dl>
 
     <%# The lasting record of what happened to this account's password. The
@@ -295,9 +308,6 @@
                 <% idTypes.forEach(t => { %><option value="<%= t %>"><%= t %></option><% }) %>
               </select>
             </label>
-            <label class="field" data-id-number-field><span>Valid ID number</span>
-              <input type="text" name="valid_id_number" required data-id-number placeholder="Choose the ID type first" />
-            </label>
           </div>
           <button type="submit" class="mini-btn ok" style="margin-top:10px">Verify (ID checked)</button>
         </form>
@@ -309,7 +319,7 @@
     </div>
   <% } else { %>
     <p class="muted" style="font-size:13px;margin:0 0 12px">
-      No portal account. Create one here after checking the patient's valid ID.
+      No portal account. Create one here after checking the patient's valid ID — only the kind of ID is recorded, not its number.
     </p>
     <form method="POST" action="/patients/<%= p.patient_id %>/portal-account" data-id-form><%- include("../partials/csrf") %>
       <div class="form-grid">
@@ -322,9 +332,6 @@
             <% idTypes.forEach(t => { %><option value="<%= t %>"><%= t %></option><% }) %>
             <option value="<%= noIdValue %>">No ID on hand — create unverified</option>
           </select>
-        </label>
-        <label class="field" data-id-number-field><span>Valid ID number</span>
-          <input type="text" name="valid_id_number" required data-id-number placeholder="Choose the ID type first" />
         </label>
       </div>
       <div class="muted" style="font-size:11.5px;font-weight:500;margin-top:8px" data-id-note></div>

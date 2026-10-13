@@ -1,15 +1,12 @@
 <%
-  const chain = next === "book" ? "book" : "";
-  const skipHref = chain
-    ? `/appointments/new?patient_id=${patient.patient_id}&next=book`
-    : `/patients/${patient.patient_id}`;
+  const chain = next || "";
 %>
 <div class="page-head">
   <h1>Set up the portal account</h1>
   <div class="sub"><%= patient.full_name %> · <span class="mono"><%= patient.patient_number %></span></div>
 </div>
 
-<%- include("../partials/flow-steps", { step: 2 }) %>
+<%- include("../partials/flow-steps", { step: 2, last: typeof skipLabel !== "undefined" ? skipLabel : "" }) %>
 
 <div class="card" style="background:var(--ok-bg);border-color:transparent">
   <b style="color:var(--ok-ink)">✓ Patient record created.</b>
@@ -28,11 +25,12 @@
 
 <form method="POST" action="/patients/<%= patient.patient_id %>/portal-account" data-id-form><%- include("../partials/csrf") %>
   <input type="hidden" name="form" value="guided" />
-  <% if (chain) { %><input type="hidden" name="next" value="book" /><% } %>
+  <% if (chain) { %><input type="hidden" name="next" value="<%= chain %>" /><% } %>
   <div class="card">
     <div class="panel-title" style="margin-bottom:6px">Account details</div>
     <p class="muted" style="font-size:12.5px;margin:0 0 14px">
       Check the patient's physical valid ID and the account is verified straight away.
+      Only the kind of ID is recorded — the number on it is not written down.
       If they came without one, pick <b>No ID on hand</b> — the account still gets made,
       just unverified, and someone checks the ID on their profile later.
     </p>
@@ -48,9 +46,6 @@
           <% idTypes.forEach(t => { %><option value="<%= t %>"><%= t %></option><% }) %>
           <option value="<%= noIdValue %>">No ID on hand — create unverified</option>
         </select>
-      </label>
-      <label class="field" data-id-number-field><span>Valid ID number *</span>
-        <input type="text" name="valid_id_number" required data-id-number placeholder="Choose the ID type first" />
       </label>
       <div class="muted" style="font-size:11.5px;font-weight:500;grid-column:1/-1" data-id-note></div>
     </div>

@@ -14,7 +14,8 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const db = require("../db");
-const { ID_TYPES, UNVERIFIED: NO_ID, idNumberProblem } = require("../lib/idTypes");
+const { ID_TYPES, UNVERIFIED: NO_ID } = require("../lib/idTypes");
+const visitPurpose = require("../lib/visitPurpose");
 const { endOtherPatientSessions } = require("../lib/sessions");
 
 const router = express.Router();
@@ -76,7 +77,7 @@ async function uniqueUsername(base) {
 router.get("/portal-accounts", async (req, res, next) => {
   try {
     const { rows } = await db.query(
-      `SELECT a.account_id, a.username, a.valid_id_type, a.valid_id_number,
+      `SELECT a.account_id, a.username, a.valid_id_type,
               a.is_verified, a.created_at,
               p.patient_id, p.patient_number, p.full_name
          FROM patient_accounts a
@@ -98,23 +99,19 @@ router.get("/portal-accounts", async (req, res, next) => {
 // ---- VERIFY  POST /portal-accounts/:id/verify --------------------------------
 router.post("/portal-accounts/:id/verify", async (req, res, next) => {
   try {
-    // An account created without an ID has NULL in both columns. Verifying it
+    // An account created without an ID has no ID type on file. Verifying it
     // has to record which ID was finally checked, or the clinic ends up with a
     // "Verified" badge and no answer to "verified against what?". The form on
-    // an already-identified account sends neither field and this is a no-op.
+    // an already-identified account sends no type and this keeps the old one.
     const idType = (req.body.valid_id_type || "").trim();
-    const idNumber = (req.body.valid_id_number || "").trim();
     if (idType && !ID_TYPES.includes(idType))
-      return res.redirect(safeBack(req.body.back, "/portal-accounts"));
-    if (idNumberProblem(idType, idNumber))   // the form's maxlength, bypassed
       return res.redirect(safeBack(req.body.back, "/portal-accounts"));
     await db.query(
       `UPDATE patient_accounts
           SET is_verified = true,
-              valid_id_type   = COALESCE(NULLIF($2, ''), valid_id_type),
-              valid_id_number = COALESCE(NULLIF($3, ''), valid_id_number)
+              valid_id_type = COALESCE(NULLIF($2, ''), valid_id_type)
         WHERE account_id = $1`,
-      [req.params.id, idType, idNumber]
+      [req.params.id, idType]
     );
     res.redirect(safeBack(req.body.back, "/portal-accounts"));
   } catch (e) {
@@ -175,16 +172,15 @@ router.get("/patients/:id/portal-account/new", async (req, res, next) => {
     );
     if (!rows[0]) return next();
     const patient = rows[0];
-    const chain = req.query.next === "book" ? "book" : "";
+    const chain = visitPurpose.isChain(req.query.next) ? req.query.next : "";
+    const step = visitPurpose.nextStep(chain, patient.patient_id);
 
     // Already has one (e.g. someone hit Back) — don't offer to make a second.
     const existing = await db.query(
       "SELECT 1 FROM patient_accounts WHERE patient_id = $1", [patient.patient_id]
     );
     if (existing.rowCount) {
-      return res.redirect(
-        chain ? `/appointments/new?patient_id=${patient.patient_id}&next=book` : `/patients/${patient.patient_id}`
-      );
+      return res.redirect(step ? step.href : `/patients/${patient.patient_id}`);
     }
 
     res.render("portal-accounts/new", {
@@ -195,6 +191,9 @@ router.get("/patients/:id/portal-account/new", async (req, res, next) => {
       idTypes: ID_TYPES,
       noIdValue: NO_ID,
       next: chain,
+      // Skipping the account goes straight to the visit's next step.
+      skipHref: step ? step.href : `/patients/${patient.patient_id}`,
+      skipLabel: step ? step.label : "",
       error: req.query.acct_err || null,
     });
   } catch (e) {
@@ -209,8 +208,7 @@ router.post("/patients/:id/portal-account", async (req, res, next) => {
     const patient_id = parseInt(req.params.id, 10);
     const username = (req.body.username || "").trim().toLowerCase();
     const valid_id_type = (req.body.valid_id_type || "").trim();
-    const valid_id_number = (req.body.valid_id_number || "").trim();
-    const chain = req.body.next === "book" ? "book" : "";
+    const chain = visitPurpose.isChain(req.body.next) ? req.body.next : "";
 
     const patientQ = await db.query(
       "SELECT patient_id FROM patients WHERE patient_id = $1", [patient_id]
@@ -220,7 +218,7 @@ router.post("/patients/:id/portal-account", async (req, res, next) => {
     // Errors go back to whichever form was submitted: the guided step page, or
     // the account card on the profile page.
     const back = req.body.form === "guided"
-      ? `/patients/${patient_id}/portal-account/new${chain ? "?next=book" : ""}`
+      ? `/patients/${patient_id}/portal-account/new${chain ? `?next=${chain}` : ""}`
       : `/patients/${patient_id}`;
     const oops = (msg) =>
       res.redirect(`${back}${back.includes("?") ? "&" : "?"}acct_err=${encodeURIComponent(msg)}`);
@@ -228,14 +226,11 @@ router.post("/patients/:id/portal-account", async (req, res, next) => {
     if (!USERNAME_RE.test(username))
       return oops("Username must be 4–30 characters: lowercase letters, numbers, dots or underscores.");
     // "No ID on hand" is an answer, and the only one that produces an
-    // unverified account. Everything else must name an ID *and* its number,
-    // because an ID type with no number recorded is not evidence of anything.
+    // unverified account. Everything else must name which ID was checked.
+    // The number on it is never asked for or kept (panel review, Oct 2026).
     const noId = valid_id_type === NO_ID;
     if (!noId && !ID_TYPES.includes(valid_id_type))
       return oops("Choose which valid ID was presented, or “No ID on hand”.");
-    if (!noId && !valid_id_number) return oops("Enter the valid ID number.");
-    const idErr = noId ? null : idNumberProblem(valid_id_type, valid_id_number);
-    if (idErr) return oops(idErr);
 
     const existing = await db.query(
       "SELECT 1 FROM patient_accounts WHERE patient_id = $1", [patient_id]
@@ -251,14 +246,14 @@ router.post("/patients/:id/portal-account", async (req, res, next) => {
     try {
       await db.query(
         `INSERT INTO patient_accounts
-           (patient_id, username, password_hash, valid_id_type, valid_id_number, is_verified,
+           (patient_id, username, password_hash, valid_id_type, is_verified,
             temp_issued_at, temp_issued_by)
-         VALUES ($1,$2,$3,$4,$5,$6,now(),$7)`,
-        // NULL, not the sentinel: the columns mean "the ID we checked", and
+         VALUES ($1,$2,$3,$4,$5,now(),$6)`,
+        // NULL, not the sentinel: the column means "the ID we checked", and
         // there wasn't one. The account is born unverified and shows up in
         // the pending list on /portal-accounts until somebody checks an ID.
         [patient_id, username, await bcrypt.hash(tempPassword, 10),
-         noId ? null : valid_id_type, noId ? null : valid_id_number, !noId,
+         noId ? null : valid_id_type, !noId,
          req.session.user.user_id]
       );
     } catch (e) {
@@ -277,7 +272,7 @@ router.post("/patients/:id/portal-account", async (req, res, next) => {
     };
     // Always via the profile page — that's where the one-time credentials are
     // shown, so the booking chain must not jump straight past them.
-    res.redirect(`/patients/${patient_id}${chain ? "?next=book" : ""}`);
+    res.redirect(`/patients/${patient_id}${chain ? `?next=${chain}` : ""}`);
   } catch (e) {
     next(e);
   }

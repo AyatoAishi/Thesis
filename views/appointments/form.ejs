@@ -140,7 +140,9 @@
     }
     svc.addEventListener("change", fill);
     date.addEventListener("change", check);
-    check();
+    // Arriving with the service already chosen (the visit purpose) and no
+    // date yet: fill in its next day straight away.
+    if (svc.value && !date.value) fill(); else check();
   })();
 </script>
 

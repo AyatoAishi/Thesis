@@ -31,6 +31,7 @@
     records: '<path d="M10.5 20.5 3.5 13.5a4.95 4.95 0 1 1 7-7l7 7a4.95 4.95 0 1 1-7 7Z"/><path d="m8.5 8.5 7 7"/>',
     info: '<circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 14 0v1"/>',
     password: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+    videos: '<rect x="2" y="5" width="15" height="14" rx="2"/><path d="m17 10 5-3v10l-5-3"/>',
   };
   const TABS = [
     ["overview", t("por.tab_overview")],
@@ -38,12 +39,16 @@
     ...(me.is_verified ? [["immunization", t("por.tab_imm")], ["records", t("por.tab_records")]] : []),
     ["info", t("por.tab_info")],
     ["password", t("por.tab_pw")],
+    ...(typeof videos !== "undefined" && videos.length ? [["videos", t("por.tab_videos")]] : []),
   ];
 %>
 
-<div class="page-head">
-  <h1><%= t("por.hello", { name: me.full_name.split(" ")[0] }) %></h1>
-  <div class="sub mono"><%= me.patient_number %></div>
+<div class="page-head" style="display:flex;align-items:center;gap:14px">
+  <% if (me.photo_at) { %><img class="avatar" src="/portal/photo?v=<%= new Date(me.photo_at).getTime() %>" alt="" /><% } %>
+  <div>
+    <h1><%= t("por.hello", { name: me.full_name.split(" ")[0] }) %></h1>
+    <div class="sub mono"><%= me.patient_number %></div>
+  </div>
 </div>
 
 <div class="portal-shell">
@@ -291,6 +296,16 @@
       <div style="grid-column:1/-1"><dt><%= t("por.address") %></dt><dd><%= me.address || "—" %></dd></div>
     </dl>
     <p class="muted" style="font-size:13px;margin:12px 2px 0"><%= t("por.wrong_info") %></p>
+  </div>
+
+  <%- include("../partials/photo-upload") %>
+
+<% } else if (tab === "videos") { %>
+
+  <div class="card">
+    <div class="panel-title" style="margin-bottom:4px"><%= t("por.tab_videos") %></div>
+    <p class="muted" style="font-size:13px;margin:0 0 14px"><%= t("vid.intro_patient") %></p>
+    <%- include("../partials/tutorial-videos", { videos, openLabel: t("vid.open") }) %>
   </div>
 
 <% } else if (tab === "password") { %>

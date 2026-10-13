@@ -13,7 +13,8 @@
   // patient untouched.
   // `fam` lets the search say "in 26-0002" and the chip "moves from 26-0002"
   // before anything is saved (routes/patients.js resolveFamily).
-  const _list = (familyLookup || []).map(p => ({ id: p.patient_id, name: p.full_name, num: p.patient_number, fam: p.family_number || "" }));
+  const _list = (familyLookup || []).map(p => ({ id: p.patient_id, name: p.full_name, num: p.patient_number, fam: p.family_number || "",
+    info: typeof patientMeta === "function" ? patientMeta({ birthdate: p.birthdate, address: p.address }) : "" }));
   const _members = (typeof familyMembers !== "undefined" ? familyMembers : []) || [];
   const _famNum = typeof selectedFamilyNumber !== "undefined"
     ? (selectedFamilyNumber || "")
@@ -36,7 +37,7 @@
   <input type="hidden" name="family_remove_ids" data-family-remove-ids value="<%= _canRemove ? _removeIds.join(",") : "" %>" />
 
   <div class="family-members" data-family-members <%= _members.length ? "" : "hidden" %>>
-    <div class="family-members-label muted">In this household:</div>
+    <div class="family-members-label muted">In this family:</div>
     <div class="family-chip-row">
       <% _members.forEach(m => { %>
         <span class="family-chip-static<%= _canRemove && _removeIds.includes(String(m.patient_id)) ? " is-removing" : "" %>" data-family-member="<%= m.patient_id %>">
@@ -44,15 +45,15 @@
           <span class="muted mono"><%= m.patient_number %></span>
           <% if (_canRemove) { %>
             <button type="button" class="family-chip-x" data-family-remove
-                    aria-label="Take <%= m.full_name %> out of this household" title="Take out of this household">×</button>
+                    aria-label="Take <%= m.full_name %> out of this family" title="Take out of this family">×</button>
           <% } %>
         </span>
       <% }) %>
     </div>
     <% if (_canRemove) { %>
-      <p class="muted family-remove-hint">× takes that person out of this household when you save. Press it again to keep them.</p>
+      <p class="muted family-remove-hint">× takes that person out of this family when you save. Press it again to keep them.</p>
     <% } %>
-    <button type="button" class="mini-btn" data-family-link-clear>Take this patient out of the household</button>
+    <button type="button" class="mini-btn" data-family-link-clear>Take this patient out of the family</button>
   </div>
 
   <%# Picked on this form but not saved yet. %>

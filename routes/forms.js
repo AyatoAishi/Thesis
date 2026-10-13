@@ -28,7 +28,7 @@ const KINDS = {
 router.get("/forms", async (req, res, next) => {
   try {
     const { rows } = await db.query(
-      "SELECT patient_id, patient_number, full_name, sex FROM patients ORDER BY full_name LIMIT 500"
+      "SELECT patient_id, patient_number, full_name, sex, birthdate, address FROM patients ORDER BY full_name LIMIT 500"
     );
     res.render("forms/index", {
       title: "Forms · Sampaguita HC",
@@ -36,8 +36,15 @@ router.get("/forms", async (req, res, next) => {
       patients: rows,
       // Prenatal is hidden on male patients' profiles, so it's hidden here too
       // rather than offering a search that leads to a page they'd never use.
-      prenatalPatients: rows.filter((p) => p.sex !== "male"),
-      canSeeReports: REPORT_ROLES.includes(req.session.user.role),
+      // Only women who already have prenatal data (panel review, Oct 2026). A
+      // first prenatal record is started from the patient's own page, where
+      // the age and sex rules apply (lib/booking.js prenatalProblem).
+      prenatalPatients: (await db.query(
+        `SELECT DISTINCT p.patient_id, p.patient_number, p.full_name, p.birthdate, p.address
+           FROM patients p JOIN prenatal_records r ON r.patient_id = p.patient_id
+          ORDER BY p.full_name`)).rows,
+      // The Family planning acceptors report lists patients by name: admin only.
+      canSeeReports: req.session.user.role === "admin",
       error: req.query.err || null,
     });
   } catch (e) {

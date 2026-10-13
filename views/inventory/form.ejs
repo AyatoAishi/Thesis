@@ -48,6 +48,25 @@
           <% }) %>
         </select>
       </label>
+      <%# Restock by the box, give out by the piece (panel review, Oct 2026).
+          Optional: a medicine handed out whole, like a bottle of syrup, needs
+          no package. Stock is always counted in the unit above. %>
+      <div class="field" style="grid-column:1/-1"><span>Comes in packages? <span class="muted">(optional — for restocking by the box)</span></span>
+        <div class="pack-row" data-pack>
+          <span>1</span>
+          <select name="package_unit" data-pack-unit aria-label="Package">
+            <option value="">— no package, counted one by one —</option>
+            <% (typeof packages !== "undefined" ? packages : []).forEach(function (p) { %>
+              <option value="<%= p %>" <%= (m.package_unit || '') === p ? 'selected' : '' %>><%= p %></option>
+            <% }) %>
+          </select>
+          <span>=</span>
+          <input type="number" name="pieces_per_package" min="2" max="10000" step="1" data-pack-per
+                 value="<%= m.pieces_per_package || '' %>" placeholder="e.g. 100" aria-label="Pieces in one package" />
+          <span data-pack-unit-word><%= m.unit ? medUnits.plural(m.unit) : "pieces" %></span>
+        </div>
+        <span class="muted" style="font-size:11.5px">Deliveries can then be typed as boxes; patients are still given any number of pieces.</span>
+      </div>
       <label class="field" style="grid-column:1/-1"><span>Description</span>
         <input type="text" name="description" value="<%= m.description || '' %>" />
       </label>
@@ -58,8 +77,12 @@
           or damaged boxes. Each of those writes a line in the stock ledger;
           a number typed over the total here would not. %>
       <% if (!isEdit) { %>
-        <label class="field"><span>Opening stock *</span>
+        <label class="field" data-open-packages hidden><span><span data-open-pack-word>Boxes</span> on hand</span>
+          <input type="number" name="stock_packages" min="0" step="1" value="<%= m.stock_packages || 0 %>" />
+        </label>
+        <label class="field"><span data-open-label>Opening stock *</span>
           <input type="number" name="stock_quantity" min="0" step="1" value="<%= m.stock_quantity ?? 0 %>" required />
+          <span class="muted" style="font-size:11.5px" data-open-total></span>
         </label>
         <label class="field"><span>Expiry date <span class="muted">(of this stock)</span></span>
           <input type="date" name="expiry_date" value="<%= m.expiry_date || '' %>" />
@@ -67,7 +90,7 @@
         </label>
       <% } else { %>
         <div class="field"><span>Stock</span>
-          <div style="font-size:15px;padding:8px 0"><b><%= m.stock_quantity %></b> <%= m.unit || "" %> usable</div>
+          <div style="font-size:15px;padding:8px 0"><b><%= m.stock_quantity %></b> <%= m.unit || "" %> usable<% const _pk = medUnits.inPackages(m.stock_quantity, m); if (_pk) { %> <span class="muted">(<%= _pk %>)</span><% } %></div>
           <span class="muted" style="font-size:12.5px">Changed from the medicine's page — Restock, Correct count, or Dispose — so every change is recorded.</span>
         </div>
       <% } %>
@@ -93,3 +116,50 @@
 
   <button type="submit" class="btn"><%= isEdit ? "Save changes" : "Create medicine" %></button>
 </form>
+
+<script>
+  // The package row and the opening stock follow what is chosen above:
+  // "1 box = 100 tablets", and on a new medicine, boxes plus loose tablets
+  // with the total in tablets underneath — the number that is actually saved.
+  (function () {
+    var form = document.querySelector("[data-pack]");
+    if (!form) return;
+    var unitSel = document.querySelector('select[name="unit"]');
+    var packSel = document.querySelector("[data-pack-unit]");
+    var per = document.querySelector("[data-pack-per]");
+    var word = document.querySelector("[data-pack-unit-word]");
+    var openPk = document.querySelector("[data-open-packages]");
+    var openPkWord = document.querySelector("[data-open-pack-word]");
+    var openLabel = document.querySelector("[data-open-label]");
+    var openTotal = document.querySelector("[data-open-total]");
+    var pkInput = openPk ? openPk.querySelector("input") : null;
+    var looseInput = document.querySelector('input[name="stock_quantity"]');
+    function plural(w, n) {
+      w = w || "piece";
+      if (n === 1) return w;
+      if (/[^aeiou]y$/.test(w)) return w.slice(0, -1) + "ies";
+      if (/(x|s|ch|sh)$/.test(w)) return w + "es";
+      return w + "s";
+    }
+    function sync() {
+      var unit = unitSel && unitSel.value ? unitSel.value : "piece";
+      var pack = packSel.value;
+      var n = parseInt(per.value, 10);
+      per.disabled = !pack;
+      per.required = !!pack;
+      word.textContent = plural(unit, 2);
+      if (!openPk) return;
+      var packed = pack && n >= 2;
+      openPk.hidden = !packed;
+      if (pkInput) pkInput.disabled = !packed;
+      openPkWord.textContent = packed ? plural(pack, 2).replace(/^./, function (c) { return c.toUpperCase(); }) : "";
+      openLabel.textContent = packed ? "Loose " + plural(unit, 2) + " on hand" : "Opening stock *";
+      var total = (parseInt(looseInput.value, 10) || 0) + (packed ? (parseInt(pkInput.value, 10) || 0) * n : 0);
+      openTotal.textContent = packed ? "= " + total + " " + plural(unit, total) + " in stock" : "";
+    }
+    [unitSel, packSel, per, pkInput, looseInput].forEach(function (el) {
+      if (el) { el.addEventListener("change", sync); el.addEventListener("input", sync); }
+    });
+    sync();
+  })();
+</script>

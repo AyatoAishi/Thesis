@@ -199,29 +199,11 @@ router.post("/patients/:id/immunization", async (req, res, next) => {
   }
 });
 
-// ---- UNDO a recorded dose  POST /patients/:id/immunization/:immId/delete ----
-// Corrects a mis-entry — no approval step, same as other simple undo actions
-// in this app (e.g. rejecting a pending dispense).
-router.post("/patients/:id/immunization/:immId/delete", async (req, res, next) => {
-  try {
-    const { rows } = await db.query(
-      "DELETE FROM immunization_records WHERE imm_id=$1 AND patient_id=$2 RETURNING vaccine_name, dose_number",
-      [req.params.immId, req.params.id]
-    );
-    if (rows[0]) {
-      audit.log(
-        req.session.user.user_id,
-        "delete",
-        "immunization",
-        req.params.id,
-        `removed ${rows[0].vaccine_name} dose ${rows[0].dose_number}`
-      );
-    }
-    safeRedirect(res, null, `/patients/${req.params.id}/immunization`, rows[0] ? "Dose record removed." : "Nothing to remove.");
-  } catch (e) {
-    next(e);
-  }
-});
+// ---- No "Undo" for a recorded dose (panel review, Oct 2026) --------------------
+// An injection that was given cannot be un-given, so its record cannot be
+// deleted from the system either — by anyone. Decided with the group: no
+// correction path; a wrong entry is fixed by a developer, on the record.
+
 
 // ---- PDF EXPORT  GET /patients/:id/immunization/export ----------------------
 router.get("/patients/:id/immunization/export", async (req, res, next) => {

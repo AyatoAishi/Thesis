@@ -16,9 +16,10 @@
   <div class="card">
     <div class="panel-title" style="margin-bottom:14px"><%= patient.full_name %></div>
     <div class="form-grid">
-      <label class="field"><span>Child # *</span>
-        <input type="number" name="child_number" min="1" step="1" value="<%= values.child_number %>" required />
-      </label>
+      <%# Numbered automatically from the children already recorded (panel review). %>
+      <div class="field"><span>Child #</span>
+        <div class="mono" style="padding:10px 2px;font-weight:700">#<%= values.child_number %> <span class="muted" style="font-weight:500;font-family:inherit">(numbered automatically)</span></div>
+      </div>
       <label class="field"><span>Date of birth</span>
         <input type="date" name="dob" value="<%= values.dob %>" />
       </label>
@@ -30,7 +31,12 @@
         </select>
       </label>
       <label class="field"><span>Delivery type</span>
-        <input type="text" name="delivery_type" value="<%= values.delivery_type %>" placeholder="e.g. NSD, CS" />
+        <select name="delivery_type">
+          <option value="">—</option>
+          <% (typeof deliveryTypes !== "undefined" ? deliveryTypes : []).forEach(function (d) { %>
+            <option value="<%= d.code %>" <%= values.delivery_type === d.code ? "selected" : "" %>><%= d.label %></option>
+          <% }) %>
+        </select>
       </label>
       <label class="field"><span>Attended by</span>
         <input type="text" name="attended_by_text" value="<%= values.attended_by_text %>" placeholder="e.g. midwife, hospital staff" />

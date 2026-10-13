@@ -21,7 +21,7 @@
     <input type="hidden" name="kind" value="immunization" />
     <div style="flex:1;min-width:240px">
       <%- include("../partials/search-picker", {
-            items: patients.map(p => ({ id: p.patient_id, label: p.full_name, meta: p.patient_number })),
+            items: patients.map(p => ({ id: p.patient_id, label: p.full_name, meta: patientMeta(p) })),
             name: "patient_id",
             selectedId: "",
             placeholder: "Search the patient by name or number…",
@@ -34,19 +34,19 @@
 <div class="card" style="overflow:visible">
   <div class="svc-head" style="margin-bottom:6px">
     <span class="panel-title">🤰 Pre-natal record</span>
-    <span class="muted" style="font-size:12px">female patients</span>
+    <span class="muted" style="font-size:12px">patients with a prenatal record</span>
   </div>
   <p class="muted" style="font-size:12.5px;margin:0 0 12px">
     LMP and EDD, lab results, tetanus doses, delivery history, and every follow-up visit.
   </p>
   <% if (!prenatalPatients.length) { %>
-    <p class="muted" style="margin:0">No female patients registered yet.</p>
+    <p class="muted" style="margin:0">No prenatal records yet. Start one from the patient's own page: <b>Forms → Prenatal record</b>.</p>
   <% } else { %>
     <form method="GET" action="/forms/open" class="form-inline">
       <input type="hidden" name="kind" value="prenatal" />
       <div style="flex:1;min-width:240px">
         <%- include("../partials/search-picker", {
-              items: prenatalPatients.map(p => ({ id: p.patient_id, label: p.full_name, meta: p.patient_number })),
+              items: prenatalPatients.map(p => ({ id: p.patient_id, label: p.full_name, meta: patientMeta(p) })),
               name: "patient_id",
               selectedId: "",
               placeholder: "Search the patient by name or number…",

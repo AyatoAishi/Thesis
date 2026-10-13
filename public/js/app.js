@@ -142,7 +142,7 @@
           nameSpan.textContent = p.name;
           var numSpan = document.createElement("span");
           numSpan.className = "muted";
-          numSpan.textContent = p.num + (elsewhere(p) ? " · in " + elsewhere(p) + ", will be moved" : "");
+          numSpan.textContent = p.num + (p.info ? " · " + p.info : "") + (elsewhere(p) ? " · in family " + elsewhere(p) + ", will be moved" : "");
           btn.appendChild(nameSpan);
           btn.appendChild(numSpan);
           btn.addEventListener("click", function () { choose(p); });
@@ -163,7 +163,8 @@
         if (alreadyPicked) return false;
         // Already a member of this household: nothing to add.
         if (valueInput.value && p.fam === valueInput.value) return false;
-        return p.name.toLowerCase().indexOf(q) !== -1 || p.num.toLowerCase().indexOf(q) !== -1;
+        return p.name.toLowerCase().indexOf(q) !== -1 || p.num.toLowerCase().indexOf(q) !== -1
+          || String(p.info || "").toLowerCase().indexOf(q) !== -1;
       }));
     });
 
@@ -189,12 +190,31 @@
   // already on the page client-side instead of a long <select>. Used for
   // patients and for medicines on the dispense form; items are
   // { id, label, meta }, so nothing here knows what it's picking.
-  document.querySelectorAll("[data-picker]").forEach(function (root) {
+  //
+  // window.initSearchPicker wires up a picker added after the page loaded —
+  // the dispense form's "+ Add medicine" copies a row, and cloneNode copies
+  // the markup but none of the listeners. The WeakSet stops a second call on
+  // the same picker from doubling every listener.
+  var wiredPickers = typeof WeakSet === "function" ? new WeakSet() : null;
+
+  function initPicker(root) {
+    if (!root || (wiredPickers && wiredPickers.has(root))) return;
+    if (wiredPickers) wiredPickers.add(root);
     var idInput = root.querySelector("[data-picker-id]");
     var search = root.querySelector("[data-picker-search]");
     var results = root.querySelector("[data-picker-results]");
     var dataEl = root.querySelector("[data-picker-data]");
+    if (!idInput || !search || !results || !dataEl) return;
     var items = JSON.parse(dataEl.textContent || "[]");
+
+    // data-picker-required: the search box calls itself invalid until an item
+    // is actually picked, so the browser's own "please fill this in" stops the
+    // form. Typing a name without choosing it from the list is not a choice.
+    var reqAttr = root.getAttribute("data-picker-required");
+    var requiredMsg = reqAttr === null ? null : (reqAttr || "Choose one from the list.");
+    function syncValidity() {
+      if (requiredMsg !== null) search.setCustomValidity(idInput.value ? "" : requiredMsg);
+    }
 
     function display(item) {
       return item.meta ? item.label + " — " + item.meta : item.label;
@@ -225,6 +245,7 @@
             idInput.value = item.id;
             search.value = display(item);
             results.hidden = true;
+            syncValidity();
             // Announced, so a form can react to WHO was picked — the booking
             // form hides prenatal for a male patient this way. Setting .value
             // from script fires nothing on its own.
@@ -241,6 +262,7 @@
         idInput.value = ""; // typing invalidates any prior selection
         idInput.dispatchEvent(new Event("change", { bubbles: true }));
       }
+      syncValidity();
       var q = search.value.trim().toLowerCase();
       if (!q) {
         results.hidden = true;
@@ -270,7 +292,12 @@
     document.addEventListener("click", function (e) {
       if (!root.contains(e.target)) results.hidden = true;
     });
-  });
+
+    syncValidity();
+  }
+
+  document.querySelectorAll("[data-picker]").forEach(initPicker);
+  window.initSearchPicker = initPicker;
 })();
 
 /* ---------------------------------------------------------------------------

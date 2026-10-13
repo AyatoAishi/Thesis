@@ -8,7 +8,7 @@ curious teammate asking.
 
 ## What this is, in one paragraph
 
-A web-based system for Barangay Sampaguita Health Clinic that replaces paper-based patient records
+An online system for Barangay Sampaguita Health Clinic that replaces paper-based patient records
 and appointment logs. Staff register patients, book and track appointments across the clinic's 3
 services, get automatic email reminders sent out, manage a medicine inventory, record consultations
 and vital signs, and pull reports on attendance/no-shows/trends/inventory. Patients get their own

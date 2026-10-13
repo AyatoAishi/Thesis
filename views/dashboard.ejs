@@ -48,7 +48,11 @@
   </a>
 </div>
 
-<!-- Needs attention: only what this role can actually act on -->
+<%# Panel review, Oct 2026: Quick actions sit up here beside the follow-ups
+    instead of at the bottom of the page. %>
+<div class="dash-split">
+<!-- For follow-up (renamed from "Needs attention" after the panel review: it
+     reads as urgent, and most of these are routine): only what this role can act on -->
 <section class="card">
   <div class="panel-head">
     <div class="panel-title"><%= t("dash.attention") %></div>
@@ -64,7 +68,7 @@
             </svg>
             <span><%= a.label %></span>
           </div>
-          <span class="badge warn"><%= t("dash.open") %></span>
+          <span class="mini-btn"><%= t("dash.open") %></span>
         </a>
       <% }) %>
     </div>
@@ -84,6 +88,15 @@
     </div>
   <% } %>
 </section>
+<section class="card dash-quick">
+  <div class="panel-head"><div class="panel-title"><%= t("dash.quick") %></div></div>
+  <ol class="steps">
+    <li><%- t("dash.q1", { a: `<a href="/patients/new">${t("dash.q1a")}</a>`, b: `<a href="/appointments/new">${t("dash.q1b")}</a>` }) %></li>
+    <li><%- t("dash.q2", { a: `<a href="/appointments?date=${todayISO}">${t("dash.q2a")}</a>` }) %></li>
+    <li><%- t("dash.q3", { a: `<a href="/forms">${t("dash.q3a")}</a>` }) %></li>
+  </ol>
+</section>
+</div>
 
 <%# The calendar. This is a scheduling system whose front page had no calendar
     on it — the cards above say HOW MANY, and a clinic's actual question is
@@ -207,11 +220,3 @@
 </section>
 <% } %>
 
-<section class="card">
-  <div class="panel-head"><div class="panel-title"><%= t("dash.quick") %></div></div>
-  <ol class="steps">
-    <li><%- t("dash.q1", { a: `<a href="/patients/new">${t("dash.q1a")}</a>`, b: `<a href="/appointments/new">${t("dash.q1b")}</a>` }) %></li>
-    <li><%- t("dash.q2", { a: `<a href="/appointments?date=${todayISO}">${t("dash.q2a")}</a>` }) %></li>
-    <li><%- t("dash.q3", { a: `<a href="/forms">${t("dash.q3a")}</a>` }) %></li>
-  </ol>
-</section>

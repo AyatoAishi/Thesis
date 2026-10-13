@@ -69,6 +69,7 @@
               it opens already holds the password form under Update profile. %>
           <a href="/account"><%= t("top.update_profile") %></a>
           <a href="/manual"><%= t("top.manual") %></a>
+          <% if (u.is_super_admin) { %><a href="/recovery"><%= t("top.recovery") %></a><% } %>
           <form method="POST" action="/logout" style="margin:0"><%- include("../partials/csrf") %>
             <button type="submit" class="user-menu-logout"><%= t("top.logout") %></button>
           </form>

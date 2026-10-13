@@ -24,7 +24,7 @@ const db = require("../db");
 const audit = require("../lib/audit");
 const stock = require("../lib/stock");
 const F = require("../lib/format");
-const { UNITS, optionsFor, isKnown } = require("../lib/medicineUnits");
+const { UNITS, optionsFor, isKnown, PACKAGES, isPackage, plural, perPackage, inPackages } = require("../lib/medicineUnits");
 const { splitDose, dosageNeedsUnit } = require("../lib/medicineName");
 
 const router = express.Router();
@@ -43,6 +43,12 @@ function readMedicineForm(body) {
     unit: (body.unit || "").trim() || null,
     dosage: (body.dosage || "").trim() || null,
     stock_quantity: toInt(body.stock_quantity, 0),
+    // Restock by the box, give out by the piece (panel review, Oct 2026). Both
+    // or neither: a package with no size can't be turned into pieces.
+    package_unit: isPackage(body.package_unit) ? String(body.package_unit).trim().toLowerCase() : null,
+    pieces_per_package: isPackage(body.package_unit) ? toInt(body.pieces_per_package, null) : null,
+    // Opening stock may be typed as whole packages plus loose pieces.
+    stock_packages: isPackage(body.package_unit) ? toInt(body.stock_packages, 0) : 0,
     low_stock_threshold: toInt(body.low_stock_threshold, 10),
     source: (body.source || "").trim() || null,
     is_family_planning: body.is_family_planning === "on" || body.is_family_planning === "true",
@@ -78,12 +84,19 @@ function validateMedicine(m) {
   else if (!isKnown(m.unit))
     errors.push(`"${m.unit}" is not one of the units on the list. Pick one, or the same medicine ends up counted on two separate lines.`);
 
+  if (m.package_unit && (!Number.isInteger(m.pieces_per_package) || m.pieces_per_package < 2 || m.pieces_per_package > 10000))
+    errors.push(`Say how many ${plural(m.unit || "piece")} are in one ${m.package_unit} — a whole number from 2 up.`);
+  if (!Number.isInteger(m.stock_packages) || m.stock_packages < 0)
+    errors.push(`The number of ${plural(m.package_unit || "package")} must be zero or a positive whole number.`);
   if (!Number.isInteger(m.stock_quantity) || m.stock_quantity < 0)
     errors.push("Stock quantity must be zero or a positive whole number.");
   if (!Number.isInteger(m.low_stock_threshold) || m.low_stock_threshold < 0)
     errors.push("Low-stock threshold must be zero or a positive whole number.");
   return errors;
 }
+
+// Opening stock in pieces: whole packages times their size, plus loose ones.
+const openingPieces = (m) => m.stock_quantity + (perPackage(m) ? m.stock_packages * perPackage(m) : 0);
 
 // Validate a submitted dispense. `medicine` may be null (not chosen / not found).
 // A form field repeated N times arrives as an array — except when N is 1,
@@ -161,14 +174,14 @@ async function rerenderDispenseForm(res, { body, medicine, errors }) {
   let patients = null;
   if (body.patient_id) {
     const r = await db.query(
-      "SELECT patient_id, patient_number, full_name FROM patients WHERE patient_id=$1",
+      "SELECT patient_id, patient_number, full_name, birthdate, address FROM patients WHERE patient_id=$1",
       [parseInt(body.patient_id, 10) || 0]
     );
     patient = r.rows[0] || null;
   }
   if (!patient) {
     patients = (
-      await db.query("SELECT patient_id, patient_number, full_name FROM patients WHERE deceased_at IS NULL ORDER BY full_name LIMIT 500")
+      await db.query("SELECT patient_id, patient_number, full_name, birthdate, address FROM patients WHERE deceased_at IS NULL ORDER BY full_name LIMIT 500")
     ).rows;
   }
   // The medicine list is always needed now: every line is its own dropdown, so
@@ -224,7 +237,7 @@ router.get("/inventory", async (req, res, next) => {
     const [{ rows }, totalQ, lowQ, archivedQ] = await Promise.all([
       db.query(
         `SELECT medicine_id, name, description, unit, dosage, stock_quantity, low_stock_threshold,
-                source, is_family_planning,
+                source, is_family_planning, package_unit, pieces_per_package,
                 (SELECT min(b.expiry_date) FROM medicine_batches b
                   WHERE b.medicine_id = medicines.medicine_id AND b.quantity_remaining > 0) AS next_expiry,
                 (SELECT coalesce(sum(b.expired_quantity), 0)::int FROM medicine_batches b
@@ -265,6 +278,7 @@ router.get("/inventory/new", (req, res) => {
     mode: "new",
     medicine: {},
     unitOptions: optionsFor(({}).unit, res.locals.t),
+    packages: PACKAGES,
     errors: [],
   });
 });
@@ -295,7 +309,7 @@ router.post("/inventory", async (req, res, next) => {
       active: "inventory",
       mode: "new",
       medicine: m,
-      unitOptions: optionsFor(m.unit, res.locals.t),
+      unitOptions: optionsFor(m.unit, res.locals.t), packages: PACKAGES,
       errors,
     });
   }
@@ -307,7 +321,7 @@ router.post("/inventory", async (req, res, next) => {
         active: "inventory",
         mode: "new",
         medicine: m,
-        unitOptions: optionsFor(m.unit, res.locals.t),
+        unitOptions: optionsFor(m.unit, res.locals.t), packages: PACKAGES,
         errors: [
           `"${dup.name}"${dup.dosage ? ` (${dup.dosage})` : ""} already exists in inventory` +
             (dup.archived_at
@@ -317,10 +331,18 @@ router.post("/inventory", async (req, res, next) => {
         dupId: dup.medicine_id,
       });
     }
-    if (m.stock_quantity > 0 && m.expiry_date && m.expiry_date < F.manilaToday()) {
+    const opening = openingPieces(m);
+    if (opening > 1000000) {
       return res.status(400).render("inventory/form", {
         title: "Add medicine · Sampaguita HC", active: "inventory", mode: "new",
-        medicine: m, unitOptions: optionsFor(m.unit, res.locals.t),
+        medicine: m, unitOptions: optionsFor(m.unit, res.locals.t), packages: PACKAGES,
+        errors: ["That is over a million pieces of opening stock — check the numbers."],
+      });
+    }
+    if (opening > 0 && m.expiry_date && m.expiry_date < F.manilaToday()) {
+      return res.status(400).render("inventory/form", {
+        title: "Add medicine · Sampaguita HC", active: "inventory", mode: "new",
+        medicine: m, unitOptions: optionsFor(m.unit, res.locals.t), packages: PACKAGES,
         errors: ["That expiry date has already passed — expired stock cannot be added as usable stock."],
       });
     }
@@ -333,14 +355,16 @@ router.post("/inventory", async (req, res, next) => {
       await client.query("BEGIN");
       ({ rows } = await client.query(
         `INSERT INTO medicines
-           (name, description, unit, dosage, stock_quantity, low_stock_threshold, source, is_family_planning)
-         VALUES ($1,$2,$3,$4,0,$5,$6,$7)
+           (name, description, unit, dosage, stock_quantity, low_stock_threshold, source, is_family_planning,
+            package_unit, pieces_per_package)
+         VALUES ($1,$2,$3,$4,0,$5,$6,$7,$8,$9)
          RETURNING medicine_id`,
-        [m.name, m.description, m.unit, m.dosage, m.low_stock_threshold, m.source, m.is_family_planning]
+        [m.name, m.description, m.unit, m.dosage, m.low_stock_threshold, m.source, m.is_family_planning,
+         m.package_unit, m.pieces_per_package]
       ));
-      if (m.stock_quantity > 0) {
+      if (opening > 0) {
         await stock.restock({
-          client, medicineId: rows[0].medicine_id, quantity: m.stock_quantity,
+          client, medicineId: rows[0].medicine_id, quantity: opening,
           expiryDate: m.expiry_date, source: m.source, note: "Opening stock", userId: req.session.user.user_id,
         });
       }
@@ -353,7 +377,7 @@ router.post("/inventory", async (req, res, next) => {
     }
     audit.log(
       req.session.user.user_id, "create", "medicine", rows[0].medicine_id,
-      `${m.name} added with stock ${m.stock_quantity}`
+      `${m.name} added with stock ${opening}`
     );
     res.redirect(`/inventory/${rows[0].medicine_id}`);
   } catch (e) {
@@ -395,14 +419,14 @@ router.get("/inventory/dispense/new", async (req, res, next) => {
     let patients = null;
     if (req.query.patient_id) {
       const r = await db.query(
-        "SELECT patient_id, patient_number, full_name FROM patients WHERE patient_id=$1",
+        "SELECT patient_id, patient_number, full_name, birthdate, address FROM patients WHERE patient_id=$1",
         [parseInt(req.query.patient_id, 10) || 0]
       );
       patient = r.rows[0] || null;
     }
     if (!patient) {
       patients = (
-        await db.query("SELECT patient_id, patient_number, full_name FROM patients WHERE deceased_at IS NULL ORDER BY full_name LIMIT 500")
+        await db.query("SELECT patient_id, patient_number, full_name, birthdate, address FROM patients WHERE deceased_at IS NULL ORDER BY full_name LIMIT 500")
       ).rows;
     }
 
@@ -621,13 +645,29 @@ const back = (res, id, msg, key = "flash") => res.redirect(`/inventory/${id}?${k
 router.post("/inventory/:id/restock", async (req, res, next) => {
   const id = parseInt(req.params.id, 10);
   try {
-    const { rows } = await db.query("SELECT medicine_id, name, unit, archived_at FROM medicines WHERE medicine_id=$1", [id]);
+    const { rows } = await db.query(
+      "SELECT medicine_id, name, unit, archived_at, package_unit, pieces_per_package FROM medicines WHERE medicine_id=$1", [id]
+    );
     const m = rows[0];
     if (!m) return next();
     if (m.archived_at) return back(res, id, "This medicine is archived. Restore it before adding stock.", "err");
-    const qty = intOf(req.body.quantity);
+    // A medicine kept in boxes is restocked in boxes (plus any loose pieces)
+    // and stored in pieces, because pieces are what a patient is given.
+    const per = perPackage(m);
+    const blank = (v) => String(v === undefined || v === null ? "" : v).trim() === "";
+    let qty;
+    if (per) {
+      const pk = blank(req.body.packages) ? 0 : intOf(req.body.packages);
+      const loose = blank(req.body.quantity) ? 0 : intOf(req.body.quantity);
+      if (!Number.isInteger(pk) || !Number.isInteger(loose))
+        return back(res, id, `Enter whole numbers — how many ${plural(m.package_unit)} arrived, and any loose ${plural(m.unit || "piece")}.`, "err");
+      qty = pk * per + loose;
+    } else {
+      qty = intOf(req.body.quantity);
+    }
     const expiry = /^\d{4}-\d{2}-\d{2}$/.test(req.body.expiry_date || "") ? req.body.expiry_date : null;
     if (!Number.isInteger(qty) || qty <= 0) return back(res, id, "Enter how many arrived — a whole number above zero.", "err");
+    if (qty > 1000000) return back(res, id, "That is over a million pieces in one delivery — check the numbers.", "err");
     // Required, not just asked for by the form: a batch with no expiry is
     // treated as the oldest stock on the shelf and handed out first (lib/stock.js).
     if (!expiry) return back(res, id, "Enter the expiry date printed on the box — every new batch needs one.", "err");
@@ -638,9 +678,10 @@ router.post("/inventory/:id/restock", async (req, res, next) => {
       note: (req.body.note || "").trim().slice(0, 255) || null,
       userId: req.session.user.user_id,
     });
-    audit.log(req.session.user.user_id, "update", "medicine", id,
-      `${m.name}: restocked ${qty}${m.unit ? " " + m.unit : ""}, expires ${expiry}`);
-    back(res, id, `Added ${qty}${m.unit ? " " + m.unit : ""} as a new batch.`);
+    const asPk = inPackages(qty, m);
+    const said = `${qty} ${plural(m.unit || "piece", qty)}${asPk ? ` (${asPk})` : ""}`;
+    audit.log(req.session.user.user_id, "update", "medicine", id, `${m.name}: restocked ${said}, expires ${expiry}`);
+    back(res, id, `Added ${said} as a new batch.`);
   } catch (e) {
     next(e);
   }
@@ -707,7 +748,7 @@ router.get("/inventory/:id/edit", async (req, res, next) => {
       active: "inventory",
       mode: "edit",
       medicine: rows[0],
-      unitOptions: optionsFor(rows[0].unit, res.locals.t),
+      unitOptions: optionsFor(rows[0].unit, res.locals.t), packages: PACKAGES,
       errors: [],
     });
   } catch (e) {
@@ -725,7 +766,7 @@ router.post("/inventory/:id", async (req, res, next) => {
       active: "inventory",
       mode: "edit",
       medicine: { ...m, medicine_id: req.params.id },
-      unitOptions: optionsFor(({ ...m, medicine_id: req.params.id }).unit, res.locals.t),
+      unitOptions: optionsFor(({ ...m, medicine_id: req.params.id }).unit, res.locals.t), packages: PACKAGES,
       errors,
     });
   }
@@ -737,7 +778,7 @@ router.post("/inventory/:id", async (req, res, next) => {
         active: "inventory",
         mode: "edit",
         medicine: { ...m, medicine_id: req.params.id },
-        unitOptions: optionsFor(({ ...m, medicine_id: req.params.id }).unit, res.locals.t),
+        unitOptions: optionsFor(({ ...m, medicine_id: req.params.id }).unit, res.locals.t), packages: PACKAGES,
         errors: [
           `"${dup.name}"${dup.dosage ? ` (${dup.dosage})` : ""} already exists as a separate entry — ` +
             `merge stock there instead of having two entries for the same medicine.`,
@@ -769,10 +810,10 @@ router.post("/inventory/:id", async (req, res, next) => {
       // A number typed over the total would break stock == sum of batches.
       `UPDATE medicines SET
          name=$1, description=$2, unit=$3, dosage=$4, low_stock_threshold=$5,
-         source=$6, is_family_planning=$7, updated_at=now()
-       WHERE medicine_id=$8 ${guarded ? "AND date_trunc('milliseconds', updated_at) = $9" : ""}`,
+         source=$6, is_family_planning=$7, package_unit=$8, pieces_per_package=$9, updated_at=now()
+       WHERE medicine_id=$10 ${guarded ? "AND date_trunc('milliseconds', updated_at) = $11" : ""}`,
       [m.name, m.description, m.unit, m.dosage, m.low_stock_threshold,
-       m.source, m.is_family_planning, req.params.id,
+       m.source, m.is_family_planning, m.package_unit, m.pieces_per_package, req.params.id,
        ...(guarded ? [new Date(seenAt)] : [])]
     );
 
@@ -785,7 +826,7 @@ router.post("/inventory/:id", async (req, res, next) => {
         active: "inventory",
         mode: "edit",
         medicine: still.rows[0],   // redraw with the CURRENT numbers, not theirs
-        unitOptions: optionsFor(still.rows[0].unit, res.locals.t),
+        unitOptions: optionsFor(still.rows[0].unit, res.locals.t), packages: PACKAGES,
         errors: [
           `Someone else changed "${still.rows[0].name}" while this page was open — most likely a dispense. ` +
             `Nothing was saved. The current values are shown below; make your change again on top of them.`,

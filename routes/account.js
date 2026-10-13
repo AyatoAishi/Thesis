@@ -16,6 +16,7 @@ const audit = require("../lib/audit");
 const { endOtherStaffSessions } = require("../lib/sessions");
 const pw = require("../lib/passwordRequests");
 const { addressOf } = require("../lib/loginGuard");
+const prompt = require("../lib/passwordPrompt");
 
 const router = express.Router();
 
@@ -108,7 +109,7 @@ router.post("/account/password", async (req, res, next) => {
 
     // The admin: nobody above to approve, so the change applies now.
     const hash = await bcrypt.hash(next_, 10);
-    await db.query("UPDATE users SET password_hash=$1, updated_at=now() WHERE user_id=$2", [
+    await db.query("UPDATE users SET password_hash=$1, password_changed_at=now(), updated_at=now() WHERE user_id=$2", [
       hash,
       req.session.user.user_id,
     ]);
@@ -124,6 +125,72 @@ router.post("/account/password", async (req, res, next) => {
   } catch (e) {
     next(e);
   }
+});
+
+// ---- RIGHT AFTER SIGN-IN: set your own password ---------------------------------
+// Panel review, Oct 2026. Reached only from the sign-in (lib/passwordPrompt.js),
+// while the account is still on a password the admin set or issued. This one
+// change applies at once, without the admin's approval: the password it
+// replaces is one the admin chose, so there is nothing for them to approve.
+// Every later change goes through /account and the approval, as before.
+function promptView(req, extra) {
+  return Object.assign({
+    title: "Set your own password · Sampaguita HC",
+    layout: false,
+    side: "staff",
+    action: "/account/new-password",
+    skipAction: "/account/new-password/skip",
+    error: null,
+  }, extra);
+}
+
+router.get("/account/new-password", (req, res) => {
+  if (!prompt.fresh(req.session, "staff")) return res.redirect("/account");
+  res.render("new-password", promptView(req));
+});
+
+router.post("/account/new-password", async (req, res, next) => {
+  try {
+    const mark = prompt.fresh(req.session, "staff");
+    if (!mark) return res.redirect("/account");
+    const dest = mark.next || "/dashboard";
+    const uid = req.session.user.user_id;
+    const pass = req.body.new_password || "";
+    const again = (msg) => res.status(400).render("new-password", promptView(req, { error: msg }));
+
+    if (pass.length < 8) return again("The new password must be at least 8 characters.");
+    if (pass !== (req.body.confirm_password || "")) return again("The two passwords don't match.");
+
+    const { rows } = await db.query("SELECT password_hash, password_changed_at FROM users WHERE user_id=$1", [uid]);
+    if (!rows[0]) return res.redirect("/login");
+    if (rows[0].password_changed_at) {          // already done (another tab)
+      prompt.clear(req.session, "staff");
+      return res.redirect(dest);
+    }
+    if (await bcrypt.compare(pass, rows[0].password_hash))
+      return again("That is the password the admin gave you. Choose a different one.");
+
+    await db.query(
+      "UPDATE users SET password_hash=$1, password_changed_at=now(), updated_at=now() WHERE user_id=$2",
+      [await bcrypt.hash(pass, 10), uid]
+    );
+    // A request still waiting for the admin is overtaken by this change.
+    await pw.cancelOwn(uid);
+    const ended = await endOtherStaffSessions(uid, req.sessionID);
+    audit.log(uid, "password_change", "user", uid,
+      "set own password at sign-in, replacing the one the admin gave" +
+        (ended ? ` (${ended} other session${ended === 1 ? "" : "s"} signed out)` : ""));
+    prompt.clear(req.session, "staff");
+    req.session.save(() => res.redirect(dest));
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post("/account/new-password/skip", (req, res) => {
+  const mark = prompt.fresh(req.session, "staff");
+  prompt.clear(req.session, "staff");
+  req.session.save(() => res.redirect((mark && mark.next) || "/dashboard"));
 });
 
 router.post("/account/password/cancel", async (req, res, next) => {

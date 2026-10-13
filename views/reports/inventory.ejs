@@ -34,7 +34,7 @@
             <tr>
               <td><a href="/inventory/<%= m.medicine_id %>"><%= m.name %></a><% if (m.dosage) { %> <span class="muted"><%= m.dosage %></span><% } %></td>
               <td style="<%= m.status === 'Low' ? 'color:var(--bad-ink);font-weight:700' : 'font-weight:600' %>">
-                <%= m.stock_quantity %> <%= m.unit || "" %><% if (m.status === "Low") { %> <span class="badge bad">Low</span><% } %>
+                <%= m.stock_quantity %> <%= m.unit || "" %><% if (m.in_packages) { %> <span class="muted" style="font-weight:500;font-size:12px">(<%= m.in_packages %>)</span><% } %><% if (m.status === "Low") { %> <span class="badge bad">Low</span><% } %>
               </td>
               <td><%= m.low_stock_threshold %></td>
               <td style="white-space:nowrap"><%= m.next_expiry ? longDate(m.next_expiry) : (m.no_expiry ? "not recorded" : "—") %></td>

@@ -163,8 +163,8 @@ async function findOrCreateMedicine(m) {
     if (!portalExisting.rowCount) {
       const portalHash = await bcrypt.hash("Demo1234!", 10);
       await db.query(
-        `INSERT INTO patient_accounts (patient_id, username, password_hash, valid_id_type, valid_id_number, is_verified)
-         VALUES ($1,'maria.delacruz',$2,'PhilHealth','12-345678901-2',true)`,
+        `INSERT INTO patient_accounts (patient_id, username, password_hash, valid_id_type, is_verified)
+         VALUES ($1,'maria.delacruz',$2,'PhilHealth ID',true)`,
         [mariaId, portalHash]
       );
       console.log("  ✓ Patient portal demo login ready: maria.delacruz / Demo1234!");

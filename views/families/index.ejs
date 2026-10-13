@@ -28,7 +28,6 @@
   <div data-live-results>
     <div class="view-tabs">
       <a class="view-tab" href="/patients"><%= t("pat.tab_all") %></a>
-      <a class="view-tab" href="/patients?view=household"><%= t("pat.tab_household") %></a>
       <a class="view-tab active" href="/families" aria-current="page"><%= t("pat.tab_families") %></a>
       <% if (overdueTotal) { %>
         <a class="view-tab" href="/patients?overdue=1">

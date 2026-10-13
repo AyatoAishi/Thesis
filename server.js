@@ -35,12 +35,16 @@ const announcementRoutes = require("./routes/announcements");
 const reminders = require("./services/reminders");
 const smsSvc = require("./services/sms");
 const clinicInfo = require("./lib/clinicInfo");
-const { ID_FORMATS } = require("./lib/idTypes");
 const immSchedule = require("./services/immunizationSchedule");
 const imm = require("./lib/immunizationCard");
 const { requireLogin } = require("./middleware/auth");
 const { csrf } = require("./middleware/csrf");
 const F = require("./lib/format");
+const medUnits = require("./lib/medicineUnits");
+const tutorials = require("./lib/tutorials");
+const { FallbackStore } = require("./lib/sessionStore");
+const backupStore = require("./lib/backupStore");
+const recoveryRoutes = require("./routes/recovery");
 const theme = require("./lib/theme");
 
 const app = express();
@@ -71,9 +75,13 @@ app.use(express.static(path.join(__dirname, "public")));
 // minutes: each run wakes the Neon compute, and on the free plan every wake
 // spends compute hours (the September quota ran out on 2026-09-29).
 // Expired sessions are already refused on read, so a slower sweep is safe.
+//
+// Wrapped in FallbackStore (Oct 2026): if the database cannot be reached,
+// sessions are kept in memory for the time being, so the recovery super admin
+// can still sign in and fix things (lib/sessionStore.js, routes/recovery.js).
 const sessionStore = process.env.DATABASE_URL
-  ? new pgSession({ pool: db.getPool(), tableName: "session", createTableIfMissing: true,
-      pruneSessionInterval: 24 * 60 * 60 })
+  ? new FallbackStore(new pgSession({ pool: db.getPool(), tableName: "session", createTableIfMissing: true,
+      pruneSessionInterval: 24 * 60 * 60 }))
   : undefined;
 
 app.use(
@@ -115,7 +123,8 @@ app.use((req, res, next) => {
   // Whether texts really leave the building; forms say so instead of guessing.
   res.locals.smsLive = smsSvc.isLive();
   res.locals.clinic = clinicInfo;   // the sign-in pages' contact footer
-  res.locals.idFormats = ID_FORMATS; // example + length per valid-ID type (partials/id-form-script)
+  res.locals.patientMeta = F.patientMeta; // number · born · address, in every patient search box
+  res.locals.medUnits = medUnits;         // "3 boxes + 20 tablets" wherever stock is shown
   next();
 });
 
@@ -207,7 +216,19 @@ async function runDailyJobs() {
   }
   const immResult = await immSchedule.runDaily();
   const remResult = await reminders.processReminders({});
-  return { immunization: immResult, reminders: remResult };
+  // The weekly backup (panel review, Oct 2026): made when the newest one is
+  // about a week old, into the separate backup database (lib/backupStore.js).
+  // Last, so a slow backup never delays a reminder; caught, so a failed one
+  // never stops tomorrow's run.
+  let backupResult = null;
+  try {
+    backupResult = await backupStore.maybeWeekly();
+    if (backupResult.made) console.log(`[daily] weekly backup #${backupResult.made.id} made (${backupResult.made.rows} rows)`);
+  } catch (e) {
+    console.error("[daily] weekly backup:", e.message);
+    backupResult = { error: e.message };
+  }
+  return { immunization: immResult, reminders: remResult, backup: backupResult };
 }
 
 app.all("/tasks/run-reminders", (req, res) => {
@@ -258,6 +279,16 @@ app.get("/favicon.ico", (req, res) => res.status(204).end());
 
 // Everything below here requires a signed-in staff user.
 app.use(requireLogin);
+
+// Backups & recovery (panel review, Oct 2026). Above everything that reads the
+// database on every request: the recovery account is not a database row and
+// must keep working while the database is down. A recovery sign-in reaches
+// this page and nothing else.
+app.use("/", recoveryRoutes);
+app.use((req, res, next) => {
+  if (req.session.user && req.session.user.recovery) return res.redirect("/recovery");
+  next();
+});
 
 // Mounted ABOVE the topbar middleware below, and that placement is the whole
 // point. These are JSON endpoints for Ate Sam; they render no shell, so the
@@ -313,7 +344,8 @@ app.use(async (req, res, next) => {
          ${imm.overdueChildrenSql({ names: "$3", doses: "$4", weeks: "$5", today: "$1", maxAge: "$6" })} AS imm_overdue,
          (SELECT role   FROM users WHERE user_id=$2) AS live_role,
          (SELECT status FROM users WHERE user_id=$2) AS live_status,
-         (SELECT full_name FROM users WHERE user_id=$2) AS live_name`,
+         (SELECT full_name FROM users WHERE user_id=$2) AS live_name,
+         (SELECT is_super_admin FROM users WHERE user_id=$2) AS live_super`,
       [F.manilaToday(), req.session.user.user_id,
        imm.DUE_ARRAYS.names, imm.DUE_ARRAYS.doses, imm.DUE_ARRAYS.weeks, imm.EPI_MAX_AGE_YEARS]
     );
@@ -329,6 +361,8 @@ app.use(async (req, res, next) => {
     // Role or name changed under them — carry the new one, don't sign them out.
     req.session.user.role = c.live_role;
     req.session.user.full_name = c.live_name;
+    // Shows "Backups & recovery" in their menu (routes/recovery.js re-checks).
+    req.session.user.is_super_admin = !!c.live_super;
     res.locals.user = req.session.user;
 
     res.locals.todayApptCount = c.today_appts;
@@ -375,7 +409,18 @@ app.use("/", familyRoutes);
 
 // The user's manual ("Add a user's manual" — the professors' review). Every
 // signed-in staff member can open it; see views/manual.ejs.
-app.get("/manual", (req, res) => res.render("manual", { title: "User's manual · Sampaguita HC", active: "" }));
+// Video tutorials sit at the top (panel review, Oct 2026); the admin also sees
+// the patient ones, and the form for adding them.
+app.get("/manual", async (req, res) => {
+  const isAdmin = req.session.user.role === "admin";
+  res.render("manual", {
+    title: "User's manual · Sampaguita HC",
+    active: "",
+    staffVideos: await tutorials.list("staff"),
+    patientVideos: isAdmin ? await tutorials.list("patient") : [],
+    videoFlash: req.query.video || null,
+  });
+});
 app.use("/", appointmentRoutes);
 app.use("/", reminderRoutes);
 app.use("/", inventoryRoutes);

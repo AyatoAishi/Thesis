@@ -1,0 +1,23 @@
+<%#
+  A grid of tutorial videos (panel review, Oct 2026). Expects `videos` from
+  lib/tutorials.js — each with title, url, and `embed` (a YouTube or Drive
+  player address, or null for any other link). Optional `openLabel`.
+%>
+<% const _open = typeof openLabel !== "undefined" && openLabel ? openLabel : "Open video"; %>
+<div class="video-grid">
+  <% videos.forEach(function (v) { %>
+    <figure class="video-card">
+      <% if (v.embed) { %>
+        <div class="video-frame">
+          <iframe src="<%= v.embed %>" title="<%= v.title %>" loading="lazy"
+                  allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"></iframe>
+        </div>
+      <% } %>
+      <figcaption>
+        <b><%= v.title %></b>
+        <% if (!v.embed) { %><a class="mini-btn" href="<%= v.url %>" target="_blank" rel="noopener noreferrer"><%= _open %> ↗</a><% } %>
+      </figcaption>
+    </figure>
+  <% }) %>
+</div>

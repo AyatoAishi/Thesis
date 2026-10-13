@@ -20,6 +20,8 @@ const audit = require("../lib/audit");
 const { buildReportPdf } = require("../lib/pdf");
 
 const router = express.Router();
+const booking = require("../lib/booking");
+const symptoms = require("../lib/prenatalSymptoms");
 
 function isDate(s) {
   if (!s) return true; // most date fields here are optional
@@ -43,10 +45,13 @@ function toNumOrNull(v) {
 // appointment for a prenatal." The same holds for the prenatal RECORD itself:
 // the patient page never shows the Prenatal button to a male patient, and this
 // refuses the pages behind it for anyone who types the address.
-function refusedForMale(patient, res) {
-  if (patient && String(patient.sex || "").toLowerCase() === "male") {
-    res.redirect(`/patients/${patient.patient_id}?err=` +
-      encodeURIComponent("Prenatal records cannot be created for a male patient."));
+// A new prenatal record only for a woman of an age a pregnancy can be
+// (lib/booking.js prenatalProblem: not male, 10 to 55). Records already on
+// file stay readable and editable whatever happens later.
+function refusedForPrenatal(patient, res) {
+  const why = booking.prenatalProblem(patient, F.manilaToday());
+  if (why) {
+    res.redirect(`/patients/${patient.patient_id}?err=` + encodeURIComponent(why));
     return true;
   }
   return false;
@@ -96,7 +101,7 @@ function readIntakeForm(body) {
     // ---- the parts of the paper intake form that were missing ----------
     weight_kg: toNumOrNull(body.weight_kg),
     height_cm: toNumOrNull(body.height_cm),
-    philhealth_no: (body.philhealth_no || "").replace(/[^0-9-]/g, "").slice(0, 20) || null,
+    philhealth_no: formatPhilHealth(body.philhealth_no),
     pregnancy_test_result: ["positive", "negative"].includes(body.pregnancy_test_result) ? body.pregnancy_test_result : null,
     vdrl_result: SCREEN_RESULTS.includes(body.vdrl_result) ? body.vdrl_result : null,
     hbsag_result: SCREEN_RESULTS.includes(body.hbsag_result) ? body.hbsag_result : null,
@@ -105,7 +110,18 @@ function readIntakeForm(body) {
     urinalysis_result: (body.urinalysis_result || "").trim().slice(0, 80) || null,
     ...Object.fromEntries(INTAKE_SYMPTOMS.map((k) => [k, body[k] === "on"])),
     intake_notes: (body.intake_notes || "").trim().slice(0, 1000) || null,
+    other_symptoms: symptoms.read(body),
   };
+}
+
+// PhilHealth numbers are 12 digits, written 12-345678901-2 (panel review: the
+// box should follow the pattern as it is typed). Stored formatted; anything
+// that is not 12 digits is kept as typed so validateIntake can say so.
+function formatPhilHealth(raw) {
+  const digits = String(raw || "").replace(/\D/g, "");
+  if (!digits) return null;
+  if (digits.length !== 12) return digits.slice(0, 20);
+  return `${digits.slice(0, 2)}-${digits.slice(2, 11)}-${digits.slice(11)}`;
 }
 
 // The screening results the paper form writes beside each test date.
@@ -130,13 +146,13 @@ async function saveIntakeExtras(prenatalId, p) {
        vdrl_result=$5, hbsag_result=$6, hiv_result=$7, cbc_result=$8, urinalysis_result=$9,
        sx_abdominal_contractions=$10, sx_vaginal_spotting=$11, sx_vaginal_discharge=$12,
        sx_dysuria=$13, sx_low_back_pain=$14, sx_hypogastric_pain=$15, sx_edema=$16,
-       intake_notes=$17, bmi=coalesce($18, bmi), updated_at=now()
+       intake_notes=$17, bmi=coalesce($18, bmi), other_symptoms=$20, updated_at=now()
      WHERE prenatal_id=$19`,
     [p.weight_kg, p.height_cm, p.philhealth_no, p.pregnancy_test_result,
      p.vdrl_result, p.hbsag_result, p.hiv_result, p.cbc_result, p.urinalysis_result,
      p.sx_abdominal_contractions, p.sx_vaginal_spotting, p.sx_vaginal_discharge,
      p.sx_dysuria, p.sx_low_back_pain, p.sx_hypogastric_pain, p.sx_edema,
-     p.intake_notes, bmi, prenatalId]
+     p.intake_notes, bmi, prenatalId, p.other_symptoms || []]
   );
 }
 
@@ -184,6 +200,8 @@ function validateIntake(p) {
   if (pa !== null && (pa < 0 || pa > 20)) errors.push("Para (deliveries) looks wrong — expected 0 to 20.");
   if (g !== null && pa !== null && pa > g)
     errors.push("Para can't be higher than gravida — there can't be more deliveries than pregnancies.");
+  if (p.philhealth_no && !/^\d{2}-\d{9}-\d$/.test(p.philhealth_no))
+    errors.push("The PhilHealth number must have 12 digits, like 12-345678901-2.");
 
   return errors;
 }
@@ -233,8 +251,9 @@ router.get("/patients/:id/prenatal/new", async (req, res, next) => {
   try {
     const patient = await loadPatient(req.params.id);
     if (!patient) return next();
-    if (refusedForMale(patient, res)) return;
+    if (refusedForPrenatal(patient, res)) return;
     res.render("patients/prenatal-form", {
+      symptomOptions: await symptoms.options(),
       title: `New prenatal record — ${patient.full_name} · Sampaguita HC`,
       active: "patients",
       mode: "new",
@@ -252,12 +271,13 @@ router.post("/patients/:id/prenatal", async (req, res, next) => {
   try {
     const patient = await loadPatient(req.params.id);
     if (!patient) return next();
-    if (refusedForMale(patient, res)) return;
+    if (refusedForPrenatal(patient, res)) return;
     const p = readIntakeForm(req.body);
     if (!p.edd && p.lmp) p.edd = suggestEdd(p.lmp);
     const errors = validateIntake(p);
     if (errors.length) {
       return res.status(400).render("patients/prenatal-form", {
+      symptomOptions: await symptoms.options(),
         title: `New prenatal record — ${patient.full_name} · Sampaguita HC`,
         active: "patients",
         mode: "new",
@@ -282,6 +302,7 @@ router.post("/patients/:id/prenatal", async (req, res, next) => {
       ]
     );
     await saveIntakeExtras(rows[0].prenatal_id, p);
+    await symptoms.remember(p.other_symptoms, req.session.user.user_id);
     audit.log(req.session.user.user_id, "create", "prenatal", rows[0].prenatal_id, `started for ${patient.full_name}`);
     res.redirect(`/patients/${patient.patient_id}/prenatal/${rows[0].prenatal_id}`);
   } catch (e) {
@@ -330,6 +351,7 @@ router.get("/patients/:id/prenatal/:prenatalId/edit", async (req, res, next) => 
     const record = await loadRecord(patient.patient_id, req.params.prenatalId);
     if (!record) return next();
     res.render("patients/prenatal-form", {
+      symptomOptions: await symptoms.options(),
       title: `Edit prenatal record — ${patient.full_name} · Sampaguita HC`,
       active: "patients",
       mode: "edit",
@@ -354,6 +376,7 @@ router.post("/patients/:id/prenatal/:prenatalId", async (req, res, next) => {
     const errors = validateIntake(p);
     if (errors.length) {
       return res.status(400).render("patients/prenatal-form", {
+      symptomOptions: await symptoms.options(),
         title: `Edit prenatal record — ${patient.full_name} · Sampaguita HC`,
         active: "patients",
         mode: "edit",
@@ -379,6 +402,7 @@ router.post("/patients/:id/prenatal/:prenatalId", async (req, res, next) => {
       ]
     );
     await saveIntakeExtras(existing.prenatal_id, p);
+    await symptoms.remember(p.other_symptoms, req.session.user.user_id);
     audit.log(req.session.user.user_id, "update", "prenatal", existing.prenatal_id, `updated for ${patient.full_name}`);
     res.redirect(`/patients/${patient.patient_id}/prenatal/${existing.prenatal_id}`);
   } catch (e) {
@@ -402,6 +426,15 @@ router.post("/patients/:id/prenatal/:prenatalId/status", async (req, res, next) 
   }
 });
 
+// Delivery types as a list (panel review: a dropdown, not free text). The
+// code is what is stored; the words beside it explain the acronym.
+const DELIVERY_TYPES = [
+  { code: "NSD", label: "NSD — Normal spontaneous delivery" },
+  { code: "CS", label: "CS — Cesarean section" },
+  { code: "Assisted", label: "Assisted vaginal delivery (forceps or vacuum)" },
+  { code: "Other", label: "Other" },
+];
+
 // ---- ADD child/delivery-history entry  GET .../children/new -----------------
 router.get("/patients/:id/prenatal/:prenatalId/children/new", async (req, res, next) => {
   try {
@@ -409,13 +442,14 @@ router.get("/patients/:id/prenatal/:prenatalId/children/new", async (req, res, n
     if (!patient) return next();
     const record = await loadRecord(patient.patient_id, req.params.prenatalId);
     if (!record) return next();
-    const { rows } = await db.query("SELECT count(*)::int n FROM prenatal_children WHERE prenatal_id=$1", [record.prenatal_id]);
+    const { rows } = await db.query("SELECT coalesce(max(child_number), 0)::int n FROM prenatal_children WHERE prenatal_id=$1", [record.prenatal_id]);
     res.render("patients/prenatal-child-form", {
       title: `Add child — ${patient.full_name} · Sampaguita HC`,
       active: "patients",
       patient,
       record,
       values: { child_number: rows[0].n + 1, dob: "", sex: "", delivery_type: "", attended_by_text: "", place_of_birth: "" },
+      deliveryTypes: DELIVERY_TYPES,
       errors: [],
     });
   } catch (e) {
@@ -432,15 +466,18 @@ router.post("/patients/:id/prenatal/:prenatalId/children", async (req, res, next
     if (!record) return next();
 
     const values = {
-      child_number: toIntOrNull(req.body.child_number),
+      // Numbered automatically from the children already recorded (panel review:
+      // "auto-increment, based on the count of the data") — never typed.
+      child_number: null,
       dob: req.body.dob || null,
       sex: req.body.sex || null,
-      delivery_type: (req.body.delivery_type || "").trim() || null,
+      delivery_type: DELIVERY_TYPES.some((d) => d.code === req.body.delivery_type) ? req.body.delivery_type : null,
       attended_by_text: (req.body.attended_by_text || "").trim() || null,
       place_of_birth: (req.body.place_of_birth || "").trim() || null,
     };
     const errors = [];
-    if (!values.child_number || values.child_number < 1) errors.push("Child number must be 1 or higher.");
+    const countQ = await db.query("SELECT coalesce(max(child_number), 0)::int AS n FROM prenatal_children WHERE prenatal_id=$1", [record.prenatal_id]);
+    values.child_number = countQ.rows[0].n + 1;
     if (values.dob && !isDate(values.dob)) errors.push("Date of birth isn't valid.");
     else if (values.dob && (values.dob < EARLIEST || values.dob > F.manilaToday()))
       errors.push("Date of birth is out of range — it can't be in the future or before 1900.");
@@ -452,6 +489,7 @@ router.post("/patients/:id/prenatal/:prenatalId/children", async (req, res, next
         patient,
         record,
         values,
+        deliveryTypes: DELIVERY_TYPES,
         errors,
       });
     }
@@ -468,28 +506,10 @@ router.post("/patients/:id/prenatal/:prenatalId/children", async (req, res, next
   }
 });
 
-// ---- REMOVE child entry  POST .../children/:childId/delete ------------------
-router.post("/patients/:id/prenatal/:prenatalId/children/:childId/delete", async (req, res, next) => {
-  try {
-    // Every other route here proves the record belongs to the patient in the
-    // URL before touching it; these two deletes skipped that, so a stale or
-    // hand-edited link could delete an entry out of a different patient's
-    // record while the page redirected as if nothing unusual had happened.
-    const patient = await loadPatient(req.params.id);
-    if (!patient) return next();
-    const record = await loadRecord(patient.patient_id, req.params.prenatalId);
-    if (!record) return next();
-
-    const { rowCount } = await db.query(
-      "DELETE FROM prenatal_children WHERE child_id=$1 AND prenatal_id=$2",
-      [req.params.childId, record.prenatal_id]
-    );
-    if (rowCount) audit.log(req.session.user.user_id, "delete", "prenatal_child", req.params.childId, `child record removed from ${patient.full_name}'s prenatal record`);
-    res.redirect(`/patients/${req.params.id}/prenatal/${req.params.prenatalId}?flash=${encodeURIComponent(rowCount ? "Removed." : "Nothing to remove.")}`);
-  } catch (e) {
-    next(e);
-  }
-});
+// ---- No "Remove" on a child entry (panel review, Oct 2026) ---------------------
+// "Parang tinakwil" — removing a child from a mother's delivery history reads
+// as disowning them, and the history is a record of births that happened.
+// Children and check-up visits cannot be deleted by anyone (group decision).
 
 // ---- ADD visit follow-up  GET .../visits/new ---------------------------------
 router.get("/patients/:id/prenatal/:prenatalId/visits/new", async (req, res, next) => {
@@ -499,6 +519,7 @@ router.get("/patients/:id/prenatal/:prenatalId/visits/new", async (req, res, nex
     const record = await loadRecord(patient.patient_id, req.params.prenatalId);
     if (!record) return next();
     res.render("patients/prenatal-visit-form", {
+      symptomOptions: await symptoms.options(),
       title: `Add visit — ${patient.full_name} · Sampaguita HC`,
       active: "patients",
       patient,
@@ -534,6 +555,7 @@ router.post("/patients/:id/prenatal/:prenatalId/visits", async (req, res, next) 
       low_back_pain: b.low_back_pain === "on",
       hypogastric_pain: b.hypogastric_pain === "on",
       edema: b.edema === "on",
+      other_symptoms: symptoms.read(b),
       notes: (b.notes || "").trim() || null,
     };
     const errors = [];
@@ -547,6 +569,7 @@ router.post("/patients/:id/prenatal/:prenatalId/visits", async (req, res, next) 
 
     if (errors.length) {
       return res.status(400).render("patients/prenatal-visit-form", {
+      symptomOptions: await symptoms.options(),
         title: `Add visit — ${patient.full_name} · Sampaguita HC`,
         active: "patients",
         patient,
@@ -560,15 +583,16 @@ router.post("/patients/:id/prenatal/:prenatalId/visits", async (req, res, next) 
       `INSERT INTO prenatal_visits
          (prenatal_id, visit_date, aog, bp, weight_kg, fundal_height_cm, fetal_heart_tone,
           abdominal_contractions, vaginal_spotting, vaginal_discharge, dysuria, low_back_pain,
-          hypogastric_pain, edema, notes, recorded_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+          hypogastric_pain, edema, notes, recorded_by, other_symptoms)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
       [
         record.prenatal_id, values.visit_date, values.aog, values.bp, values.weight_kg, values.fundal_height_cm,
         values.fetal_heart_tone, values.abdominal_contractions, values.vaginal_spotting, values.vaginal_discharge,
         values.dysuria, values.low_back_pain, values.hypogastric_pain, values.edema, values.notes,
-        req.session.user.user_id,
+        req.session.user.user_id, values.other_symptoms,
       ]
     );
+    await symptoms.remember(values.other_symptoms, req.session.user.user_id);
     audit.log(req.session.user.user_id, "create", "prenatal_visit", record.prenatal_id, `visit recorded for ${patient.full_name}`);
     res.redirect(`/patients/${patient.patient_id}/prenatal/${record.prenatal_id}?flash=${encodeURIComponent("Visit recorded.")}`);
   } catch (e) {
@@ -576,24 +600,8 @@ router.post("/patients/:id/prenatal/:prenatalId/visits", async (req, res, next) 
   }
 });
 
-// ---- REMOVE visit  POST .../visits/:visitId/delete ---------------------------
-router.post("/patients/:id/prenatal/:prenatalId/visits/:visitId/delete", async (req, res, next) => {
-  try {
-    const patient = await loadPatient(req.params.id);
-    if (!patient) return next();
-    const record = await loadRecord(patient.patient_id, req.params.prenatalId);
-    if (!record) return next();
-
-    const { rowCount } = await db.query(
-      "DELETE FROM prenatal_visits WHERE visit_id=$1 AND prenatal_id=$2",
-      [req.params.visitId, record.prenatal_id]
-    );
-    if (rowCount) audit.log(req.session.user.user_id, "delete", "prenatal_visit", req.params.visitId, `check-up removed from ${patient.full_name}'s prenatal record`);
-    res.redirect(`/patients/${req.params.id}/prenatal/${req.params.prenatalId}?flash=${encodeURIComponent(rowCount ? "Visit removed." : "Nothing to remove.")}`);
-  } catch (e) {
-    next(e);
-  }
-});
+// ---- No "Remove" on a check-up visit (panel review, Oct 2026) -----------------
+// A check-up that took place stays on the record; see the note above.
 
 // ---- PDF EXPORT  GET /patients/:id/prenatal/:prenatalId/export --------------
 router.get("/patients/:id/prenatal/:prenatalId/export", async (req, res, next) => {
@@ -618,6 +626,7 @@ router.get("/patients/:id/prenatal/:prenatalId/export", async (req, res, next) =
       if (v.low_back_pain) flags.push("Low back pain");
       if (v.hypogastric_pain) flags.push("Hypogastric pain");
       if (v.edema) flags.push("Edema");
+      (v.other_symptoms || []).forEach((o) => flags.push(o));
       return flags.length ? flags.join(", ") : "None reported";
     };
 

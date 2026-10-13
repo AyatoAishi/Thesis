@@ -1,0 +1,149 @@
+<%#
+  Backups & recovery (panel review, Oct 2026) — routes/recovery.js.
+  A page of its own, outside the normal shell: the shell reads the database
+  for its counts, and this page must open while the database is down.
+%>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= title %></title>
+  <link rel="icon" href="/favicon.png" type="image/png" />
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body class="auth-body recovery-body">
+<%
+  const when = (d) => new Date(d).toLocaleString("en-PH", { timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+  const kb = (n) => n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB";
+  const KIND = { auto: ["ok", "Weekly"], manual: ["info", "Made by hand"], "pre-restore": ["warn", "Before a restore"] };
+  const regular = backups.filter((b) => b.kind !== "pre-restore");
+  const newest = regular[0] || null;
+  const daysAgo = newest ? Math.floor((Date.now() - new Date(newest.created_at).getTime()) / 86400000) : null;
+%>
+<main class="recovery-wrap">
+  <div class="recovery-head">
+    <div>
+      <h1>Backups &amp; recovery</h1>
+      <div class="muted">Signed in as <b><%= me.full_name %></b><%= me.recovery ? " — server account, works even when the database is down" : "" %></div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <% if (!me.recovery) { %><a class="mini-btn" href="/dashboard">Back to the system</a><% } %>
+      <form method="POST" action="/logout" style="margin:0"><%- include("partials/csrf") %>
+        <button type="submit" class="mini-btn">Sign out</button>
+      </form>
+    </div>
+  </div>
+
+  <% if (ok) { %><div class="page-alert ok"><%= ok %></div><% } %>
+  <% if (err) { %><div class="page-alert bad"><%= err %></div><% } %>
+
+  <div class="card">
+    <div class="panel-title" style="margin-bottom:12px">Status</div>
+    <dl class="kv">
+      <div><dt>Main database</dt><dd>
+        <% if (mainDb.ok) { %><span class="badge ok">Working</span>
+        <% } else { %><span class="badge bad">Not reachable</span> <span class="muted" style="font-size:12px"><%= mainDb.reason %></span><% } %>
+      </dd></div>
+      <div><dt>Backup database</dt><dd>
+        <% if (backupDb.ok) { %><span class="badge ok">Working</span>
+        <% } else if (missing.length) { %><span class="badge warn">Not set up</span> <span class="muted" style="font-size:12px">missing <%= missing.join(" and ") %> in the server settings</span>
+        <% } else { %><span class="badge bad">Not reachable</span> <span class="muted" style="font-size:12px"><%= backupDb.reason %></span><% } %>
+      </dd></div>
+      <div><dt>Last backup</dt><dd>
+        <% if (newest) { %><%= when(newest.created_at) %> <span class="muted">(<%= daysAgo === 0 ? "today" : daysAgo === 1 ? "yesterday" : daysAgo + " days ago" %>)</span>
+        <% } else { %><span class="muted">none yet</span><% } %>
+      </dd></div>
+      <div><dt>Schedule</dt><dd>Automatic, once a week. The newest <%= keep %> are kept; each new one replaces the oldest.</dd></div>
+    </dl>
+    <% if (backupDb.ok) { %>
+      <form method="POST" action="/recovery/backup-now" style="margin:14px 0 0"><%- include("partials/csrf") %>
+        <button type="submit" class="btn">Back up now</button>
+        <span class="muted" style="font-size:12.5px;margin-left:8px">Takes a few seconds. Counts as one of the <%= keep %>.</span>
+      </form>
+    <% } %>
+  </div>
+
+  <div class="card">
+    <div class="panel-title" style="margin-bottom:4px">Backups</div>
+    <p class="muted" style="font-size:12.5px;margin:0 0 12px">
+      Each is the whole database, compressed and encrypted, kept in a separate database from the main one.
+      <b>Restore</b> replaces everything in the system with that backup's data — the current data is
+      saved first as a "Before a restore" copy, so a mistake can be undone.
+    </p>
+    <% if (listError) { %>
+      <p class="page-alert bad" style="margin:0"><%= listError %></p>
+    <% } else if (!backups.length) { %>
+      <p class="muted" style="margin:0"><%= backupDb.ok ? "No backups yet. The first weekly one is made by the next morning's job — or press Back up now." : "Backups appear here once the backup database is set up." %></p>
+    <% } else { %>
+      <div class="batch-wrap">
+        <table class="tbl">
+          <thead><tr><th>#</th><th>Made</th><th>Kind</th><th>Size</th><th>Records</th><th></th></tr></thead>
+          <tbody>
+            <% backups.forEach(function (b) { const k = KIND[b.kind] || ["info", b.kind]; %>
+              <tr>
+                <td class="mono"><%= b.backup_id %></td>
+                <td style="white-space:nowrap"><%= when(b.created_at) %></td>
+                <td><span class="badge <%= k[0] %>"><%= k[1] %></span><% if (b.note) { %><div class="muted" style="font-size:11px"><%= b.note %></div><% } %></td>
+                <td class="mono"><%= kb(b.size_bytes) %></td>
+                <td class="mono"><%= b.rows_total %> <span class="muted">in <%= b.tables %> tables</span></td>
+                <td style="text-align:right;white-space:nowrap">
+                  <a class="mini-btn" href="/recovery/backups/<%= b.backup_id %>/download">Download</a>
+                  <details class="restore-box">
+                    <summary class="mini-btn">Restore…</summary>
+                    <form method="POST" action="/recovery/backups/<%= b.backup_id %>/restore"
+                          data-confirm-title="Restore backup #<%= b.backup_id %>"
+                          data-confirm="Everything in the system will be replaced with the data from <%= when(b.created_at) %>. | Anything recorded after that is removed (it is kept in the “Before a restore” copy). | Everyone stays signed in, but may see older data."
+                          data-confirm-yes="Yes, restore it" data-confirm-no="No, cancel"><%- include("partials/csrf") %>
+                      <label class="field" style="margin:8px 0"><span>Type <b>RESTORE</b> to confirm</span>
+                        <input type="text" name="confirm" autocomplete="off" required pattern="RESTORE" />
+                      </label>
+                      <button type="submit" class="btn danger-btn">Restore this backup</button>
+                    </form>
+                  </details>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+      <p class="muted" style="font-size:12px;margin:10px 2px 0">
+        A downloaded file opens with the BACKUP_KEY from the server settings:
+        <span class="mono">npm run backup:decrypt -- file.json.gz.enc</span>
+      </p>
+    <% } %>
+  </div>
+
+  <div class="card" id="admin">
+    <div class="panel-title" style="margin-bottom:4px">Admin forgot their password</div>
+    <% if (issued) { %>
+      <div class="pw-state warn" style="margin:8px 0 12px">
+        New temporary password for <b><%= issued.full_name %></b> (<span class="mono"><%= issued.username %></span>):
+        <b class="mono" style="font-size:16px;letter-spacing:.5px"><%= issued.temp %></b><br />
+        Shown once. Give it to them in person — they will be asked to set their own when they sign in.
+      </div>
+    <% } %>
+    <% if (!mainDb.ok) { %>
+      <p class="muted" style="margin:0">Needs the main database. Restore a backup first if it is broken.</p>
+    <% } else if (!admins.length) { %>
+      <p class="muted" style="margin:0">No other admin accounts.</p>
+    <% } else { %>
+      <form method="POST" action="/recovery/admin-password" class="form-grid" style="margin-top:8px"
+            data-confirm-title="Reset admin password" data-confirm="A new temporary password will replace the admin's current one, and they will be signed out everywhere."
+            data-confirm-yes="Yes, reset it" data-confirm-no="No, cancel"><%- include("partials/csrf") %>
+        <label class="field"><span>Admin account</span>
+          <select name="user_id" required>
+            <option value="">— choose —</option>
+            <% admins.forEach(function (a) { %>
+              <option value="<%= a.user_id %>"><%= a.full_name %> (<%= a.username %>)<%= a.is_super_admin ? " — super admin" : "" %></option>
+            <% }) %>
+          </select>
+        </label>
+        <button type="submit" class="btn" style="align-self:flex-end">Issue a temporary password</button>
+      </form>
+    <% } %>
+  </div>
+</main>
+<script src="/js/app.js"></script>
+</body>
+</html>

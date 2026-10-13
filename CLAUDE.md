@@ -6,7 +6,7 @@
 > in `docs/DESIGN-SYSTEM.md`.
 
 ## What we're building
-A **Web-Based Electronic Medical Record (EMR) + Appointment Management System** for
+An **Online Electronic Medical Record (EMR) + Appointment Management System** for
 **Barangay Sampaguita Health Clinic** (a small community health clinic in the Philippines).
 It is an undergraduate thesis project (BS Information Technology). End users are
 **non-technical** clinic staff (a nurse, facilitators, a recorder and an admin)

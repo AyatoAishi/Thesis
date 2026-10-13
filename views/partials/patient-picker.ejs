@@ -3,7 +3,8 @@
   // Expects `patients` (rows with patient_id/full_name/patient_number) and an
   // optional `selectedId`.
   const _patientItems = (patients || []).map(p => ({
-    id: p.patient_id, label: p.full_name, meta: p.patient_number,
+    id: p.patient_id, label: p.full_name,
+    meta: typeof patientMeta === "function" ? patientMeta(p) : p.patient_number,
   }));
 %>
 <%- include("search-picker", {

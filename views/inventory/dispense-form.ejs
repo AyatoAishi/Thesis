@@ -3,11 +3,11 @@
   // three medicines used to mean filling this form three times, picking the
   // same patient each time.
   //
-  // The medicine picker here is a plain <select>, not the searchable one used
-  // elsewhere: there are nine medicines, and a searchable picker cannot simply
-  // be cloned for a row added after the page loaded — it carries its own
-  // hidden input and its own script state. Nine options in a select is not a
-  // problem worth that complexity.
+  // Each row's medicine is the same type-to-search picker as the patient box
+  // (panel review, Oct 2026: scrolling a dropdown for the right medicine was
+  // slow, and it only gets slower as the inventory grows). A row added with
+  // "+ Add medicine" is a copy of the first, and the script at the bottom
+  // wires the copy's picker up — cloning copies markup, not listeners.
   //
   // `lines` is what the server sends back after a validation failure, so a
   // rejected form reopens with all the rows still filled in. First load gets
@@ -15,6 +15,11 @@
   const rows = (typeof lines !== "undefined" && lines && lines.length)
     ? lines
     : [{ medicine_id: medicine ? medicine.medicine_id : (dispense.medicine_id || ""), quantity: dispense.quantity || "", instructions: "" }];
+  const medItems = (medicines || []).map(m => ({
+    id: m.medicine_id,
+    label: m.name + (m.dosage ? " " + m.dosage : ""),
+    meta: `${m.unit || "unit"} · ${m.stock_quantity > 0 ? m.stock_quantity + " in stock" : "out of stock"}`,
+  }));
 %>
 <%- include("../partials/back", { href: "/inventory", to: "Back to inventory" }) %>
 <div class="page-head">
@@ -48,7 +53,9 @@
     </div>
   </div>
 
-  <div class="card">
+  <%# overflow:visible for the same reason as the patient card above: each
+      row's search results drop below the card's edge. %>
+  <div class="card" style="overflow:visible">
     <div class="panel-head" style="margin-bottom:4px">
       <div>
         <div class="panel-title">Medicines</div>
@@ -65,16 +72,13 @@
         <% rows.forEach(function (ln, i) { %>
           <div class="dispense-line" data-dispense-line>
             <label class="field"><span<%= i ? ' class="sr-only"' : "" %>>Medicine *</span>
-              <select name="line_medicine_id" required>
-                <option value="">— choose —</option>
-                <% medicines.forEach(function (med) { %>
-                  <option value="<%= med.medicine_id %>"
-                          <%= String(ln.medicine_id) === String(med.medicine_id) ? "selected" : "" %>>
-                    <%= med.name %><%= med.dosage ? " " + med.dosage : "" %>
-                    (<%= med.unit || "unit" %>) — <%= med.stock_quantity %> in stock
-                  </option>
-                <% }) %>
-              </select>
+              <%- include("../partials/search-picker", {
+                    items: medItems,
+                    name: "line_medicine_id",
+                    selectedId: ln.medicine_id,
+                    placeholder: "Type a medicine name…",
+                    requiredMsg: "Choose a medicine from the list.",
+                  }) %>
             </label>
             <label class="field dispense-qty"><span<%= i ? ' class="sr-only"' : "" %>>Quantity *</span>
               <input type="number" name="line_quantity" min="1" step="1"
@@ -139,13 +143,16 @@
       if (!first) return;
       var copy = first.cloneNode(true);
       copy.querySelectorAll("select, input").forEach(function (f) { f.value = ""; });
+      var res = copy.querySelector("[data-picker-results]");
+      if (res) { res.innerHTML = ""; res.hidden = true; }
       // The labels only belong on the first row; repeating "Medicine" down the
       // page is noise, but they stay in the markup for screen readers.
       copy.querySelectorAll("label > span").forEach(function (s) { s.className = "sr-only"; });
       box.appendChild(copy);
+      if (window.initSearchPicker) window.initSearchPicker(copy.querySelector("[data-picker]"));
       refreshDropButtons();
-      var sel = copy.querySelector("select");
-      if (sel) sel.focus();
+      var search = copy.querySelector("[data-picker-search]");
+      if (search) search.focus();
     });
 
     box.addEventListener("click", function (e) {

@@ -16,6 +16,7 @@
 const express = require("express");
 const PDFDocument = require("pdfkit");
 const db = require("../db");
+const medUnits = require("../lib/medicineUnits");
 const F = require("../lib/format");
 const { buildPatientRecordPdf, buildReportPdf } = require("../lib/pdf");
 const { requireRole } = require("../middleware/auth");
@@ -27,6 +28,10 @@ const REPORT_ROLES = ["nurse", "recorder", "admin"];
 // consumption) open to every clinic role; the patient reports keep the
 // narrower list, because they are about people rather than shelves.
 const INVENTORY_ROLES = ["nurse", "facilitator", "recorder", "admin"];
+// Panel review, Oct 2026: a report that lists patients by name (and what they
+// came for) is the admin's alone. Reports that only count — attendance,
+// trends, analytics, stock — stay with the staff who use them.
+const NAMED_REPORT_ROLES = ["admin"];
 const stock = require("../lib/stock");
 const { sendCsv } = require("../lib/csv");
 
@@ -185,7 +190,7 @@ router.get("/reports/attendance", requireRole(...REPORT_ROLES), async (req, res,
 });
 
 // ---- NO-SHOW LIST  GET /reports/no-shows -----------------------------------
-router.get("/reports/no-shows", requireRole(...REPORT_ROLES), async (req, res, next) => {
+router.get("/reports/no-shows", requireRole(...NAMED_REPORT_ROLES), async (req, res, next) => {
   try {
     const { from, to, period } = dateRange(req.query);
     const service_id = parseInt(req.query.service_id, 10) || null;
@@ -395,7 +400,7 @@ router.get("/reports/inventory", requireRole(...INVENTORY_ROLES), async (req, re
       // off this list ("archived medicines dapat hindi na nasasama sa count").
       db.query(
         `SELECT m.medicine_id, m.name, m.dosage, m.unit, m.stock_quantity, m.low_stock_threshold,
-                m.source, m.is_family_planning,
+                m.source, m.is_family_planning, m.package_unit, m.pieces_per_package,
                 (SELECT min(b.expiry_date) FROM medicine_batches b
                   WHERE b.medicine_id = m.medicine_id AND b.quantity_remaining > 0) AS next_expiry,
                 (SELECT coalesce(sum(b.quantity_remaining), 0)::int FROM medicine_batches b
@@ -432,14 +437,16 @@ router.get("/reports/inventory", requireRole(...INVENTORY_ROLES), async (req, re
       ...m,
       next_expiry: m.next_expiry ? manilaDateStr(m.next_expiry) : null,
       status: m.stock_quantity < m.low_stock_threshold ? "Low" : "OK",
+      // "3 boxes + 20 tablets" — how the shelf is actually counted.
+      in_packages: medUnits.inPackages(m.stock_quantity, m),
     }));
 
     if (req.query.format === "csv") {
       return sendCsv(res, `inventory-${today}.csv`,
-        ["Medicine", "Dosage", "Unit", "Usable stock", "Low-stock threshold", "Status", "Next expiry",
+        ["Medicine", "Dosage", "Unit", "Usable stock", "In packages", "Low-stock threshold", "Status", "Next expiry",
          `Expiring within ${stock.EXPIRING_SOON_DAYS} days`, "Expired, awaiting disposal", "Stock with no expiry recorded",
          "Family planning", "Source"],
-        current.map((m) => [m.name, m.dosage || "", m.unit || "", m.stock_quantity, m.low_stock_threshold, m.status,
+        current.map((m) => [m.name, m.dosage || "", m.unit || "", m.stock_quantity, m.in_packages || "", m.low_stock_threshold, m.status,
           m.next_expiry || "", m.expiring_soon, m.expired_waiting, m.no_expiry, m.is_family_planning ? "Yes" : "", m.source || ""]));
     }
 
@@ -460,7 +467,8 @@ router.get("/reports/inventory", requireRole(...INVENTORY_ROLES), async (req, re
                       `Expiring within ${stock.EXPIRING_SOON_DAYS} days`, "Expired, to dispose of"],
             rows: current.map((m) => [
               `${m.name}${m.dosage ? " " + m.dosage : ""}`,
-              `${m.stock_quantity} ${m.unit || ""}`.trim() + (m.status === "Low" ? " (Low)" : ""),
+              `${m.stock_quantity} ${m.unit || ""}`.trim() + (m.in_packages ? ` (${m.in_packages})` : "") +
+                (m.status === "Low" ? " (Low)" : ""),
               m.low_stock_threshold,
               m.next_expiry ? F.longDate(m.next_expiry) : (m.no_expiry ? "not recorded" : "—"),
               m.expiring_soon || "—",
@@ -521,7 +529,7 @@ router.get("/reports/expired", requireRole(...INVENTORY_ROLES), async (req, res,
          LEFT JOIN users du ON du.user_id = b.disposed_by
         WHERE b.expired_quantity > 0
           AND (b.disposed_at IS NULL OR b.expiry_date BETWEEN $1 AND $2)
-        ORDER BY (b.disposed_at IS NOT NULL), b.expiry_date, lower(m.name)`,
+        ORDER BY (b.disposed_at IS NOT NULL), b.expiry_date DESC, lower(m.name)`,  // newest first
       [from, to]
     );
     const items = rows.map((r) => ({
@@ -618,7 +626,10 @@ router.get("/reports/consumption", requireRole(...INVENTORY_ROLES), async (req, 
   try {
     const { from, to, period } = dateRange(req.query);
     const { rows } = await db.query(
-      `SELECT d.dispensed_at, p.full_name AS patient_name, p.birthdate,
+      // Patient NUMBER only — no name, no age (panel review, Oct 2026: who
+      // received which medicine is a private matter, and this list is open to
+      // every staff role). Newest first.
+      `SELECT d.dispensed_at, p.patient_number,
               m.name AS medicine_name, m.unit, d.quantity,
               u.full_name AS dispensed_by_name
          FROM medicine_dispenses d
@@ -626,13 +637,10 @@ router.get("/reports/consumption", requireRole(...INVENTORY_ROLES), async (req, 
          JOIN medicines m ON m.medicine_id = d.medicine_id
          LEFT JOIN users u ON u.user_id = d.dispensed_by
         WHERE d.dispensed_at::date BETWEEN $1 AND $2
-        ORDER BY d.dispensed_at`,
+        ORDER BY d.dispensed_at DESC`,
       [from, to]
     );
-    const items = rows.map((r) => {
-      const date = manilaDateStr(r.dispensed_at);
-      return { ...r, date, age: ageAt(r.birthdate, date) };
-    });
+    const items = rows.map((r) => ({ ...r, date: manilaDateStr(r.dispensed_at) }));
 
     if (req.query.format === "pdf") {
       return sendReportPdf(res, `consumption-${from}_to_${to}.pdf`, {
@@ -642,15 +650,14 @@ router.get("/reports/consumption", requireRole(...INVENTORY_ROLES), async (req, 
         sections: [
           {
             title: "Medicine given",
-            headers: ["Date", "Name of patient", "Age", "Medicine / quantity given", "Signature"],
+            headers: ["Date", "Patient no.", "Medicine / quantity given", "Signature"],
             rows: items.map((it) => [
               F.longDate(it.date),
-              it.patient_name,
-              it.age,
+              it.patient_number,
               `${it.medicine_name} — ${it.quantity} ${it.unit || ""}`.trim(),
               it.dispensed_by_name || "—",
             ]),
-            widths: [75, 140, 45, 175, 60],
+            widths: [90, 105, 240, 60],
           },
         ],
       });
@@ -685,7 +692,7 @@ const SENIOR_MED_PATTERNS = [
   "%amlodipine%", "%losartan%", "%metoprolol%", "%simvastatin%", "%metformin%", "%gliclazide%",
 ];
 
-router.get("/reports/senior-citizen", requireRole(...REPORT_ROLES), async (req, res, next) => {
+router.get("/reports/senior-citizen", requireRole(...NAMED_REPORT_ROLES), async (req, res, next) => {
   try {
     const { from, to, period } = dateRange(req.query);
 
@@ -775,7 +782,7 @@ router.get("/reports/senior-citizen", requireRole(...REPORT_ROLES), async (req, 
 // planning commodity" — staff mark a medicine as one explicitly (Inventory →
 // Add/Edit medicine → "family planning commodity" checkbox) instead of the
 // report guessing from the name.
-router.get("/reports/family-planning", requireRole(...REPORT_ROLES), async (req, res, next) => {
+router.get("/reports/family-planning", requireRole(...NAMED_REPORT_ROLES), async (req, res, next) => {
   try {
     const { from, to, period } = dateRange(req.query);
     const { rows } = await db.query(
@@ -789,7 +796,7 @@ router.get("/reports/family-planning", requireRole(...REPORT_ROLES), async (req,
          LEFT JOIN users u ON u.user_id = d.dispensed_by
         WHERE d.dispensed_at::date BETWEEN $1 AND $2
           AND m.is_family_planning = true
-        ORDER BY d.dispensed_at`,
+        ORDER BY d.dispensed_at DESC`,  // newest first (panel review)
       [from, to]
     );
     const items = rows.map((r) => {

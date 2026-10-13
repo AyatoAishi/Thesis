@@ -35,16 +35,20 @@
 <div class="card">
   <div class="panel-title" style="margin-bottom:12px">Family planning &amp; senior citizen medicines</div>
   <div class="stat-grid">
-    <a class="stat-card" href="/reports/family-planning?from=<%= from %>&to=<%= to %>" style="text-decoration:none;color:inherit">
+    <%# The two lists behind these totals name patients, so they are the
+        admin's (panel review, Oct 2026). Everyone sees the totals; only the
+        admin's cards open the lists. %>
+    <% const _admin = typeof user !== "undefined" && user && user.role === "admin"; %>
+    <<%= _admin ? "a" : "div" %> class="stat-card" <% if (_admin) { %>href="/reports/family-planning?from=<%= from %>&to=<%= to %>"<% } %> style="text-decoration:none;color:inherit">
       <div class="stat-label">Family planning acceptors</div>
       <div class="stat-value"><%= fpAcceptors %></div>
       <div class="stat-note">patients, this range</div>
-    </a>
-    <a class="stat-card" href="/reports/senior-citizen?from=<%= from %>&to=<%= to %>" style="text-decoration:none;color:inherit">
-      <div class="stat-label">Seniors given HTN/DM meds</div>
+    </<%= _admin ? "a" : "div" %>>
+    <<%= _admin ? "a" : "div" %> class="stat-card" <% if (_admin) { %>href="/reports/senior-citizen?from=<%= from %>&to=<%= to %>"<% } %> style="text-decoration:none;color:inherit">
+      <div class="stat-label">Seniors given HTN/DM meds <span class="muted" style="font-weight:500">(HTN = hypertension, DM = diabetes)</span></div>
       <div class="stat-value"><%= seniorOnMeds %></div>
       <div class="stat-note">patients, this range</div>
-    </a>
+    </<%= _admin ? "a" : "div" %>>
     <div class="stat-card">
       <div class="stat-label">Families availed FP</div>
       <div class="stat-value"><%= fpFamilies %></div>

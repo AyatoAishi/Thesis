@@ -11,6 +11,7 @@ const cal = require("../lib/calendar");
 const names = require("../lib/names");
 const { ID_TYPES, UNVERIFIED: NO_ID } = require("../lib/idTypes");
 const { buildCard, overdueCounts } = require("../lib/immunizationCard");
+const visitPurpose = require("../lib/visitPurpose");
 const { endOtherPatientSessions } = require("../lib/sessions");
 const audit = require("../lib/audit");
 const { requireRole } = require("../middleware/auth");
@@ -132,9 +133,9 @@ function familyNumberOf(q) {
 async function loadFamilyLookup(excludeId) {
   const { rows } = await db.query(
     excludeId
-      ? `SELECT patient_id, patient_number, full_name, family_number FROM patients
+      ? `SELECT patient_id, patient_number, full_name, family_number, birthdate, address FROM patients
           WHERE patient_id <> $1 ORDER BY full_name LIMIT 500`
-      : `SELECT patient_id, patient_number, full_name, family_number FROM patients
+      : `SELECT patient_id, patient_number, full_name, family_number, birthdate, address FROM patients
           ORDER BY full_name LIMIT 500`,
     excludeId ? [excludeId] : []
   );
@@ -225,13 +226,13 @@ async function resolveFamily(p, excludeId) {
 // One audit line per relative the save touched besides the patient itself.
 function auditFamily(userId, fam, p) {
   fam.joined.forEach((m) =>
-    audit.log(userId, "update", "patient", m.patient_id, `added to the household of ${p.full_name}`));
+    audit.log(userId, "update", "patient", m.patient_id, `added to the family of ${p.full_name}`));
   fam.moved.forEach((m) =>
     audit.log(userId, "update", "patient", m.patient_id,
-      `moved from household ${m.from} to ${fam.family_number}, with ${p.full_name}`));
+      `moved from family ${m.from} to ${fam.family_number}, with ${p.full_name}`));
   fam.removed.forEach((m) =>
     audit.log(userId, "update", "patient", m.patient_id,
-      `taken out of household ${m.from} while editing ${p.full_name}`));
+      `taken out of family ${m.from} while editing ${p.full_name}`));
 }
 
 // Minor status is never taken from the client — always derived from birthdate
@@ -281,11 +282,11 @@ function readForm(body) {
   // working the number never arrives anyway — but with it off, or with a
   // hand-made request, the box could be ticked and a number sent alongside
   // it. The checkbox is the statement of fact; it wins.
-  const noOwnPhone = body.no_own_phone === "on" || body.no_own_phone === "true";
+  const noOwnPhone = body.no_own_phone === "on" || body.no_own_phone === "true" || body.contact_mode === "emergency";
   // "No contact number at all" (Oct 10): an elderly walk-in with no phone and
   // nobody to list must still be registered for a check-up. Ticking it is the
   // statement of fact and wins over anything typed in either number field.
-  const noContact = body.no_contact === "on" || body.no_contact === "true";
+  const noContact = body.no_contact === "on" || body.no_contact === "true" || body.contact_mode === "none";
   return {
     ...nameFields(body),
     birthdate,
@@ -294,7 +295,10 @@ function readForm(body) {
     no_own_phone: noOwnPhone || noContact,
     no_contact: noContact,
     contact_number: noOwnPhone || noContact ? null : normalizeMobile(body.contact_number) || null,
-    email: (body.email || "").trim().toLowerCase() || null,
+    // "No contact at all" empties every contact box (panel review): the choice
+    // is the statement of fact and wins over anything typed.
+    email: noContact ? null : (body.email || "").trim().toLowerCase() || null,
+    contact_mode: noContact ? "none" : noOwnPhone ? "emergency" : "own",
     family_number: (body.family_number || "").trim() || null,
     // Relatives queued on the form but not yet in any household — resolved by
     // resolveFamily() at save time. Kept as the raw string so a failed
@@ -305,10 +309,10 @@ function readForm(body) {
     family_contact_name: (body.family_contact_name || "").trim() || null,
     family_contact_relation: readRelation(body),
     family_contact_number: noContact ? null : normalizeMobile(body.family_contact_number) || null,
-    family_email: (body.family_email || "").trim().toLowerCase() || null,
+    family_email: noContact ? null : (body.family_email || "").trim().toLowerCase() || null,
     // How this patient wants to be reminded. Defaults to both so an existing
     // record that predates the field behaves exactly as it always did.
-    reminder_channel: REMINDER_CHANNELS.includes(body.reminder_channel) ? body.reminder_channel : "both",
+    reminder_channel: noContact ? "none" : REMINDER_CHANNELS.includes(body.reminder_channel) ? body.reminder_channel : "both",
     is_minor: calcIsMinor(birthdate),
     guardian_name: (body.guardian_name || "").trim() || null,
     // Asked for on a minor's record (Richelle, Sept 26); optional, because a
@@ -409,7 +413,7 @@ function validate(p) {
   if (p.family_contact_number && !isMobile(p.family_contact_number))
     errors.push(mobileError("Emergency contact #", p.family_contact_number));
   if (!p.contact_number && !p.family_contact_number && !p.no_contact)
-    errors.push("A contact number is required — either the patient's own, or the emergency contact's. If there is truly none, tick “No contact number at all”.");
+    errors.push("A contact number is required — either the patient's own, or the emergency contact's. If there is truly none, choose “No contact at all”.");
   // Ticking the box moves the requirement rather than removing it. Saying
   // this patient has no phone and then leaving the fallback blank would
   // produce a record nobody can be reached on at all, which is the one
@@ -439,9 +443,11 @@ router.get("/patients", async (req, res, next) => {
   try {
     const q = (req.query.q || "").trim();
     const sort = SORTS[req.query.sort] ? req.query.sort : "newest";
-    // "By household" gathers the family groups that were, until now, only
-    // visible one patient at a time on each profile page.
-    const view = req.query.view === "household" ? "household" : "list";
+    // The "By household" tab was removed after the defense (Oct 2026): the
+    // center says "family", and Family records shows the same groups. An old
+    // bookmark to it lands there.
+    if (req.query.view === "household") return res.redirect("/families");
+    const view = "list";
     // Only the children who are behind on a dose. Reached from the bell, which
     // says how many there are and now opens the list of exactly those rather
     // than all 13 patients with the reader left to spot the red badges.
@@ -456,10 +462,7 @@ router.get("/patients", async (req, res, next) => {
     // name of the page shell to wrap this view in, and went looking for
     // views/list.ejs (every /patients page was a 500 until the crawl caught it).
     const listLayout = req.session.patientLayout === "cards" ? "cards" : "list";
-    const order =
-      view === "household"
-        ? "family_number NULLS LAST, birthdate ASC NULLS LAST, lower(full_name)"
-        : SORTS[sort].sql;
+    const order = SORTS[sort].sql;
 
     // Deliberately one query for the whole page rather than buildCard() per
     // row — this list is 200 rows and the database is a free-tier instance an
@@ -536,6 +539,8 @@ router.get("/patients/new", async (req, res, next) => {
       familyMembers: [],
       relations: RELATIONS,
       next: req.query.next === "book" ? "book" : "",
+      purposes: visitPurpose.forRole(req.session.user.role),
+      purpose: "",
       errors: [],
     });
   } catch (e) {
@@ -557,6 +562,8 @@ router.post("/patients", async (req, res, next) => {
       familyMembers: await loadFamilyMembers(p.family_number),
       relations: RELATIONS,
       next: req.body.next === "book" ? "book" : "",
+          purposes: visitPurpose.forRole(req.session.user.role),
+          purpose: visitPurpose.isChain(req.body.purpose) ? req.body.purpose : "",
       errors,
     });
   }
@@ -589,6 +596,8 @@ router.post("/patients", async (req, res, next) => {
           familyMembers: await loadFamilyMembers(p.family_number),
           relations: RELATIONS,
           next: req.body.next === "book" ? "book" : "",
+          purposes: visitPurpose.forRole(req.session.user.role),
+          purpose: visitPurpose.isChain(req.body.purpose) ? req.body.purpose : "",
           errors: [],
           lookalikes: twins,
         });
@@ -625,18 +634,48 @@ router.post("/patients", async (req, res, next) => {
     // Straight into the portal-account step (skippable) instead of dropping
     // staff on the profile page and hoping they scroll to the account card —
     // teammates' note: "para sure na magkaka-acc mga patients".
-    const chain = req.body.next === "book" ? "?next=book" : "";
-    res.redirect(`/patients/${rows[0].patient_id}/portal-account/new${chain}`);
+    // The purpose of the visit decides where the chain ends (lib/visitPurpose.js);
+    // "book" is the chain that started from Appointments → New patient.
+    const purpose = visitPurpose.isChain(req.body.purpose) ? req.body.purpose
+                  : req.body.next === "book" ? "book" : "";
+    res.redirect(`/patients/${rows[0].patient_id}/portal-account/new${purpose ? `?next=${purpose}` : ""}`);
   } catch (e) {
     next(e);
   }
 });
 
 // ---- VIEW  /patients/:id ---------------------------------------------------
+// ---- PROFILE PHOTO (the patient adds it on the portal; panel review, Oct 2026) --
+// Staff only look at it. The admin may take one down — a test account with a
+// joke picture is not hypothetical — but cannot put one up.
+router.get("/patients/:id/photo", async (req, res, next) => {
+  try {
+    const photo = await require("../lib/patientPhoto").get(parseInt(req.params.id, 10) || 0);
+    if (!photo) return res.status(404).end();
+    require("../lib/patientPhoto").send(res, photo);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post("/patients/:id/photo/delete", requireRole("admin"), async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10) || 0;
+    if (await require("../lib/patientPhoto").remove(id)) {
+      audit.log(req.session.user.user_id, "update", "patient", id, "removed the patient's profile photo");
+    }
+    res.redirect(`/patients/${id}`);
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.get("/patients/:id", async (req, res, next) => {
   try {
     const { rows } = await db.query(
-      `SELECT p.*, u.full_name AS created_by_name
+      `SELECT p.*, u.full_name AS created_by_name,
+              EXISTS (SELECT 1 FROM prenatal_records r WHERE r.patient_id = p.patient_id) AS has_prenatal,
+              (SELECT ph.updated_at FROM patient_photos ph WHERE ph.patient_id = p.patient_id) AS photo_at
          FROM patients p
          LEFT JOIN users u ON u.user_id = p.created_by
         WHERE p.patient_id = $1`,
@@ -660,7 +699,7 @@ router.get("/patients/:id", async (req, res, next) => {
       ),
       // ---- 2) acctQ
       db.query(
-        `SELECT a.account_id, a.username, a.valid_id_type, a.valid_id_number, a.is_verified,
+        `SELECT a.account_id, a.username, a.valid_id_type, a.is_verified,
                 a.created_at, a.temp_issued_at, a.password_changed_at,
                 u.full_name AS temp_issued_by_name
            FROM patient_accounts a
@@ -730,6 +769,9 @@ router.get("/patients/:id", async (req, res, next) => {
       dispenses: dispensesQ.rows,
       visits: visitsQ.rows,
       canRecordVisit: ["nurse", "admin"].includes(req.session.user.role),
+      // The Prenatal tile: women aged 10 to 55 (lib/booking.js), or anyone who
+      // already has a prenatal record to look back at.
+      showPrenatal: rows[0].has_prenatal || !require("../lib/booking").prenatalProblem(rows[0], F.manilaToday()),
       account: acctQ.rows[0] || null,
       familyMembers,
       emailSharedWith: sharedQ.rows,
@@ -739,7 +781,7 @@ router.get("/patients/:id", async (req, res, next) => {
       // asked about at the door: “did they ever come back?”
       missedAppointments: appts.rows.filter((a) => a.status === "missed").length,
       secrets,
-      nextStep: req.query.next === "book" ? "book" : "",
+      nextStep: visitPurpose.nextStep(req.query.next, rows[0].patient_id),
       acctErr: req.query.acct_err || null,
       // Page-level problems (e.g. a refused delete). Kept separate from
       // acctErr, which renders inside the portal-account card far down the
@@ -879,9 +921,9 @@ router.post("/patients/:id", async (req, res, next) => {
     // unaware that another patient's household changed too.
     const bits = [];
     if (fam.moved.length)
-      bits.push(`Moved ${fam.moved.map((m) => `${m.full_name} (from ${m.from})`).join(", ")} into this household.`);
+      bits.push(`Moved ${fam.moved.map((m) => `${m.full_name} (from ${m.from})`).join(", ")} into this family.`);
     if (fam.removed.length)
-      bits.push(`Took ${fam.removed.map((m) => m.full_name).join(", ")} out of this household.`);
+      bits.push(`Took ${fam.removed.map((m) => m.full_name).join(", ")} out of this family.`);
     const note = bits.length ? `?fam_note=${encodeURIComponent(bits.join(" "))}` : "";
     res.redirect(`/patients/${req.params.id}${note}`);
   } catch (e) {

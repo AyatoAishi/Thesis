@@ -23,10 +23,10 @@
   <div class="card">
     <div class="panel-title" style="margin-bottom:14px">Pregnancy basics</div>
     <div class="form-grid">
-      <label class="field"><span>Husband's name</span>
+      <label class="field"><span>Husband's name <span class="muted">(optional)</span></span>
         <input type="text" name="husband_name" value="<%= r.husband_name || '' %>" />
       </label>
-      <label class="field"><span>Husband's birthdate</span>
+      <label class="field"><span>Husband's birthdate <span class="muted">(optional)</span></span>
         <input type="date" name="husband_birthdate" value="<%= fmt(r.husband_birthdate) %>" />
       </label>
       <label class="field"><span>Occupation</span>
@@ -40,26 +40,28 @@
       <label class="field"><span>Height <span class="muted">(cm)</span></span>
         <input type="number" name="height_cm" step="0.1" min="100" max="220" value="<%= r.height_cm ?? '' %>" data-bmi-h />
       </label>
-      <label class="field"><span>PhilHealth no.</span>
-        <input type="text" name="philhealth_no" value="<%= r.philhealth_no || '' %>" maxlength="20" placeholder="12-digit PIN" inputmode="numeric" />
+      <label class="field"><span>PhilHealth no. <span class="muted">(12 digits)</span></span>
+        <%# Formats itself as it is typed: 12-345678901-2 (panel review). %>
+        <input type="text" name="philhealth_no" value="<%= r.philhealth_no || '' %>" maxlength="14" placeholder="12-345678901-2"
+               inputmode="numeric" pattern="\d{2}-\d{9}-\d" title="12 digits, like 12-345678901-2" data-philhealth />
       </label>
-      <label class="field"><span>Gravida (G)</span>
+      <label class="field"><span>Gravida (G) <span class="muted">(number of pregnancies)</span></span>
         <input type="number" name="gravida" min="0" step="1" value="<%= r.gravida ?? '' %>" />
       </label>
-      <label class="field"><span>Para (P)</span>
+      <label class="field"><span>Para (P) <span class="muted">(number of deliveries)</span></span>
         <input type="number" name="para" min="0" step="1" value="<%= r.para ?? '' %>" />
       </label>
       <label class="field"><span>LMP <span class="muted">(last menstrual period)</span></span>
         <input type="date" name="lmp" id="lmpInput" value="<%= fmt(r.lmp) %>" />
       </label>
-      <label class="field"><span>EDD <span class="muted">(estimated date of delivery)</span></span>
+      <label class="field"><span>EDD <span class="muted">(expected date of delivery)</span></span>
         <input type="date" name="edd" id="eddInput" value="<%= fmt(r.edd) %>" />
         <span class="muted" style="font-size:11.5px">Auto-suggested from LMP (280 days) — change it if ultrasound dating differs.</span>
       </label>
       <label class="field"><span>AOG at intake <span class="muted">(age of gestation)</span></span>
         <input type="text" name="aog_at_intake" value="<%= r.aog_at_intake || '' %>" placeholder="e.g. 9 2/7 wks" />
       </label>
-      <label class="field"><span>BP at intake</span>
+      <label class="field"><span>BP at intake <span class="muted">(blood pressure)</span></span>
         <input type="text" name="bp_at_intake" value="<%= r.bp_at_intake || '' %>" placeholder="e.g. 120/70" />
       </label>
       <label class="field"><span>Pregnancy test result</span>
@@ -78,7 +80,7 @@
   <div class="card">
     <div class="panel-title" style="margin-bottom:14px">Lab results</div>
     <div class="form-grid">
-      <label class="field"><span>VDRL result</span>
+      <label class="field"><span>VDRL result <span class="muted">(syphilis test)</span></span>
         <select name="vdrl_result">
           <% [["", "—"], ["non-reactive", "Non-reactive"], ["reactive", "Reactive"], ["pending", "Pending"]].forEach(function (o) { %>
             <option value="<%= o[0] %>" <%= (r.vdrl_result || "") === o[0] ? "selected" : "" %>><%= o[1] %></option>
@@ -88,7 +90,7 @@
       <label class="field"><span>VDRL date</span>
         <input type="date" name="vdrl_date" value="<%= fmt(r.vdrl_date) %>" />
       </label>
-      <label class="field"><span>HBsAg result</span>
+      <label class="field"><span>HBsAg result <span class="muted">(hepatitis B test)</span></span>
         <select name="hbsag_result">
           <% [["", "—"], ["non-reactive", "Non-reactive"], ["reactive", "Reactive"], ["pending", "Pending"]].forEach(function (o) { %>
             <option value="<%= o[0] %>" <%= (r.hbsag_result || "") === o[0] ? "selected" : "" %>><%= o[1] %></option>
@@ -98,7 +100,7 @@
       <label class="field"><span>HBsAg date</span>
         <input type="date" name="hbsag_date" value="<%= fmt(r.hbsag_date) %>" />
       </label>
-      <label class="field"><span>HIV screening result</span>
+      <label class="field"><span>HIV screening result <span class="muted">(human immunodeficiency virus)</span></span>
         <select name="hiv_result">
           <% [["", "—"], ["non-reactive", "Non-reactive"], ["reactive", "Reactive"], ["pending", "Pending"]].forEach(function (o) { %>
             <option value="<%= o[0] %>" <%= (r.hiv_result || "") === o[0] ? "selected" : "" %>><%= o[1] %></option>
@@ -108,10 +110,10 @@
       <label class="field"><span>HIV screening date</span>
         <input type="date" name="hiv_screening_date" value="<%= fmt(r.hiv_screening_date) %>" />
       </label>
-      <label class="field"><span>OGTT / FBS / HbA1c</span>
+      <label class="field"><span>OGTT / FBS / HbA1c <span class="muted">(blood sugar tests: oral glucose tolerance, fasting blood sugar, 3-month average)</span></span>
         <input type="text" name="ogtt_fbs_hba1c" value="<%= r.ogtt_fbs_hba1c || '' %>" placeholder="result / date" />
       </label>
-      <label class="field"><span>CBC result</span>
+      <label class="field"><span>CBC result <span class="muted">(complete blood count)</span></span>
         <input type="text" name="cbc_result" value="<%= r.cbc_result || '' %>" maxlength="80" placeholder="e.g. Hgb 11.2, normal" />
       </label>
       <label class="field"><span>CBC date</span>
@@ -146,7 +148,7 @@
       <label class="field" style="grid-column:1/-1"><span>Other family history</span>
         <input type="text" name="fh_others" value="<%= r.fh_others || '' %>" placeholder="e.g. heart disease" />
       </label>
-      <label class="field"><span>BMI</span>
+      <label class="field"><span>BMI <span class="muted">(body mass index)</span></span>
         <input type="number" name="bmi" step="0.1" min="0" value="<%= r.bmi ?? '' %>" data-bmi />
         <span class="muted" style="font-size:12.5px">Worked out from weight and height when both are filled in.</span>
       </label>
@@ -154,7 +156,7 @@
   </div>
 
   <div class="card">
-    <div class="panel-title" style="margin-bottom:14px">Tetanus status <span class="muted" style="font-weight:400">(TT/TD doses)</span></div>
+    <div class="panel-title" style="margin-bottom:14px">Tetanus status <span class="muted" style="font-weight:400">(TT = tetanus toxoid, TD = tetanus-diphtheria doses)</span></div>
     <div class="form-grid">
       <label class="field"><span>TT1 / TD1</span><input type="date" name="tt1_date" value="<%= fmt(r.tt1_date) %>" /></label>
       <label class="field"><span>TT2 / TD2</span><input type="date" name="tt2_date" value="<%= fmt(r.tt2_date) %>" /></label>
@@ -174,13 +176,14 @@
            ["sx_abdominal_contractions", "Abdominal contractions"],
            ["sx_vaginal_spotting", "Vaginal spotting"],
            ["sx_vaginal_discharge", "Vaginal discharge"],
-           ["sx_dysuria", "Dysuria"],
+           ["sx_dysuria", "Dysuria (painful urination)"],
            ["sx_low_back_pain", "Low back pain"],
-           ["sx_hypogastric_pain", "Hypogastric pain"],
+           ["sx_hypogastric_pain", "Hypogastric pain (lower belly)"],
            ["sx_edema", "Edema"],
          ].forEach(function (x) { %>
         <label class="check"><input type="checkbox" name="<%= x[0] %>" <%= r[x[0]] ? "checked" : "" %> /> <span><%= x[1] %></span></label>
       <% }) %>
+      <%- include("../partials/other-symptoms", { options: typeof symptomOptions !== "undefined" ? symptomOptions : [], selected: r.other_symptoms || [] }) %>
     </div>
     <label class="field" style="margin-top:14px"><span>Notes</span>
       <textarea name="intake_notes" rows="4" maxlength="1000" placeholder="e.g. started ferrous sulfate + folic acid; advised ultrasound"><%= r.intake_notes || '' %></textarea>
@@ -218,6 +221,21 @@
       var d = new Date(lmp.value + "T00:00:00Z");
       d.setUTCDate(d.getUTCDate() + 280);
       edd.value = d.toISOString().slice(0, 10);
+    });
+  })();
+</script>
+
+<script>
+  // PhilHealth number: digits only, shaped 12-345678901-2 as it is typed.
+  (function () {
+    var box = document.querySelector("[data-philhealth]");
+    if (!box) return;
+    box.addEventListener("input", function () {
+      var d = box.value.replace(/\D/g, "").slice(0, 12);
+      var out = d.slice(0, 2);
+      if (d.length > 2) out += "-" + d.slice(2, 11);
+      if (d.length > 11) out += "-" + d.slice(11);
+      if (out !== box.value) box.value = out;
     });
   })();
 </script>

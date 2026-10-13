@@ -278,7 +278,9 @@ router.post("/admin/users/:id/password", async (req, res, next) => {
     if (pass !== String(req.body.confirm_password || ""))
       return back(res, "Not changed: the two passwords did not match.");
 
-    await db.query("UPDATE users SET password_hash=$1, updated_at=now() WHERE user_id=$2",
+    // password_changed_at cleared: this is the admin's password for them, so
+    // they are asked to set their own at the next sign-in.
+    await db.query("UPDATE users SET password_hash=$1, password_changed_at=NULL, updated_at=now() WHERE user_id=$2",
       [await bcrypt.hash(pass, 10), targetId]);
     await db.query(
       `UPDATE password_requests SET status='cancelled', decided_by=$2, decided_at=now(),
@@ -381,6 +383,40 @@ router.post("/admin/backup", async (req, res, next) => {
     res.setHeader("Content-Disposition", `attachment; filename="${filenameFor()}.enc"`);
     res.setHeader("Cache-Control", "no-store");
     res.send(file);
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ---- VIDEO TUTORIALS  POST /admin/tutorials ------------------------------------
+// Panel review, Oct 2026. The admin pastes a YouTube or Google Drive link on
+// the User's manual page; staff videos show there, patient videos on the
+// portal. See lib/tutorials.js.
+const tutorials = require("../lib/tutorials");
+const toManual = (res, msg) => res.redirect("/manual?video=" + encodeURIComponent(msg) + "#videos");
+router.post("/admin/tutorials", async (req, res, next) => {
+  try {
+    const v = {
+      audience: String(req.body.audience || ""),
+      title: String(req.body.title || "").trim(),
+      url: String(req.body.url || "").trim(),
+    };
+    const why = tutorials.problem(v);
+    if (why) return toManual(res, `Not added: ${why}`);
+    await tutorials.add({ ...v, userId: req.session.user.user_id });
+    audit.log(req.session.user.user_id, "create", "tutorial_video", null, `added ${v.audience} video "${v.title}"`);
+    toManual(res, tutorials.embedOf(v.url)
+      ? `Added "${v.title}".`
+      : `Added "${v.title}". It is not a YouTube or Google Drive link, so it shows as a button that opens it.`);
+  } catch (e) {
+    next(e);
+  }
+});
+router.post("/admin/tutorials/:id/delete", async (req, res, next) => {
+  try {
+    const gone = await tutorials.remove(parseInt(req.params.id, 10) || 0);
+    if (gone) audit.log(req.session.user.user_id, "delete", "tutorial_video", null, `removed video "${gone.title}"`);
+    toManual(res, gone ? `Removed "${gone.title}".` : "That video was already removed.");
   } catch (e) {
     next(e);
   }

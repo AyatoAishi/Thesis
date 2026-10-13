@@ -1,0 +1,84 @@
+<%#
+  The patient's optional profile photo on the portal (panel review, Oct 2026).
+  Expects `me` (with photo_at and is_verified). The picture is shrunk to a
+  256×256 JPEG on the patient's own phone before it is sent (lib/patientPhoto.js).
+%>
+<div class="card">
+  <div class="panel-title" style="margin-bottom:4px"><%= t("photo.title") %></div>
+  <p class="muted" style="font-size:13px;margin:0 0 14px"><%= t("photo.hint") %></p>
+
+  <% if (typeof photoFlash !== "undefined" && photoFlash) { %>
+    <div class="<%= photoFlash.ok ? 'auth-notice' : 'auth-error' %>" style="margin-bottom:14px"><%= photoFlash.text %></div>
+  <% } %>
+
+  <div class="photo-row">
+    <% if (me.photo_at) { %>
+      <img class="avatar avatar-lg" src="/portal/photo?v=<%= new Date(me.photo_at).getTime() %>" alt="<%= t('photo.title') %>" />
+    <% } else { %>
+      <span class="avatar avatar-lg avatar-empty" aria-hidden="true"><%= (me.full_name || "?").trim().charAt(0).toUpperCase() %></span>
+    <% } %>
+
+    <% if (!me.is_verified) { %>
+      <p class="muted" style="font-size:13px;margin:0"><%= t("photo.verify_first") %></p>
+    <% } else { %>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <form method="POST" action="/portal/photo" data-photo-form style="display:flex;flex-direction:column;gap:10px;margin:0"><%- include("../partials/csrf") %>
+          <input type="hidden" name="photo" data-photo-data />
+          <label class="mini-btn" style="cursor:pointer;align-self:flex-start">
+            <%= t("photo.choose") %>
+            <input type="file" accept="image/*" data-photo-file style="position:absolute;width:1px;height:1px;opacity:0" />
+          </label>
+          <img class="avatar avatar-lg" data-photo-preview hidden alt="" />
+          <p class="auth-error" data-photo-note hidden style="margin:0"><%= t("photo.bad") %></p>
+          <button type="submit" class="btn" data-photo-save disabled style="align-self:flex-start"><%= t("photo.save") %></button>
+        </form>
+        <% if (me.photo_at) { %>
+          <form method="POST" action="/portal/photo/delete" style="margin:0"><%- include("../partials/csrf") %>
+            <button type="submit" class="mini-btn"><%= t("photo.remove") %></button>
+          </form>
+        <% } %>
+      </div>
+    <% } %>
+  </div>
+</div>
+
+<script>
+  // Square-crop and shrink the chosen picture here, on the phone, so what is
+  // sent is a ~30 KB JPEG rather than a multi-megabyte camera photo.
+  (function () {
+    var form = document.querySelector("[data-photo-form]");
+    if (!form) return;
+    var file = form.querySelector("[data-photo-file]");
+    var data = form.querySelector("[data-photo-data]");
+    var preview = form.querySelector("[data-photo-preview]");
+    var save = form.querySelector("[data-photo-save]");
+    var note = form.querySelector("[data-photo-note]");
+    function bad() { data.value = ""; save.disabled = true; preview.hidden = true; note.hidden = false; }
+    file.addEventListener("change", function () {
+      var f = file.files && file.files[0];
+      data.value = ""; save.disabled = true; note.hidden = true;
+      if (!f) return;
+      if (!/^image\//.test(f.type)) return bad();
+      var url = URL.createObjectURL(f);
+      var img = new Image();
+      img.onload = function () {
+        var S = 256, c = document.createElement("canvas");
+        c.width = S; c.height = S;
+        var side = Math.min(img.naturalWidth, img.naturalHeight);
+        var ctx = c.getContext("2d");
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, S, S);
+        ctx.drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, S, S);
+        var q = 0.85, out = c.toDataURL("image/jpeg", q);
+        while (out.length > 90000 && q > 0.45) { q -= 0.1; out = c.toDataURL("image/jpeg", q); }
+        URL.revokeObjectURL(url);
+        data.value = out;
+        preview.src = out;
+        preview.hidden = false;
+        save.disabled = false;
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); bad(); };
+      img.src = url;
+    });
+  })();
+</script>

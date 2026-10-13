@@ -1338,6 +1338,10 @@ body {
 .check-inline b { font-size: 13px; color: var(--ink); }
 .check-inline small { font-size: 11.5px; color: var(--ink-3); line-height: 1.5; }
 .check-inline:has(input:checked) { border-color: var(--accent); background: var(--accent-softer); }
+.check-inline input[type="radio"] { margin-top: 2px; width: 16px; height: 16px; flex: none; accent-color: var(--accent); }
+/* Purpose of visit and contact choices on the patient form (Oct 2026): a grid
+   of radio cards, one per choice, that wraps to one column on a phone. */
+.purpose-grid, .contact-mode { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 8px; }
 
 /* ===========================================================================
    Dispense lines (views/inventory/dispense-form.ejs).
@@ -1359,6 +1363,40 @@ body {
   border-bottom: 1px dashed var(--border);
 }
 .dispense-line:last-child { border-bottom: none; }
+
+/* Backups & recovery — a page of its own (views/recovery.ejs). */
+.recovery-body { display: block; padding: 24px 16px; }
+.recovery-wrap { max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.recovery-wrap .card { margin: 0; }
+.recovery-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.recovery-head h1 { margin: 0 0 4px; font-size: 24px; }
+.restore-box { display: inline-block; margin-left: 6px; text-align: left; }
+.restore-box > summary { list-style: none; cursor: pointer; display: inline-block; }
+.restore-box > summary::-webkit-details-marker { display: none; }
+.restore-box[open] { display: block; margin: 8px 0 0; padding: 10px; border: 1px solid var(--bad); border-radius: var(--r-sm); background: var(--bad-bg); }
+
+/* Video tutorials (manual + portal). 16:9 players that shrink with the column. */
+.video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 14px; }
+.video-card { margin: 0; border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; background: var(--surface); }
+.video-frame { position: relative; aspect-ratio: 16 / 9; background: #000; }
+.video-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.video-card figcaption { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; font-size: 13.5px; }
+.video-admin { margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--border); }
+.sam-videos { display: block; font-weight: 700; margin-bottom: 6px; }
+@media print { .no-print { display: none !important; } }
+
+/* The patient's own profile photo (portal + the staff patient page). */
+.avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
+  border: 2px solid var(--border); background: var(--surface-2); }
+.avatar-lg { width: 72px; height: 72px; }
+.avatar-empty { display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 26px; color: var(--ink-3); }
+.photo-row { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+
+/* "1 [box] = [100] tablets" on the medicine form. */
+.pack-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pack-row select { width: auto; min-width: 220px; }
+.pack-row input[type="number"] { width: 110px; }
 .dispense-line .field { margin: 0; }
 .dispense-qty input { text-align: right; }
 
@@ -2071,3 +2109,9 @@ section.manual { scroll-margin-top: 16px; }
   color: var(--accent-strong); font-weight: 700; text-decoration: none;
 }
 .clinic-footer-links a:hover { text-decoration: underline; }
+
+/* Dashboard (Oct 2026): follow-ups and quick actions side by side on a wide
+   screen, stacked on a phone. */
+.dash-split { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; align-items: start; margin-bottom: 16px; }
+.dash-split > .card { margin: 0; }
+@media (max-width: 900px) { .dash-split { grid-template-columns: 1fr; } }

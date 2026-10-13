@@ -25,6 +25,11 @@ function getPool() {
     // Neon/Supabase require SSL; a local Postgres does not.
     ssl: isLocal ? false : { rejectUnauthorized: false },
     max: 5,
+    // Give up on a connection after 15 s instead of waiting forever. A Neon
+    // compute waking from sleep answers in a few seconds; one that never
+    // answers should become an error page (and the recovery page's
+    // "not reachable"), not a browser spinning until it times out.
+    connectionTimeoutMillis: 15000,
   });
   pool.on("error", (e) => console.error("[db] idle pool error:", e.message));
   return pool;

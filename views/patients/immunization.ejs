@@ -106,7 +106,17 @@
         <tbody>
           <% rows.forEach(v => { %>
             <tr>
-              <td><%= v.name %></td>
+              <td>
+                <%= v.name %>
+                <%# What the letters stand for (panel review: staff may not know the acronyms). %>
+                <% const _help = { "BCG Vaccine": "Bacillus Calmette–Guérin: protects against tuberculosis (TB)",
+                                   "Pentavalent Vaccine (DPT-Hep B-HIB)": "Diphtheria, pertussis, tetanus, hepatitis B and Haemophilus influenzae type b",
+                                   "Pneumococcal Conjugate Vaccine (PCV)": "Protects against pneumonia and meningitis",
+                                   "Measles Containing Vaccine (MCV) — Grade 1": "Measles booster at school entry",
+                                   "Measles Containing Vaccine (MCV) — Grade 7": "Measles booster in Grade 7",
+                                   "Human Papillomavirus Vaccine": "HPV: protects against cervical cancer" }[v.name]; %>
+                <% if (_help) { %><div class="muted" style="font-size:11.5px;font-weight:500"><%= _help %></div><% } %>
+              </td>
               <td class="muted"><%= v.schedule %></td>
               <td>
                 <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -115,10 +125,6 @@
                       <span class="badge ok" title="<%= slot.remarks || '' %>">
                         Dose <%= slot.doseNumber %>: <%= fmtDate(slot.date) %>
                       </span>
-                      <form method="POST" action="/patients/<%= patient.patient_id %>/immunization/<%= slot.imm_id %>/delete"
-                            onsubmit="return confirm('Remove this dose record?');" style="display:inline"><%- include("../partials/csrf") %>
-                        <button type="submit" class="mini-btn" style="padding:2px 8px;font-size:11px">Undo</button>
-                      </form>
                     <% } else { %>
                       <span style="display:inline-flex;align-items:center;gap:6px">
                         <a class="mini-btn" style="padding:2px 8px;font-size:11px"
@@ -151,7 +157,7 @@
     <p class="muted" style="margin:0">None recorded. Use <b>+ Record a dose</b> and choose "Other" for anything not on the standard schedule above.</p>
   <% } else { %>
     <table class="tbl">
-      <thead><tr><th>Vaccine</th><th>Dose</th><th>Date given</th><th>Remarks</th><th></th></tr></thead>
+      <thead><tr><th>Vaccine</th><th>Dose</th><th>Date given</th><th>Remarks</th></tr></thead>
       <tbody>
         <% other.forEach(r => { %>
           <tr>
@@ -159,12 +165,6 @@
             <td><%= r.dose_number %></td>
             <td><%= fmtDate(r.given_date) %></td>
             <td class="muted"><%= r.remarks || "—" %></td>
-            <td style="text-align:right">
-              <form method="POST" action="/patients/<%= patient.patient_id %>/immunization/<%= r.imm_id %>/delete"
-                    onsubmit="return confirm('Remove this dose record?');"><%- include("../partials/csrf") %>
-                <button type="submit" class="mini-btn">Undo</button>
-              </form>
-            </td>
           </tr>
         <% }) %>
       </tbody>

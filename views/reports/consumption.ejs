@@ -17,13 +17,12 @@
     <p class="muted" style="padding:8px 2px">No medicine dispensed in this range.</p>
   <% } else { %>
     <table class="tbl">
-      <thead><tr><th>Date</th><th>Name of patient</th><th>Age</th><th>Medicine / quantity given</th><th>Signature</th></tr></thead>
+      <thead><tr><th>Date</th><th>Patient no.</th><th>Medicine / quantity given</th><th>Signature</th></tr></thead>
       <tbody>
         <% items.forEach(it => { %>
           <tr>
             <td><%= longDate(it.date) %></td>
-            <td><%= it.patient_name %></td>
-            <td><%= it.age %></td>
+            <td class="mono"><%= it.patient_number %></td>
             <td><%= it.medicine_name %> — <%= it.quantity %> <%= it.unit || "" %></td>
             <td><%= it.dispensed_by_name || "—" %></td>
           </tr>

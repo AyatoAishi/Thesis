@@ -10,6 +10,8 @@ const audit = require("../lib/audit");
 const { endOtherStaffSessions, REASONS } = require("../lib/sessions");
 const guard = require("../lib/loginGuard");
 const pw = require("../lib/passwordRequests");
+const prompt = require("../lib/passwordPrompt");
+const recovery = require("../lib/recovery");
 
 const router = express.Router();
 
@@ -80,6 +82,27 @@ router.post("/login", async (req, res) => {
 
   if (!username || !password) return fail("Enter your username and password.");
 
+  // The recovery super admin (lib/recovery.js): checked against the server's
+  // own settings, never the database, so it works when the database does not.
+  if (recovery.isRecoveryName(username)) {
+    const wait = recovery.blockedMinutes();
+    if (wait) return fail(guard.lockoutMessage(wait));
+    if (!(await recovery.check(password))) {
+      recovery.recordFail();
+      audit.log(null, "login_failed", "user", null, "wrong password for the recovery account");
+      return fail("Invalid username or password.");
+    }
+    recovery.clearFails();
+    return req.session.regenerate((regenErr) => {
+      if (regenErr) return fail("Something went wrong. Try again.");
+      req.session.user = recovery.sessionUser();
+      req.session.save(() => {
+        audit.log(null, "login", "user", null, "the recovery super admin signed in");
+        res.redirect("/recovery");
+      });
+    });
+  }
+
   const ip = guard.addressOf(req);
 
   try {
@@ -97,7 +120,7 @@ router.post("/login", async (req, res) => {
     // username is issued by an admin and typed as issued — the client's call,
     // and it keeps the login a strict comparison with nothing inferred.
     const { rows } = await db.query(
-      `SELECT user_id, full_name, username, role, status, password_hash, preferences
+      `SELECT user_id, full_name, username, role, status, password_hash, preferences, password_changed_at
          FROM users WHERE username = $1`,
       [username]
     );
@@ -164,6 +187,10 @@ router.post("/login", async (req, res) => {
         preferences: u.preferences || {},
       };
 
+      // Still on the password the admin set or issued: ask for their own
+      // first, then carry on to where they were going (panel review, Oct 2026).
+      if (!u.password_changed_at) prompt.mark(req.session, "staff", dest);
+
       // Wait for the session to actually reach Postgres before redirecting.
       // Without this the browser can arrive at the dashboard a beat before the
       // session row exists and get bounced back to the login page.
@@ -187,7 +214,7 @@ router.post("/login", async (req, res) => {
           ended ? `${u.username} signed in (signed out ${ended} other session${ended === 1 ? "" : "s"})`
                 : `${u.username} signed in`
         );
-        res.redirect(dest);
+        res.redirect(u.password_changed_at ? dest : "/account/new-password");
       });
     });
   } catch (e) {

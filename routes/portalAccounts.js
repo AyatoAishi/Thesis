@@ -193,7 +193,7 @@ router.get("/patients/:id/portal-account/new", async (req, res, next) => {
       next: chain,
       // Skipping the account goes straight to the visit's next step.
       skipHref: step ? step.href : `/patients/${patient.patient_id}`,
-      skipLabel: step ? step.label : "",
+      skipLabel: step ? step.label : "Patient's page",
       error: req.query.acct_err || null,
     });
   } catch (e) {

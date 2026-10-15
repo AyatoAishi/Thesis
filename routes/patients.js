@@ -2,7 +2,8 @@
 // routes/patients.js — Patient records CRUD (M2)
 // All routes already sit behind requireLogin (mounted after the gate in server.js).
 // Patient numbers are auto-generated as SAMP-YYYY-#### (per-year sequence).
-// Panel rule: a minor must have a guardian name + recorded guardian consent.
+// Minors: the emergency contact # (parent or guardian) is required; the separate
+// guardian name + consent were dropped after the system defense (Oct 2026).
 // ============================================================================
 const express = require("express");
 const db = require("../db");
@@ -283,10 +284,10 @@ function readForm(body) {
   // hand-made request, the box could be ticked and a number sent alongside
   // it. The checkbox is the statement of fact; it wins.
   const noOwnPhone = body.no_own_phone === "on" || body.no_own_phone === "true" || body.contact_mode === "emergency";
-  // "No contact number at all" (Oct 10): an elderly walk-in with no phone and
-  // nobody to list must still be registered for a check-up. Ticking it is the
-  // statement of fact and wins over anything typed in either number field.
-  const noContact = body.no_contact === "on" || body.no_contact === "true" || body.contact_mode === "none";
+  // "No contact at all" (Oct 10) was taken out after the system defense
+  // (Alyanna, Oct 2026): a patient with no phone is reached through the
+  // emergency contact anyway. Every record now needs one of the two numbers.
+  const noContact = false;
   return {
     ...nameFields(body),
     birthdate,
@@ -295,8 +296,6 @@ function readForm(body) {
     no_own_phone: noOwnPhone || noContact,
     no_contact: noContact,
     contact_number: noOwnPhone || noContact ? null : normalizeMobile(body.contact_number) || null,
-    // "No contact at all" empties every contact box (panel review): the choice
-    // is the statement of fact and wins over anything typed.
     email: noContact ? null : (body.email || "").trim().toLowerCase() || null,
     contact_mode: noContact ? "none" : noOwnPhone ? "emergency" : "own",
     family_number: (body.family_number || "").trim() || null,
@@ -319,7 +318,9 @@ function readForm(body) {
     // parent is sometimes genuinely not known.
     mother_name: (body.mother_name || "").trim().slice(0, 150) || null,
     father_name: (body.father_name || "").trim().slice(0, 150) || null,
-    guardian_consent: body.guardian_consent === "on" || body.guardian_consent === "true",
+    // No longer asked on the form (Oct 2026; the privacy consent box covers
+    // "patient or guardian"). null keeps whatever an older record had.
+    guardian_consent: "guardian_consent" in body ? body.guardian_consent === "on" || body.guardian_consent === "true" : null,
     privacy_consent: body.privacy_consent === "on" || body.privacy_consent === "true",
   };
 }
@@ -391,20 +392,11 @@ function validate(p) {
   if (p.reminder_channel === "sms" && !p.contact_number && !p.family_contact_number)
     errors.push("You chose SMS reminders, but there is no mobile number on this record. Add one, or pick another way to remind them.");
   if (p.sex && !["male", "female"].includes(p.sex)) errors.push("Invalid sex.");
-  // Panel requirement: minors need guardian + consent.
-  if (p.is_minor) {
-    // Who is responsible for the child: the mother, the father or another
-    // guardian. Any one is enough (group review, Oct 10) — a separate guardian
-    // name on top of a filled-in mother's name was a field typed twice.
-    if (!p.guardian_name && !p.mother_name && !p.father_name)
-      errors.push("For a minor, fill in at least one of: mother's name, father's name, or guardian name.");
-    // A minor's reminders go to the emergency contact first (the guardian),
-    // so that number has to exist.
-    if (!p.family_contact_number && !p.no_contact)
-      errors.push("For a minor, the emergency contact # is required — put the guardian's number there. That is where the child's reminders go.");
-    if (!p.guardian_consent)
-      errors.push("Guardian consent must be recorded for a minor.");
-  }
+  // A minor's reminders go to the emergency contact first (the parent or
+  // guardian), so that number has to exist. The separate guardian name and
+  // consent are no longer required (panel, Oct 2026).
+  if (p.is_minor && !p.family_contact_number)
+    errors.push("For a minor, the emergency contact # is required — put the parent's or guardian's number there. That is where the child's reminders go.");
   // Every record must carry ONE reachable number — the patient's own, or the
   // emergency contact's for anyone without a phone (infants, most elderly).
   // Requiring the patient's own outright would dead-end those registrations.
@@ -412,13 +404,13 @@ function validate(p) {
     errors.push(mobileError("Mobile contact #", p.contact_number));
   if (p.family_contact_number && !isMobile(p.family_contact_number))
     errors.push(mobileError("Emergency contact #", p.family_contact_number));
-  if (!p.contact_number && !p.family_contact_number && !p.no_contact)
-    errors.push("A contact number is required — either the patient's own, or the emergency contact's. If there is truly none, choose “No contact at all”.");
+  if (!p.contact_number && !p.family_contact_number && !p.is_minor)
+    errors.push("A contact number is required — either the patient's own, or the emergency contact's.");
   // Ticking the box moves the requirement rather than removing it. Saying
   // this patient has no phone and then leaving the fallback blank would
   // produce a record nobody can be reached on at all, which is the one
   // outcome the emergency contact exists to prevent.
-  if (p.no_own_phone && !p.no_contact && !p.family_contact_number)
+  if (p.no_own_phone && !p.is_minor && !p.family_contact_number)
     errors.push("You marked this patient as having no phone of their own, so the emergency contact # is required — that is where their reminders will go.");
   // The emergency contact exists so there is a SECOND way to reach this
   // person. The same number in both fields looks filled in and is worth
@@ -619,7 +611,7 @@ router.post("/patients", async (req, res, next) => {
         patient_number, p.full_name, p.birthdate, p.sex, p.address,
         p.contact_number, p.email, p.family_number, p.family_contact_name, p.family_contact_relation,
         p.family_contact_number, p.family_email, p.reminder_channel, p.is_minor, p.guardian_name,
-        p.guardian_consent, p.privacy_consent, req.session.user.user_id,
+        p.guardian_consent ?? false, p.privacy_consent, req.session.user.user_id,
       ]
     );
     // The parents and the name parts, in their own statement rather than as
@@ -894,7 +886,7 @@ router.post("/patients/:id", async (req, res, next) => {
       `UPDATE patients SET
          full_name=$1, birthdate=$2, sex=$3, address=$4, contact_number=$5, email=$6,
          family_number=$7, family_contact_name=$8, family_contact_relation=$9, family_contact_number=$10,
-         family_email=$11, reminder_channel=$12, is_minor=$13, guardian_name=$14, guardian_consent=$15,
+         family_email=$11, reminder_channel=$12, is_minor=$13, guardian_name=$14, guardian_consent=COALESCE($15, guardian_consent),
          privacy_consent=$16, updated_at=now()
        WHERE patient_id=$17
          ${guarded ? "AND date_trunc('milliseconds', updated_at) = $18" : ""}`,

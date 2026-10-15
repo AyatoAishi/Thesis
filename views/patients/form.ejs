@@ -21,7 +21,10 @@
   <h1><%= isEdit ? "Edit patient" : "Add patient" %></h1>
 </div>
 
-<% if (chain === "book") { %>
+<%# Alyanna (Oct 2026): the step bar shows from the first page of Add patient,
+    not only when coming from Appointments. Step 3 follows the purpose picked
+    below (script at the bottom). %>
+<% if (!isEdit) { %>
   <%- include("../partials/flow-steps", { step: 1 }) %>
 <% } %>
 
@@ -138,12 +141,12 @@
       <div class="purpose-grid">
         <% purposeList.forEach(function (o) { %>
           <label class="check-inline">
-            <input type="radio" name="purpose" value="<%= o.key %>" <%= purposeSel === o.key ? "checked" : "" %> />
+            <input type="radio" name="purpose" value="<%= o.key %>" data-step-label="<%= o.step %>" <%= purposeSel === o.key ? "checked" : "" %> />
             <span><b><%= o.label %></b></span>
           </label>
         <% }) %>
         <label class="check-inline">
-          <input type="radio" name="purpose" value="" <%= purposeSel ? "" : "checked" %> />
+          <input type="radio" name="purpose" value="" data-step-label="Patient's page" <%= purposeSel ? "" : "checked" %> />
           <span><b>Just registering</b><small>Save and open the patient's page.</small></span>
         </label>
       </div>
@@ -151,11 +154,13 @@
   <% } %>
 
   <%# One choice instead of two checkboxes (panel review): how this patient can
-      be reached. "No contact at all" greys out every contact box below. %>
+      be reached. "No contact at all" was taken out after the system defense
+      (Alyanna, Oct 2026): a patient with no phone is reached through the
+      emergency contact anyway, so every record now needs one of the two
+      numbers. An old record saved as "no contact" opens as "no phone". %>
   <%
-    const contactMode = p.contact_mode
-      || ((p.patient_id && !p.contact_number && !p.family_contact_number && !p.email && !p.family_email) || p.no_contact ? "none"
-      : (!p.contact_number && p.family_contact_number) || p.no_own_phone ? "emergency" : "own");
+    const contactMode = p.contact_mode === "own" || p.contact_mode === "emergency" ? p.contact_mode
+      : p.no_contact || (!p.contact_number && p.family_contact_number) || p.no_own_phone ? "emergency" : "own";
   %>
   <div class="card">
     <div class="panel-title" style="margin-bottom:10px">Contact information</div>
@@ -168,16 +173,12 @@
         <input type="radio" name="contact_mode" value="emergency" data-contact-mode <%= contactMode === "emergency" ? "checked" : "" %> />
         <span><b><%= t("pat.no_phone") %></b><small><%= t("pat.no_phone_hint") %></small></span>
       </label>
-      <label class="check-inline">
-        <input type="radio" name="contact_mode" value="none" data-contact-mode <%= contactMode === "none" ? "checked" : "" %> />
-        <span><b><%= t("pat.no_contact") %></b><small><%= t("pat.no_contact_hint") %></small></span>
-      </label>
     </div>
     <div class="form-grid" style="margin-top:12px">
       <label class="field"><span>Mobile number</span>
         <input type="tel" name="contact_number" value="<%= p.contact_number || '' %>" placeholder="09xxxxxxxxx"
                inputmode="numeric" maxlength="16" pattern="09[0-9]{9}" title="11 digits: 09xxxxxxxxx" data-digits data-phone-primary data-contact-field />
-        <span class="muted" style="font-size:11.5px;font-weight:500" data-phone-hint></span>
+        <span class="muted" style="font-size:11.5px;font-weight:500" data-phone-hint>11 digits, e.g. 09171234567</span>
       </label>
       <label class="field"><span>Email <span class="muted">(for reminders)</span></span>
         <input type="email" name="email" value="<%= p.email || '' %>" placeholder="name@gmail.com" data-contact-field data-own-email />
@@ -212,6 +213,9 @@
 
   <div class="card">
     <div class="panel-title" style="margin-bottom:6px">Emergency / family contact <span class="muted">(required if the patient has no phone of their own)</span></div>
+    <p class="muted" style="margin:0 0 10px;font-size:12.5px;<%= p.is_minor ? '' : 'display:none' %>" data-minor-only>
+      <b>This patient is a minor</b> (from the birthdate) — the emergency contact # is required. Put the parent's or guardian's number here; the child's reminders go to it.
+    </p>
     <div class="form-grid">
       <label class="field"><span>Name</span>
         <input type="text" name="family_contact_name" value="<%= p.family_contact_name || '' %>" />
@@ -231,6 +235,7 @@
       <label class="field"><span>Contact #</span>
         <input type="tel" name="family_contact_number" value="<%= p.family_contact_number || '' %>" placeholder="09xxxxxxxxx"
                inputmode="numeric" maxlength="16" pattern="09[0-9]{9}" title="11 digits: 09xxxxxxxxx" data-digits data-phone-fallback data-contact-field />
+        <span class="muted" style="font-size:11.5px;font-weight:500">11 digits, e.g. 09171234567</span>
       </label>
       <label class="field"><span>Emergency contact email <span class="muted">(optional)</span></span>
         <input type="email" name="family_email" value="<%= p.family_email || '' %>" placeholder="name@gmail.com" data-contact-field />
@@ -238,16 +243,14 @@
     </div>
   </div>
 
-  <div class="card">
-    <div class="panel-title" style="margin-bottom:4px">Guardian details</div>
-    <p class="muted" style="margin:0 0 10px;font-size:13px" data-minor-note>
-      Minor status is calculated automatically from the birthdate above.
-      <span data-minor-only style="<%= p.is_minor ? '' : 'display:none' %>">
-        <br /><b>Reminders for a minor go to the emergency contact # above</b> — enter the guardian's number and email there.
-      </span>
-    </p>
-    <div class="minor-fields" data-minor-fields style="<%= p.is_minor ? '' : 'display:none' %>">
-      <p class="muted" style="margin:0 0 8px;font-size:12.5px">Fill in at least one: the mother's, the father's, or a guardian's name. *</p>
+  <%# Guardian details are no longer asked on Add patient (Alyanna, Oct 2026).
+      They stay here on Edit, optional, for a minor whose immunization card
+      should show the mother's or father's name. %>
+  <% if (isEdit) { %>
+  <div class="card" data-minor-fields style="<%= p.is_minor ? '' : 'display:none' %>">
+    <div class="panel-title" style="margin-bottom:4px">Parents / guardian <span class="muted" style="font-weight:500">(optional)</span></div>
+    <p class="muted" style="margin:0 0 10px;font-size:12.5px">Shown on the child's immunization card.</p>
+    <div class="minor-fields">
       <div class="form-grid">
         <label class="field"><span>Mother's name</span>
           <input type="text" name="mother_name" maxlength="150" value="<%= p.mother_name || '' %>" />
@@ -259,12 +262,9 @@
           <input type="text" name="guardian_name" value="<%= p.guardian_name || '' %>" />
         </label>
       </div>
-      <label class="check" style="margin-top:12px">
-        <input type="checkbox" name="guardian_consent" <%= p.guardian_consent ? 'checked' : '' %> />
-        <span>Guardian <b>consent</b> recorded for treatment &amp; data handling (RA 10173)</span>
-      </label>
     </div>
   </div>
+  <% } %>
 
   <div class="card">
     <label class="check">
@@ -336,10 +336,8 @@
     //                the patient's box is left empty: the server's rule).
     //   emergency  — no phone of their own: their box is greyed and the
     //                emergency contact # becomes the required one.
-    //   none       — no contact at all: every phone and email box is greyed,
-    //                emptied and skipped, and reminders are off.
-    // A minor always needs the emergency contact # (the guardian's), unless
-    // there is no contact at all.
+    // ("No contact at all" was removed after the system defense.)
+    // A minor always needs the emergency contact # (the guardian's).
     var primary = document.querySelector("[data-phone-primary]");
     var fallback = document.querySelector("[data-phone-fallback]");
     var hint = document.querySelector("[data-phone-hint]");
@@ -355,29 +353,29 @@
       var minorNote = document.querySelector("[data-minor-only]");
       var minor = !!(minorNote && minorNote.style.display !== "none");
       document.querySelectorAll("[data-contact-field]").forEach(function (f) {
-        var off = m === "none" || (m === "emergency" && f === primary);
+        var off = m === "emergency" && f === primary;
         f.disabled = off;
         if (off) f.value = "";
         var wrap = f.closest(".field");
         if (wrap) wrap.style.opacity = off ? "0.45" : "";
       });
-      if (reminder) {
-        // Remember the choice before "no contact" switched it off, and give it
-        // back if staff change their mind.
-        if (m === "none") {
-          if (!reminder.dataset.prev) reminder.dataset.prev = reminder.value;
-          reminder.value = "none"; reminder.disabled = true;
-        } else {
-          if (reminder.dataset.prev) { reminder.value = reminder.dataset.prev; delete reminder.dataset.prev; }
-          reminder.disabled = false;
-        }
-      }
-      if (fallback) fallback.required = m === "emergency" || (minor && m !== "none");
-      if (hint) hint.textContent = m === "emergency" ? "Sa emergency contact # ipapadala."
-        : m === "none" ? "Walang contact — walk-in, walang paalala." : "";
+      if (fallback) fallback.required = m === "emergency" || minor;
+      if (hint) hint.textContent = m === "emergency" ? "Sa emergency contact # ipapadala." : "11 digits, e.g. 09171234567";
     }
     modes.forEach(function (r) { r.addEventListener("change", sync); });
     document.addEventListener("patient-form-sync", sync);
+    sync();
+  })();
+
+  // Step bar: step 3 names where the chosen purpose of visit leads.
+  (function () {
+    var last = document.querySelector(".flow-steps .flow-step:last-child .flow-step-label");
+    var radios = document.querySelectorAll("input[name=purpose][data-step-label]");
+    if (!last || !radios.length) return;
+    function sync() {
+      radios.forEach(function (r) { if (r.checked) last.textContent = r.getAttribute("data-step-label"); });
+    }
+    radios.forEach(function (r) { r.addEventListener("change", sync); });
     sync();
   })();
 

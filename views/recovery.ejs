@@ -20,6 +20,13 @@
   const regular = backups.filter((b) => b.kind !== "pre-restore");
   const newest = regular[0] || null;
   const daysAgo = newest ? Math.floor((Date.now() - new Date(newest.created_at).getTime()) / 86400000) : null;
+  // Alyanna (Oct 2026): show the actual date of the next one, not just "weekly".
+  // The daily job makes one once the newest is a week old (lib/backupStore.js),
+  // so the next is due 7 days after the last — or at the next daily check if
+  // that day has already passed or there is none yet.
+  const day = (d) => new Date(d).toLocaleDateString("en-PH", { timeZone: "Asia/Manila", weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  const nextAt = newest ? new Date(new Date(newest.created_at).getTime() + 7 * 86400000) : null;
+  const nextDue = !nextAt || nextAt.getTime() <= Date.now();
 %>
 <main class="recovery-wrap">
   <div class="recovery-head">
@@ -53,6 +60,11 @@
       <div><dt>Last backup</dt><dd>
         <% if (newest) { %><%= when(newest.created_at) %> <span class="muted">(<%= daysAgo === 0 ? "today" : daysAgo === 1 ? "yesterday" : daysAgo + " days ago" %>)</span>
         <% } else { %><span class="muted">none yet</span><% } %>
+      </dd></div>
+      <div><dt>Next backup</dt><dd>
+        <% if (missing.length) { %><span class="muted">none — the backup database is not set up yet</span>
+        <% } else if (nextDue) { %>At the next daily check <span class="muted">(today or tomorrow)</span>
+        <% } else { %><%= day(nextAt) %> <span class="muted">(automatic)</span><% } %>
       </dd></div>
       <div><dt>Schedule</dt><dd>Automatic, once a week. The newest <%= keep %> are kept; each new one replaces the oldest.</dd></div>
     </dl>

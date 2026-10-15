@@ -352,17 +352,15 @@
   </dl>
 </div>
 
-<% if (p.is_minor) { %>
+<%# Guardian details are optional since the system defense (Oct 2026): the
+    card shows only when something was filled in on Edit patient. %>
+<% if (p.is_minor && (p.mother_name || p.father_name || p.guardian_name)) { %>
 <div class="card">
-  <div class="panel-title" style="margin-bottom:12px">Guardian</div>
+  <div class="panel-title" style="margin-bottom:12px">Parents / guardian</div>
   <dl class="kv">
     <div><dt>Mother</dt><dd><%= p.mother_name || "—" %></dd></div>
     <div><dt>Father</dt><dd><%= p.father_name || "—" %></dd></div>
     <div><dt>Guardian name</dt><dd><%= p.guardian_name || "—" %></dd></div>
-    <div><dt>Consent</dt><dd>
-      <% if (p.guardian_consent) { %><span class="badge ok">Recorded</span>
-      <% } else { %><span class="badge bad">Missing</span><% } %>
-    </dd></div>
   </dl>
 </div>
 <% } %>

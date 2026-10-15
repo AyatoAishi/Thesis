@@ -471,14 +471,20 @@ app.get("/dashboard", async (req, res) => {
       // One query for the whole month rather than one per day. 30 round trips
       // to a database an ocean away is the difference between a page and a
       // wait, and the grid only needs counts.
+      // The names too (Gabo, Oct 2026): hovering "1 missed" shows WHO, so
+      // nobody has to open the day and wait to find out.
       db.query(
-        `SELECT to_char(appointment_date, 'YYYY-MM-DD') AS d,
+        `SELECT to_char(a.appointment_date, 'YYYY-MM-DD') AS d,
                 count(*)::int AS total,
-                count(*) FILTER (WHERE status = 'missed')::int AS missed,
-                count(*) FILTER (WHERE status = 'scheduled')::int AS scheduled,
-                count(*) FILTER (WHERE status = 'completed')::int AS completed
-           FROM appointments
-          WHERE appointment_date BETWEEN $1 AND $2
+                count(*) FILTER (WHERE a.status = 'missed')::int AS missed,
+                count(*) FILTER (WHERE a.status = 'scheduled')::int AS scheduled,
+                count(*) FILTER (WHERE a.status = 'completed')::int AS completed,
+                array_agg(p.full_name ORDER BY p.full_name) FILTER (WHERE a.status = 'missed')    AS missed_names,
+                array_agg(p.full_name ORDER BY p.full_name) FILTER (WHERE a.status = 'scheduled') AS scheduled_names,
+                array_agg(p.full_name ORDER BY p.full_name) FILTER (WHERE a.status = 'completed') AS completed_names
+           FROM appointments a
+           JOIN patients p ON p.patient_id = a.patient_id
+          WHERE a.appointment_date BETWEEN $1 AND $2
           GROUP BY 1`,
         [grid.firstDay, grid.lastDay]
       ),
@@ -501,7 +507,10 @@ app.get("/dashboard", async (req, res) => {
 
     const counts = {};
     monthCounts.rows.forEach((r) => {
-      counts[r.d] = { total: r.total, missed: r.missed, scheduled: r.scheduled, completed: r.completed };
+      counts[r.d] = {
+        total: r.total, missed: r.missed, scheduled: r.scheduled, completed: r.completed,
+        names: { missed: r.missed_names || [], scheduled: r.scheduled_names || [], completed: r.completed_names || [] },
+      };
     });
     calendar = cal.buildMonth(month, counts, todayISO, selected);
     dayAppts = day.rows;

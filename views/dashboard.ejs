@@ -144,15 +144,20 @@
              <%
                // The hover text the review asked for. The same words go in
                // title= as well, which is what a long-press shows on a tablet.
+               // Oct 2026: each line also names the patients, so hovering
+               // "1 missed" says who without opening the day. Long lists stop
+               // at 6 names and say how many more.
                const cancelled = c.count - c.completed - c.missed - c.scheduled;
+               const who = (list) => !list || !list.length ? ""
+                         : ": " + list.slice(0, 6).join(", ") + (list.length > 6 ? ` +${list.length - 6}` : "");
                const tip = c.count === 0 ? t("dash.tip_none")
-                         : [c.completed && t("dash.tip_done", { n: c.completed }),
-                            c.missed && t("dash.tip_missed", { n: c.missed }),
-                            c.scheduled && t("dash.tip_booked", { n: c.scheduled }),
-                            cancelled > 0 && t("dash.tip_cancelled", { n: cancelled })].filter(Boolean).join(" · ");
+                         : [c.completed && t("dash.tip_done", { n: c.completed }) + who(c.names.completed),
+                            c.missed && t("dash.tip_missed", { n: c.missed }) + who(c.names.missed),
+                            c.scheduled && t("dash.tip_booked", { n: c.scheduled }) + who(c.names.scheduled),
+                            cancelled > 0 && t("dash.tip_cancelled", { n: cancelled })].filter(Boolean).join("\n");
              %>
              data-tip="<%= tip %>" title="<%= tip %>"
-             aria-label="<%= c.day %> — <%= tip %>">
+             aria-label="<%= c.day %> — <%= tip.replace(/\n/g, "; ") %>">
             <span class="cal-day"><%= c.day %></span>
             <%# Numbers, not dots, each labelled with what it counts (Mr. Trapago;
                 Richelle's Sept 26 scan). Sept 29: "2 appt, 2 missed" read as FOUR

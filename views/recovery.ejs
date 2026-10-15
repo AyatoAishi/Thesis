@@ -126,6 +126,42 @@
     <% } %>
   </div>
 
+  <%# Restore a file someone downloaded earlier (Gabo, Oct 2026): either the
+      passphrase-locked one from Staff accounts, or a weekly one from above.
+      Sent by the script below as the raw body (routes/recovery.js). %>
+  <div class="card" id="from-file">
+    <div class="panel-title" style="margin-bottom:4px">Restore from a downloaded file</div>
+    <p class="muted" style="font-size:12.5px;margin:0 0 12px">
+      For rolling back to a backup file saved on this computer: the one from
+      <b>Staff accounts → Download encrypted backup</b>, or a weekly one downloaded from the list above.
+      Everything in the system is replaced with the data in the file.
+    </p>
+    <div class="form-grid" data-file-restore>
+      <label class="field" style="grid-column:1/-1"><span>Backup file (.enc)</span>
+        <input type="file" data-fr-file accept=".enc,.json,.gz,application/octet-stream" />
+      </label>
+      <label class="field"><span>Passphrase <span class="muted">(the one typed when it was downloaded — leave blank for a weekly backup)</span></span>
+        <input type="password" data-fr-pass autocomplete="off" />
+      </label>
+      <label class="field"><span>Type <b>RESTORE</b> to confirm</span>
+        <input type="text" data-fr-confirm autocomplete="off" />
+      </label>
+      <% if (missing.length) { %>
+        <label class="check" style="grid-column:1/-1">
+          <input type="checkbox" data-fr-owncopy />
+          <span>I downloaded a backup of the <b>current</b> data first (Staff accounts → Download encrypted backup).
+            The backup database is not set up yet, so the system cannot keep a "Before a restore" copy by itself.</span>
+        </label>
+      <% } else { %>
+        <p class="muted" style="grid-column:1/-1;font-size:12px;margin:0">The current data is saved first as a "Before a restore" copy, so a mistake can be undone.</p>
+      <% } %>
+      <div style="grid-column:1/-1">
+        <button type="button" class="btn danger-btn" data-fr-go>Restore this file</button>
+        <span class="muted" style="font-size:12.5px;margin-left:8px" data-fr-status></span>
+      </div>
+    </div>
+  </div>
+
   <div class="card" id="admin">
     <div class="panel-title" style="margin-bottom:4px">Admin forgot their password</div>
     <% if (issued) { %>
@@ -157,5 +193,42 @@
   </div>
 </main>
 <script src="/js/app.js"></script>
+<script>
+  // Restore from a downloaded file: the file goes up as the raw body.
+  (function () {
+    var box = document.querySelector("[data-file-restore]");
+    if (!box) return;
+    var file = box.querySelector("[data-fr-file]");
+    var pass = box.querySelector("[data-fr-pass]");
+    var confirmBox = box.querySelector("[data-fr-confirm]");
+    var own = box.querySelector("[data-fr-owncopy]");
+    var go = box.querySelector("[data-fr-go]");
+    var status = box.querySelector("[data-fr-status]");
+    var token = (document.querySelector('input[name="_csrf"]') || {}).value || "";
+    go.addEventListener("click", function () {
+      var f = file.files && file.files[0];
+      if (!f) { status.textContent = "Choose the backup file first."; return; }
+      if (confirmBox.value.trim() !== "RESTORE") { status.textContent = "Type RESTORE in capital letters to confirm."; return; }
+      if (own && !own.checked) { status.textContent = "Download a backup of the current data first, then tick the box."; return; }
+      go.disabled = true;
+      status.textContent = "Restoring… keep this page open.";
+      fetch("/recovery/restore-file", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "content-type": "application/octet-stream",
+          "x-csrf-token": token,
+          "x-backup-passphrase": encodeURIComponent(pass.value),
+          "x-restore-confirm": confirmBox.value.trim(),
+          "x-own-copy": own && own.checked ? "yes" : "no",
+          "x-file-name": f.name.replace(/[^\w.\- ]/g, "")
+        },
+        body: f
+      }).then(function (r) { return r.json(); })
+        .then(function (j) { location.href = j.redirect || "/recovery"; })
+        .catch(function () { go.disabled = false; status.textContent = "Could not reach the server. Nothing was changed — try again."; });
+    });
+  })();
+</script>
 </body>
 </html>

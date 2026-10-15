@@ -25,7 +25,9 @@ const bcrypt = require("bcryptjs");
 const db = require("../db");
 const audit = require("../lib/audit");
 const store = require("../lib/backupStore");
-const { restoreSnapshot } = require("../lib/restore");
+const { restoreSnapshot, isBackup } = require("../lib/restore");
+const backupCrypto = require("../lib/backupCrypto");
+const zlib = require("zlib");
 const { temporaryPassword } = require("../lib/passwordRequests");
 const { endOtherStaffSessions, REASONS } = require("../lib/sessions");
 
@@ -153,6 +155,91 @@ router.post("/recovery/backups/:id/restore", gate, async (req, res) => {
   } catch (e) {
     back(res, `Not restored — nothing was changed: ${e.message}`, "err");
   }
+});
+
+// ---- RESTORE FROM A FILE  POST /recovery/restore-file ------------------------
+// Gabo, Oct 2026: "there should be a way to load this backup in case we need
+// to roll back." Takes either kind of downloaded file:
+//   - Staff accounts → Download backup (.json.enc), locked with the passphrase
+//     the admin typed when downloading;
+//   - a weekly backup downloaded from this page (.json.gz.enc), locked with
+//     BACKUP_KEY — no passphrase needed, the server already has it.
+// The page sends the file as the raw request body (fetch, application/octet-
+// stream) with the passphrase and the RESTORE confirmation in headers, so the
+// normal 100 KB form limit does not apply and no upload library is needed.
+// Same safety as restoring from the list: a "before restore" copy first, and
+// the restore is one transaction — any failure changes nothing.
+const MAX_FILE = "60mb";
+
+// Decrypt (with each key in turn), un-gzip if needed, parse, check it is ours.
+function openUploaded(buf, passphrase) {
+  const head = buf.subarray(0, 1).toString("latin1");
+  const tryParse = (plain) => {
+    if (plain[0] === 0x1f && plain[1] === 0x8b) plain = zlib.gunzipSync(plain);
+    const snap = JSON.parse(plain.toString("utf8"));
+    if (!isBackup(snap)) throw new Error("not a backup");
+    return snap;
+  };
+  // An unencrypted JSON backup (npm run backup on the clinic's computer).
+  if (head === "{") {
+    try { return tryParse(buf); } catch { throw new Error("This file is not a Sampaguita backup."); }
+  }
+  const keys = [passphrase, process.env.BACKUP_KEY].filter(Boolean);
+  if (!keys.length) throw new Error("Type the passphrase that was chosen when this file was downloaded.");
+  for (const k of keys) {
+    try { return tryParse(backupCrypto.decrypt(buf, k)); } catch { /* next key */ }
+  }
+  throw new Error(passphrase
+    ? "Wrong passphrase, or this is not a Sampaguita backup file."
+    : "Type the passphrase that was chosen when this file was downloaded.");
+}
+
+router.post("/recovery/restore-file", gate,
+  express.raw({ type: "application/octet-stream", limit: MAX_FILE }),
+  async (req, res) => {
+    const reply = (msg, kind = "ok") => res.json({ redirect: `/recovery?${kind}=${encodeURIComponent(msg)}` });
+    let pass = "";
+    try { pass = decodeURIComponent(req.get("x-backup-passphrase") || ""); } catch { /* left empty */ }
+    const name = String(req.get("x-file-name") || "file").replace(/[^\w.\- ]/g, "").slice(0, 120);
+    if (String(req.get("x-restore-confirm") || "").trim() !== "RESTORE")
+      return reply("Not restored: type RESTORE in capital letters to confirm.", "err");
+    if (!Buffer.isBuffer(req.body) || !req.body.length)
+      return reply("Not restored: choose the backup file first.", "err");
+    try {
+      const snap = openUploaded(req.body, pass);
+      const made = snap.created_at || snap.generated_at || null;
+
+      // A copy of what is there now, so a wrong file can be undone. Without the
+      // backup database there is nowhere to keep it, so the person must say
+      // they downloaded one themselves (the checkbox on the page).
+      let safety = null;
+      if (store.configured()) {
+        try {
+          safety = await store.create("pre-restore", `taken just before restoring the file ${name}`);
+        } catch (e) {
+          return reply(`Not restored: could not save a copy of the current data first (${e.message}).`, "err");
+        }
+      } else if (req.get("x-own-copy") !== "yes") {
+        return reply("Not restored: the backup database is not set up, so no automatic copy of the current data can be made. " +
+          "Download a backup of the current data first (Staff accounts → Download backup), then tick the box and try again.", "err");
+      }
+
+      const r = await restoreSnapshot(snap);
+      audit.log(actorId(req), "update", "database", null,
+        `restored the uploaded file ${name}${made ? ` (made ${String(made).slice(0, 16).replace("T", " ")} UTC)` : ""} ` +
+        `(${r.rows} rows) — ${who(req)}` + (safety ? `; the data from just before is backup #${safety.id}` : "; no automatic copy (backup database not set up)"));
+      reply(`Restored the file ${name}: ${r.tables} tables, ${r.rows} rows.` +
+        (safety ? ` What was there before is kept as backup #${safety.id} ("before restore").` : ""));
+    } catch (e) {
+      reply(`Not restored — nothing was changed: ${e.message}`, "err");
+    }
+  });
+
+// A file over the limit is refused by express.raw before the handler runs.
+router.use("/recovery/restore-file", (err, req, res, next) => {
+  if (err && err.type === "entity.too.large")
+    return res.json({ redirect: `/recovery?err=${encodeURIComponent(`Not restored: the file is bigger than ${MAX_FILE}.`)}` });
+  next(err);
 });
 
 router.post("/recovery/admin-password", gate, async (req, res) => {

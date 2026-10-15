@@ -139,25 +139,4 @@
   </table>
 </div>
 
-<%# A full copy of the clinic's data, now password-protected (Oct 2026). It
-    holds every patient record: it belongs on the clinic's own storage, never
-    email or a public folder. See docs/OPERATIONS.md. %>
-<div class="card">
-  <div class="panel-title" style="margin-bottom:6px">Download backup</div>
-  <p class="muted" style="font-size:12.5px;margin:0 0 10px">
-    One file with every record, locked with a passphrase you choose now. Without the passphrase
-    the file cannot be opened — not by us, not by anyone — so write it down somewhere safe.
-  </p>
-  <form method="POST" action="/admin/backup" class="form-grid" style="align-items:end"><%- include("../partials/csrf") %>
-    <label class="field"><span>Passphrase (10+ characters)</span>
-      <input type="password" name="passphrase" minlength="10" required autocomplete="new-password" />
-    </label>
-    <label class="field"><span>Type it again</span>
-      <input type="password" name="passphrase_confirm" minlength="10" required autocomplete="new-password" />
-    </label>
-    <div><button type="submit" class="btn">Download encrypted backup</button></div>
-  </form>
-  <p class="muted" style="font-size:12px;margin:10px 2px 0">
-    To load a downloaded file back (roll back): <a href="/recovery#from-file">Backups &amp; recovery → Restore from a downloaded file</a> (super admin).
-  </p>
-</div>
+

@@ -79,7 +79,8 @@ A real fault looks like: **every page** failing, an error page with a number on 
 - **Account ownership.** Render, Neon, Brevo, PhilSMS, cron-job.org, and the SMS phone's SIM are all currently under a student's name. On handover these must move to a clinic-owned address, or the clinic loses the system when that address is abandoned. **This is the one item that cannot wait for a problem to appear.**
 - **Free-tier limits.** Neon's free plan allows 191.9 compute-hours a month. If use grows past it, somebody has to pay or upgrade.
 - **Backups.** Neon's free plan keeps only a short restore window, so the system exports its own:
-  the admin uses **Download backup** on Staff accounts, or a developer runs `npm run backup`
+  automatically once a week into a separate backup database (Backups & recovery, super admin), plus
+  **Back up now** and **Download a copy** on the same page, or a developer runs `npm run backup`
   (writes to `backups/`, which is gitignored — this repository is public). Once a week and before
   any big change is a sensible rhythm. The file holds every patient record: keep it on the clinic's
   own storage, never in email or a public folder. Restoring from it needs a developer; Neon's own

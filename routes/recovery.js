@@ -131,6 +131,35 @@ router.post("/recovery/backup-now", gate, async (req, res) => {
   }
 });
 
+// ---- DOWNLOAD A COPY  POST /recovery/download ---------------------------------
+// The offline copy (moved here from Staff accounts, Oct 2026). Same snapshot
+// as Back up now, but handed to the browser as a file locked with a
+// passphrase typed now (lib/backupCrypto.js — OpenSSL-compatible, so it opens
+// even without this system). Kept beside Back up now on purpose: that one
+// lives online in the backup database; this one is for when the online
+// databases themselves are gone, e.g. the hosting account is lost.
+const { snapshot, filenameFor: downloadName } = require("../lib/backup");
+router.post("/recovery/download", gate, async (req, res, next) => {
+  try {
+    const pass = String(req.body.passphrase || "");
+    if (pass.length < backupCrypto.MIN_PASSPHRASE)
+      return back(res, `No copy downloaded: the passphrase must be at least ${backupCrypto.MIN_PASSPHRASE} characters.`, "err");
+    if (pass !== String(req.body.passphrase_confirm || ""))
+      return back(res, "No copy downloaded: the two passphrases did not match.", "err");
+    const data = await snapshot();
+    const total = Object.values(data.counts).reduce((a, b) => a + b, 0);
+    const file = backupCrypto.encrypt(Buffer.from(JSON.stringify(data), "utf8"), pass);
+    audit.log(actorId(req), "create", "backup", null,
+      `downloaded an encrypted full backup (${Object.keys(data.counts).length} tables, ${total} rows) — ${who(req)}`);
+    res.setHeader("Content-Type", "application/octet-stream");
+    res.setHeader("Content-Disposition", `attachment; filename="${downloadName()}.enc"`);
+    res.setHeader("Cache-Control", "no-store");
+    res.send(file);
+  } catch (e) {
+    back(res, `No copy downloaded: ${e.message}`, "err");
+  }
+});
+
 router.get("/recovery/backups/:id/download", gate, async (req, res, next) => {
   try {
     const row = await store.getSealed(parseInt(req.params.id, 10) || 0);
@@ -179,8 +208,8 @@ router.post("/recovery/backups/:id/restore", gate, async (req, res) => {
 // ---- RESTORE FROM A FILE  POST /recovery/restore-file ------------------------
 // Gabo, Oct 2026: "there should be a way to load this backup in case we need
 // to roll back." Takes either kind of downloaded file:
-//   - Staff accounts → Download backup (.json.enc), locked with the passphrase
-//     the admin typed when downloading;
+//   - "Download a copy" on this page (.json.enc), locked with the passphrase
+//     typed when downloading (on Staff accounts before Oct 2026);
 //   - a weekly backup downloaded from this page (.json.gz.enc), locked with
 //     BACKUP_KEY — no passphrase needed, the server already has it.
 // The page sends the file as the raw request body (fetch, application/octet-
@@ -240,7 +269,7 @@ router.post("/recovery/restore-file", gate,
         }
       } else if (req.get("x-own-copy") !== "yes") {
         return reply("Not restored: the backup database is not set up, so no automatic copy of the current data can be made. " +
-          "Download a backup of the current data first (Staff accounts → Download backup), then tick the box and try again.", "err");
+          "Download a copy of the current data first (Make a backup → Download a copy), then tick the box and try again.", "err");
       }
 
       const r = await restoreSnapshot(snap);

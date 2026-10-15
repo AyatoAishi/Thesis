@@ -352,41 +352,11 @@ router.post("/admin/users/:id/delete", async (req, res, next) => {
   }
 });
 
-// ---- BACKUP  GET /admin/backup ---------------------------------------------------
-// "Need backup database." The same snapshot `npm run backup` writes, as a
-// download, so the admin can take a copy from the clinic's own computer
-// without a terminal. Admin-only (this router's /admin guard) and written to
-// the activity log every time, because a file holding every patient record
-// leaving the system is exactly the kind of event that log exists for.
-//
-// Oct 2026: the download is ENCRYPTED with a passphrase the admin types in the
-// form (lib/backupCrypto.js — OpenSSL-compatible, so it opens without this
-// system too). A plain copy of every patient record no longer leaves through
-// the browser. The old GET link only explains where the button went.
-const { snapshot, filenameFor } = require("../lib/backup");
-const backupCrypto = require("../lib/backupCrypto");
-router.get("/admin/backup", (req, res) => back(res,
-  "Backups are now password-protected: use Download backup on this page and choose a passphrase."));
-router.post("/admin/backup", async (req, res, next) => {
-  try {
-    const pass = String(req.body.passphrase || "");
-    if (pass.length < backupCrypto.MIN_PASSPHRASE)
-      return back(res, `No backup made: the passphrase must be at least ${backupCrypto.MIN_PASSPHRASE} characters.`);
-    if (pass !== String(req.body.passphrase_confirm || ""))
-      return back(res, "No backup made: the two passphrases did not match.");
-    const data = await snapshot();
-    const total = Object.values(data.counts).reduce((a, b) => a + b, 0);
-    const file = backupCrypto.encrypt(Buffer.from(JSON.stringify(data), "utf8"), pass);
-    audit.log(req.session.user.user_id, "create", "backup", null,
-      `downloaded an encrypted full backup (${Object.keys(data.counts).length} tables, ${total} rows)`);
-    res.setHeader("Content-Type", "application/octet-stream");
-    res.setHeader("Content-Disposition", `attachment; filename="${filenameFor()}.enc"`);
-    res.setHeader("Cache-Control", "no-store");
-    res.send(file);
-  } catch (e) {
-    next(e);
-  }
-});
+// ---- BACKUP  /admin/backup ------------------------------------------------------
+// The encrypted download moved to Backups & recovery (Oct 2026), next to
+// "Back up now", so every way of making and loading a backup is on one page
+// (routes/recovery.js). Old links and bookmarks land there.
+router.all("/admin/backup", (req, res) => res.redirect("/recovery#make"));
 
 // ---- VIDEO TUTORIALS  POST /admin/tutorials ------------------------------------
 // Panel review, Oct 2026. The admin pastes a YouTube or Google Drive link on

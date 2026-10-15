@@ -80,12 +80,48 @@
       </dd></div>
       <div><dt>Schedule</dt><dd>Automatic, once a week. The newest <%= keep %> are kept; each new one replaces the oldest.</dd></div>
     </dl>
-    <% if (backupDb.ok) { %>
-      <form method="POST" action="/recovery/backup-now" style="margin:14px 0 0"><%- include("partials/csrf") %>
-        <button type="submit" class="btn">Back up now</button>
-        <span class="muted" style="font-size:12.5px;margin-left:8px">Takes a few seconds. Counts as one of the <%= keep %>.</span>
-      </form>
-    <% } %>
+  </div>
+
+  <%# Both ways of making a backup, side by side, each saying what it is for
+      (Gabo, Oct 2026: the download used to sit on Staff accounts, which
+      raised "why two backups?"). %>
+  <div class="card" id="make">
+    <div class="panel-title" style="margin-bottom:12px">Make a backup</div>
+    <div class="form-grid" style="align-items:start">
+      <div>
+        <b>1. Back up now</b> <span class="badge ok">main</span>
+        <p class="muted" style="font-size:12.5px;margin:6px 0 10px;line-height:1.55">
+          Saved <b>online</b> in the separate backup database and listed below — restore it with one click.
+          The weekly automatic backup does exactly this by itself. Use it before a big change.
+        </p>
+        <% if (backupDb.ok) { %>
+          <form method="POST" action="/recovery/backup-now" style="margin:0"><%- include("partials/csrf") %>
+            <button type="submit" class="btn">Back up now</button>
+            <span class="muted" style="font-size:12px;margin-left:6px">Counts as one of the <%= keep %>.</span>
+          </form>
+        <% } else { %>
+          <p class="muted" style="font-size:12.5px;margin:0">Available once the backup database is set up.</p>
+        <% } %>
+      </div>
+      <div>
+        <b>2. Download a copy</b> <span class="badge info">offline</span>
+        <p class="muted" style="font-size:12.5px;margin:6px 0 10px;line-height:1.55">
+          A file saved <b>on this computer</b>, for the rare case that the online databases themselves are gone
+          (for example, the hosting account is lost). Locked with a passphrase you choose now —
+          write it down; without it the file cannot be opened, not even by us.
+          Load it back with <b>Restore from a downloaded file</b> below.
+        </p>
+        <form method="POST" action="/recovery/download" class="form-grid" style="gap:8px;margin:0"><%- include("partials/csrf") %>
+          <label class="field"><span>Passphrase (10+ characters)</span>
+            <input type="password" name="passphrase" minlength="10" required autocomplete="new-password" />
+          </label>
+          <label class="field"><span>Type it again</span>
+            <input type="password" name="passphrase_confirm" minlength="10" required autocomplete="new-password" />
+          </label>
+          <div style="grid-column:1/-1"><button type="submit" class="btn">Download a copy</button></div>
+        </form>
+      </div>
+    </div>
   </div>
 
   <div class="card">
@@ -98,7 +134,7 @@
     <% if (listError) { %>
       <p class="page-alert bad" style="margin:0"><%= listError %></p>
     <% } else if (!backups.length) { %>
-      <p class="muted" style="margin:0"><%= backupDb.ok ? "No backups yet. The first weekly one is made by the next morning's job — or press Back up now." : "Backups appear here once the backup database is set up." %></p>
+      <p class="muted" style="margin:0"><%= backupDb.ok ? "No backups yet. The first weekly one is made by the next morning's job — or press Back up now above." : "Backups appear here once the backup database is set up." %></p>
     <% } else { %>
       <div class="batch-wrap">
         <table class="tbl">
@@ -145,7 +181,7 @@
     <div class="panel-title" style="margin-bottom:4px">Restore from a downloaded file</div>
     <p class="muted" style="font-size:12.5px;margin:0 0 12px">
       For rolling back to a backup file saved on this computer: the one from
-      <b>Staff accounts → Download encrypted backup</b>, or a weekly one downloaded from the list above.
+      <b>Download a copy</b> above (or on Staff accounts, before Oct 2026), or one downloaded from the Backups list.
       Everything in the system is replaced with the data in the file.
     </p>
     <div class="form-grid" data-file-restore>
@@ -161,7 +197,7 @@
       <% if (missing.length) { %>
         <label class="check" style="grid-column:1/-1">
           <input type="checkbox" data-fr-owncopy />
-          <span>I downloaded a backup of the <b>current</b> data first (Staff accounts → Download encrypted backup).
+          <span>I downloaded a copy of the <b>current</b> data first (Make a backup → Download a copy).
             The backup database is not set up yet, so the system cannot keep a "Before a restore" copy by itself.</span>
         </label>
       <% } else { %>

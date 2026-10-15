@@ -81,7 +81,7 @@
                   }) %>
             </label>
             <label class="field dispense-qty"><span<%= i ? ' class="sr-only"' : "" %>>Quantity *</span>
-              <input type="number" name="line_quantity" min="1" step="1"
+              <input type="number" max="1000000" name="line_quantity" min="1" step="1"
                      value="<%= ln.quantity || "" %>" required />
             </label>
             <%# "Mag add tayo ng space don para matype ng staff/nurse kung gano

@@ -30,6 +30,11 @@ const { splitDose, dosageNeedsUnit } = require("../lib/medicineName");
 const router = express.Router();
 
 // ---- helpers ----------------------------------------------------------------
+// The most any one count may be: a barangay clinic never holds a million of
+// anything, and the database column tops out a little past two billion, so a
+// typo like 99999999999999999 is caught here with a plain message (Oct 2026).
+const MAX_QTY = 1000000;
+
 function toInt(v, def) {
   if (v === "" || v === undefined || v === null) return def;
   const n = parseInt(v, 10);
@@ -88,10 +93,16 @@ function validateMedicine(m) {
     errors.push(`Say how many ${plural(m.unit || "piece")} are in one ${m.package_unit} — a whole number from 2 up.`);
   if (!Number.isInteger(m.stock_packages) || m.stock_packages < 0)
     errors.push(`The number of ${plural(m.package_unit || "package")} must be zero or a positive whole number.`);
+  else if (m.stock_packages > MAX_QTY)
+    errors.push(`The number of ${plural(m.package_unit || "package")} is too large — at most ${MAX_QTY.toLocaleString("en-US")}.`);
   if (!Number.isInteger(m.stock_quantity) || m.stock_quantity < 0)
     errors.push("Stock quantity must be zero or a positive whole number.");
+  else if (m.stock_quantity > MAX_QTY)
+    errors.push(`Stock quantity is too large — at most ${MAX_QTY.toLocaleString("en-US")}.`);
   if (!Number.isInteger(m.low_stock_threshold) || m.low_stock_threshold < 0)
     errors.push("Low-stock threshold must be zero or a positive whole number.");
+  else if (m.low_stock_threshold > MAX_QTY)
+    errors.push(`Low-stock threshold is too large — at most ${MAX_QTY.toLocaleString("en-US")}.`);
   return errors;
 }
 
@@ -137,6 +148,8 @@ function validateDispense(body, medicines) {
     if (!med) return errors.push(`That medicine is no longer in the inventory${where}.`);
     if (!quantity || quantity <= 0)
       return errors.push(`Enter a quantity greater than zero for ${med.name}${where}.`);
+    if (quantity > MAX_QTY)
+      return errors.push(`The quantity for ${med.name}${where} is too large.`);
 
     // The same medicine twice would pass each line's own stock check and
     // together ask for more than exists, so the totals are what get checked.
@@ -661,6 +674,8 @@ router.post("/inventory/:id/restock", async (req, res, next) => {
       const loose = blank(req.body.quantity) ? 0 : intOf(req.body.quantity);
       if (!Number.isInteger(pk) || !Number.isInteger(loose))
         return back(res, id, `Enter whole numbers — how many ${plural(m.package_unit)} arrived, and any loose ${plural(m.unit || "piece")}.`, "err");
+      if (pk > MAX_QTY || loose > MAX_QTY)
+        return back(res, id, "That is over a million pieces in one delivery — check the numbers.", "err");
       qty = pk * per + loose;
     } else {
       qty = intOf(req.body.quantity);
@@ -710,6 +725,7 @@ router.post("/inventory/batches/:batchId/correct", (req, res, next) =>
   batchAction(req, res, next, async (batchId, m) => {
     const counted = intOf(req.body.counted);
     if (!Number.isInteger(counted)) throw new Error("Enter the number actually counted on the shelf.");
+    if (counted < 0 || counted > MAX_QTY) throw new Error(`The count must be between 0 and ${MAX_QTY.toLocaleString("en-US")}.`);
     const r = await stock.correctBatch({ batchId, newRemaining: counted, reason: req.body.reason, userId: req.session.user.user_id });
     audit.log(req.session.user.user_id, "update", "medicine", m.medicine_id,
       `${m.name}: batch #${batchId} recounted (${r.delta >= 0 ? "+" : ""}${r.delta}) — ${String(req.body.reason || "").trim()}`);

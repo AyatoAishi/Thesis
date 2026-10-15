@@ -565,6 +565,20 @@ app.use((err, req, res, next) => {
       message: err.message,
     });
   }
+  // A value the database cannot hold — 99999999999999999 typed into a stock box
+  // (seen in testing, Oct 2026), a malformed number or date, text too long for
+  // its column. That is the person's input, not a server fault: say so, as a
+  // 400, instead of "something went wrong on the server". Forms check their own
+  // limits first; this catches any form that does not.
+  if (err && ["22003", "22P02", "22008", "22007", "22001"].includes(err.code)) {
+    console.warn("[input]", req.method, req.originalUrl, err.code, err.message);
+    const msg = err.code === "22003" ? "One of the numbers entered is too large. Go back and check the numbers, then save again."
+      : err.code === "22001" ? "One of the entries is too long. Go back, shorten it, then save again."
+      : "One of the entries is not in the right format (a number or a date). Go back, check it, then save again.";
+    if (typeof res.locals.t !== "function")
+      return res.status(400).render("error-standalone", { layout: false, title: "Check what was entered", message: msg });
+    return res.status(400).render("error", { title: "Check what was entered", active: "", code: 400, message: msg });
+  }
   console.error("[error]", err);
   // The database is unreachable: out of free-tier quota (53000, seen Sept 29),
   // restarting, or the network. Said plainly, as 503 (temporary), and on a page

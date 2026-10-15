@@ -130,7 +130,7 @@
                       <% } %>
                       <% if (b.quantity_remaining > 0 || !b.expired_quantity) { %>
                         <form method="POST" action="/inventory/batches/<%= b.batch_id %>/correct"><%- include("../partials/csrf") %>
-                          <label class="field"><span>Counted on the shelf</span><input type="number" name="counted" min="0" step="1" value="<%= b.quantity_remaining %>" required /></label>
+                          <label class="field"><span>Counted on the shelf</span><input type="number" max="1000000" name="counted" min="0" step="1" value="<%= b.quantity_remaining %>" required /></label>
                           <label class="field"><span>Why it changed</span><input type="text" name="reason" maxlength="120" placeholder="e.g. physical count, broken bottle" required /></label>
                           <button type="submit" class="mini-btn">Correct count</button>
                         </form>
@@ -166,11 +166,11 @@
       <form method="POST" action="/inventory/<%= m.medicine_id %>/restock" class="form-grid" style="margin-top:12px"><%- include("../partials/csrf") %>
         <% if (medUnits.perPackage(m)) { %>
           <%# Restocked by the box, given out by the piece (panel review, Oct 2026). %>
-          <label class="field"><span><%= medUnits.plural(m.package_unit).replace(/^./, c => c.toUpperCase()) %> received *</span><input type="number" name="packages" min="0" step="1" required /></label>
-          <label class="field"><span>Loose <%= medUnits.plural(m.unit || "piece") %> <span class="muted">(optional)</span></span><input type="number" name="quantity" min="0" step="1" placeholder="0" /></label>
+          <label class="field"><span><%= medUnits.plural(m.package_unit).replace(/^./, c => c.toUpperCase()) %> received *</span><input type="number" max="1000000" name="packages" min="0" step="1" required /></label>
+          <label class="field"><span>Loose <%= medUnits.plural(m.unit || "piece") %> <span class="muted">(optional)</span></span><input type="number" max="1000000" name="quantity" min="0" step="1" placeholder="0" /></label>
           <p class="muted" style="grid-column:1/-1;font-size:12px;margin:0">1 <%= m.package_unit %> = <%= m.pieces_per_package %> <%= medUnits.plural(m.unit || "piece") %>. Stock is kept in <%= medUnits.plural(m.unit || "piece") %>, so a patient can be given any number.</p>
         <% } else { %>
-          <label class="field"><span>Quantity received *</span><input type="number" name="quantity" min="1" step="1" required /></label>
+          <label class="field"><span>Quantity received *</span><input type="number" max="1000000" name="quantity" min="1" step="1" required /></label>
         <% } %>
         <label class="field"><span>Expiry date *</span><input type="date" name="expiry_date" required min="<%= today %>" /></label>
         <label class="field"><span>Source</span><input type="text" name="source" maxlength="150" placeholder="e.g. City Health Office" /></label>

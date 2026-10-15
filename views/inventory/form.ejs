@@ -78,10 +78,10 @@
           a number typed over the total here would not. %>
       <% if (!isEdit) { %>
         <label class="field" data-open-packages hidden><span><span data-open-pack-word>Boxes</span> on hand</span>
-          <input type="number" name="stock_packages" min="0" step="1" value="<%= m.stock_packages || 0 %>" />
+          <input type="number" max="1000000" name="stock_packages" min="0" step="1" value="<%= m.stock_packages || 0 %>" />
         </label>
         <label class="field"><span data-open-label>Opening stock *</span>
-          <input type="number" name="stock_quantity" min="0" step="1" value="<%= m.stock_quantity ?? 0 %>" required />
+          <input type="number" max="1000000" name="stock_quantity" min="0" step="1" value="<%= m.stock_quantity ?? 0 %>" required />
           <span class="muted" style="font-size:11.5px" data-open-total></span>
         </label>
         <label class="field"><span>Expiry date <span class="muted">(of this stock)</span></span>
@@ -95,7 +95,7 @@
         </div>
       <% } %>
       <label class="field"><span>Low-stock threshold *</span>
-        <input type="number" name="low_stock_threshold" min="0" step="1" value="<%= m.low_stock_threshold ?? 10 %>" required />
+        <input type="number" max="1000000" name="low_stock_threshold" min="0" step="1" value="<%= m.low_stock_threshold ?? 10 %>" required />
         <span class="muted" style="font-size:11.5px">Flagged “Low” on the list once stock drops below this.</span>
       </label>
       <label class="field" style="grid-column:1/-1"><span>Source</span>

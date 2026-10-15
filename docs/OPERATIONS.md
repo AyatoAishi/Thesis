@@ -80,7 +80,7 @@ A real fault looks like: **every page** failing, an error page with a number on 
 - **Free-tier limits.** Neon's free plan allows 191.9 compute-hours a month. If use grows past it, somebody has to pay or upgrade.
 - **Backups.** Neon's free plan keeps only a short restore window, so the system exports its own:
   automatically once a week into a separate backup database (Backups & recovery, super admin), plus
-  **Back up now** and **Download a copy** on the same page, or a developer runs `npm run backup`
+  **Back up now** and **Download** (per backup) on the same page, or a developer runs `npm run backup`
   (writes to `backups/`, which is gitignored — this repository is public). Once a week and before
   any big change is a sensible rhythm. The file holds every patient record: keep it on the clinic's
   own storage, never in email or a public folder. Restoring from it needs a developer; Neon's own

@@ -131,35 +131,6 @@ router.post("/recovery/backup-now", gate, async (req, res) => {
   }
 });
 
-// ---- DOWNLOAD A COPY  POST /recovery/download ---------------------------------
-// The offline copy (moved here from Staff accounts, Oct 2026). Same snapshot
-// as Back up now, but handed to the browser as a file locked with a
-// passphrase typed now (lib/backupCrypto.js — OpenSSL-compatible, so it opens
-// even without this system). Kept beside Back up now on purpose: that one
-// lives online in the backup database; this one is for when the online
-// databases themselves are gone, e.g. the hosting account is lost.
-const { snapshot, filenameFor: downloadName } = require("../lib/backup");
-router.post("/recovery/download", gate, async (req, res, next) => {
-  try {
-    const pass = String(req.body.passphrase || "");
-    if (pass.length < backupCrypto.MIN_PASSPHRASE)
-      return back(res, `No copy downloaded: the passphrase must be at least ${backupCrypto.MIN_PASSPHRASE} characters.`, "err");
-    if (pass !== String(req.body.passphrase_confirm || ""))
-      return back(res, "No copy downloaded: the two passphrases did not match.", "err");
-    const data = await snapshot();
-    const total = Object.values(data.counts).reduce((a, b) => a + b, 0);
-    const file = backupCrypto.encrypt(Buffer.from(JSON.stringify(data), "utf8"), pass);
-    audit.log(actorId(req), "create", "backup", null,
-      `downloaded an encrypted full backup (${Object.keys(data.counts).length} tables, ${total} rows) — ${who(req)}`);
-    res.setHeader("Content-Type", "application/octet-stream");
-    res.setHeader("Content-Disposition", `attachment; filename="${downloadName()}.enc"`);
-    res.setHeader("Cache-Control", "no-store");
-    res.send(file);
-  } catch (e) {
-    back(res, `No copy downloaded: ${e.message}`, "err");
-  }
-});
-
 router.get("/recovery/backups/:id/download", gate, async (req, res, next) => {
   try {
     const row = await store.getSealed(parseInt(req.params.id, 10) || 0);
@@ -208,8 +179,8 @@ router.post("/recovery/backups/:id/restore", gate, async (req, res) => {
 // ---- RESTORE FROM A FILE  POST /recovery/restore-file ------------------------
 // Gabo, Oct 2026: "there should be a way to load this backup in case we need
 // to roll back." Takes either kind of downloaded file:
-//   - "Download a copy" on this page (.json.enc), locked with the passphrase
-//     typed when downloading (on Staff accounts before Oct 2026);
+//   - an older Staff accounts download (.json.enc, removed Oct 2026), locked
+//     with the passphrase typed when it was downloaded;
 //   - a weekly backup downloaded from this page (.json.gz.enc), locked with
 //     BACKUP_KEY — no passphrase needed, the server already has it.
 // The page sends the file as the raw request body (fetch, application/octet-
@@ -257,27 +228,22 @@ router.post("/recovery/restore-file", gate,
       const snap = openUploaded(req.body, pass);
       const made = snap.created_at || snap.generated_at || null;
 
-      // A copy of what is there now, so a wrong file can be undone. Without the
-      // backup database there is nowhere to keep it, so the person must say
-      // they downloaded one themselves (the checkbox on the page).
+      // A copy of what is there now, so a wrong file can be undone. It goes in
+      // the backup database; without one there is nowhere safe to keep it, so
+      // nothing is restored.
       let safety = null;
-      if (store.configured()) {
-        try {
-          safety = await store.create("pre-restore", `taken just before restoring the file ${name}`);
-        } catch (e) {
-          return reply(`Not restored: could not save a copy of the current data first (${e.message}).`, "err");
-        }
-      } else if (req.get("x-own-copy") !== "yes") {
-        return reply("Not restored: the backup database is not set up, so no automatic copy of the current data can be made. " +
-          "Download a copy of the current data first (Make a backup → Download a copy), then tick the box and try again.", "err");
+      try {
+        safety = await store.create("pre-restore", `taken just before restoring the file ${name}`);
+      } catch (e) {
+        return reply(`Not restored: could not save a copy of the current data first (${e.message}).`, "err");
       }
 
       const r = await restoreSnapshot(snap);
       audit.log(actorId(req), "update", "database", null,
         `restored the uploaded file ${name}${made ? ` (made ${String(made).slice(0, 16).replace("T", " ")} UTC)` : ""} ` +
-        `(${r.rows} rows) — ${who(req)}` + (safety ? `; the data from just before is backup #${safety.id}` : "; no automatic copy (backup database not set up)"));
-      reply(`Restored the file ${name}: ${r.tables} tables, ${r.rows} rows.` +
-        (safety ? ` What was there before is kept as backup #${safety.id} ("before restore").` : ""));
+        `(${r.rows} rows) — ${who(req)}; the data from just before is backup #${safety.id}`);
+      reply(`Restored the file ${name}: ${r.tables} tables, ${r.rows} rows. ` +
+        `What was there before is kept as backup #${safety.id} ("before restore").`);
     } catch (e) {
       reply(`Not restored — nothing was changed: ${e.message}`, "err");
     }

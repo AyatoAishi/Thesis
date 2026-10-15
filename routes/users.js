@@ -353,10 +353,10 @@ router.post("/admin/users/:id/delete", async (req, res, next) => {
 });
 
 // ---- BACKUP  /admin/backup ------------------------------------------------------
-// The encrypted download moved to Backups & recovery (Oct 2026), next to
-// "Back up now", so every way of making and loading a backup is on one page
-// (routes/recovery.js). Old links and bookmarks land there.
-router.all("/admin/backup", (req, res) => res.redirect("/recovery#make"));
+// The separate passphrase download was removed (Gabo, Oct 2026): backups are
+// made, downloaded and restored on Backups & recovery (routes/recovery.js).
+// Old links and bookmarks land there.
+router.all("/admin/backup", (req, res) => res.redirect("/recovery"));
 
 // ---- VIDEO TUTORIALS  POST /admin/tutorials ------------------------------------
 // Panel review, Oct 2026. The admin pastes a YouTube or Google Drive link on

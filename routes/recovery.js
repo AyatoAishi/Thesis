@@ -178,20 +178,19 @@ router.post("/recovery/backups/:id/restore", gate, async (req, res) => {
 
 // ---- RESTORE FROM A FILE  POST /recovery/restore-file ------------------------
 // Gabo, Oct 2026: "there should be a way to load this backup in case we need
-// to roll back." Takes either kind of downloaded file:
-//   - an older Staff accounts download (.json.enc, removed Oct 2026), locked
-//     with the passphrase typed when it was downloaded;
-//   - a weekly backup downloaded from this page (.json.gz.enc), locked with
-//     BACKUP_KEY — no passphrase needed, the server already has it.
+// to roll back." Takes a backup downloaded from this page (.json.gz.enc),
+// locked with BACKUP_KEY, which the server already has — nothing to type but
+// RESTORE. (The old Staff-accounts download used a passphrase of its own; those
+// files cannot be opened without it, so they are refused with a plain message.)
 // The page sends the file as the raw request body (fetch, application/octet-
-// stream) with the passphrase and the RESTORE confirmation in headers, so the
-// normal 100 KB form limit does not apply and no upload library is needed.
+// stream) with the RESTORE confirmation in a header, so the normal 100 KB form
+// limit does not apply and no upload library is needed.
 // Same safety as restoring from the list: a "before restore" copy first, and
 // the restore is one transaction — any failure changes nothing.
 const MAX_FILE = "60mb";
 
-// Decrypt (with each key in turn), un-gzip if needed, parse, check it is ours.
-function openUploaded(buf, passphrase) {
+// Decrypt with BACKUP_KEY, un-gzip, parse, check it is ours.
+function openUploaded(buf) {
   const head = buf.subarray(0, 1).toString("latin1");
   const tryParse = (plain) => {
     if (plain[0] === 0x1f && plain[1] === 0x8b) plain = zlib.gunzipSync(plain);
@@ -203,29 +202,24 @@ function openUploaded(buf, passphrase) {
   if (head === "{") {
     try { return tryParse(buf); } catch { throw new Error("This file is not a Sampaguita backup."); }
   }
-  const keys = [passphrase, process.env.BACKUP_KEY].filter(Boolean);
-  if (!keys.length) throw new Error("Type the passphrase that was chosen when this file was downloaded.");
-  for (const k of keys) {
-    try { return tryParse(backupCrypto.decrypt(buf, k)); } catch { /* next key */ }
+  try {
+    return tryParse(backupCrypto.decrypt(buf, process.env.BACKUP_KEY));
+  } catch {
+    throw new Error("This file cannot be opened here. Only a backup downloaded from this page (Backups list → Download) can be restored.");
   }
-  throw new Error(passphrase
-    ? "Wrong passphrase, or this is not a Sampaguita backup file."
-    : "Type the passphrase that was chosen when this file was downloaded.");
 }
 
 router.post("/recovery/restore-file", gate,
   express.raw({ type: "application/octet-stream", limit: MAX_FILE }),
   async (req, res) => {
     const reply = (msg, kind = "ok") => res.json({ redirect: `/recovery?${kind}=${encodeURIComponent(msg)}` });
-    let pass = "";
-    try { pass = decodeURIComponent(req.get("x-backup-passphrase") || ""); } catch { /* left empty */ }
     const name = String(req.get("x-file-name") || "file").replace(/[^\w.\- ]/g, "").slice(0, 120);
     if (String(req.get("x-restore-confirm") || "").trim() !== "RESTORE")
       return reply("Not restored: type RESTORE in capital letters to confirm.", "err");
     if (!Buffer.isBuffer(req.body) || !req.body.length)
       return reply("Not restored: choose the backup file first.", "err");
     try {
-      const snap = openUploaded(req.body, pass);
+      const snap = openUploaded(req.body);
       const made = snap.created_at || snap.generated_at || null;
 
       // A copy of what is there now, so a wrong file can be undone. It goes in

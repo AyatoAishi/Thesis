@@ -141,9 +141,8 @@
     <% } %>
   </div>
 
-  <%# Restore a file someone downloaded earlier (Gabo, Oct 2026): a backup
-      downloaded from the list above, or an older passphrase-locked file from
-      Staff accounts. Sent by the script below as the raw body (routes/recovery.js). %>
+  <%# Restore a backup someone downloaded from the list above (Gabo, Oct 2026).
+      Sent by the script below as the raw body (routes/recovery.js). %>
   <div class="card" id="from-file">
     <div class="panel-title" style="margin-bottom:4px">Restore from a downloaded file</div>
     <p class="muted" style="font-size:12.5px;margin:0 0 12px">
@@ -153,9 +152,6 @@
     <div class="form-grid" data-file-restore>
       <label class="field" style="grid-column:1/-1"><span>Backup file (.enc)</span>
         <input type="file" data-fr-file accept=".enc,.json,.gz,application/octet-stream" />
-      </label>
-      <label class="field"><span>Passphrase <span class="muted">(leave blank — only for an older file downloaded from Staff accounts)</span></span>
-        <input type="password" data-fr-pass autocomplete="off" />
       </label>
       <label class="field"><span>Type <b>RESTORE</b> to confirm</span>
         <input type="text" data-fr-confirm autocomplete="off" />
@@ -205,7 +201,6 @@
     var box = document.querySelector("[data-file-restore]");
     if (!box) return;
     var file = box.querySelector("[data-fr-file]");
-    var pass = box.querySelector("[data-fr-pass]");
     var confirmBox = box.querySelector("[data-fr-confirm]");
     var go = box.querySelector("[data-fr-go]");
     var status = box.querySelector("[data-fr-status]");
@@ -222,7 +217,6 @@
         headers: {
           "content-type": "application/octet-stream",
           "x-csrf-token": token,
-          "x-backup-passphrase": encodeURIComponent(pass.value),
           "x-restore-confirm": confirmBox.value.trim(),
           "x-file-name": f.name.replace(/[^\w.\- ]/g, "")
         },

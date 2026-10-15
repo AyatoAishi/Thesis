@@ -151,10 +151,10 @@ router.post("/reminders/test-email", requireRole("admin"), async (req, res, next
     } else {
       const r = await emailSvc.sendMail({
         to,
-        subject: "Test email — Sampaguita Health Clinic",
-        text: "This is a test email from the Sampaguita Health Clinic system. If you can read this, appointment reminders by email are working.",
+        subject: "Email check — Sampaguita Health Clinic",
+        text: "This is a sample message from the Sampaguita Health Clinic system, sent to check that email works. If you can read this, appointment reminders by email are working.",
         html: '<div style="font-family:Arial,sans-serif;font-size:14px;color:#222">' +
-              "<p>This is a <b>test email</b> from the Sampaguita Health Clinic system.</p>" +
+              "<p>This is a sample message from the Sampaguita Health Clinic system, sent to <b>check that email works</b>.</p>" +
               "<p>If you can read this, appointment reminders by email are working.</p></div>",
       });
       emailTest = {

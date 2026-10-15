@@ -11,7 +11,7 @@
   <div class="page-alert bad">
     <span>
       <b><%= failures.n %> reminder<%= failures.n === 1 ? "" : "s" %> failed to send in the last 30 days.</b>
-      Those patients were never told about their appointment. Send a <b>test email</b> below to check.
+      Those patients were never told about their appointment. Use <b>Check if email works</b> below.
     </span>
   </div>
 <% } %>
@@ -33,11 +33,15 @@
     appointment. A confirmation also goes out the moment an appointment is booked.
   </p>
   <form method="POST" action="/reminders/test-email" class="daynav-left" style="gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:12px"><%- include("../partials/csrf") %>
-    <label class="field" style="gap:4px"><span>Send a test email to</span>
+    <p class="muted" style="margin:0 2px;font-size:12.5px;flex-basis:100%">
+      <b>Check if email works:</b> sends one sample reminder to the address you type (yours, for example).
+      If it arrives, patients are getting their emails too.
+    </p>
+    <label class="field" style="gap:4px"><span>Email address to check with</span>
       <input type="email" name="to" placeholder="name@gmail.com" required
              value="<%= emailTest && emailTest.to ? emailTest.to : '' %>" />
     </label>
-    <button type="submit" class="mini-btn">Send test email</button>
+    <button type="submit" class="mini-btn">Check if email works</button>
   </form>
 
   <% if (emailTest) { %>
@@ -90,11 +94,15 @@
       </p>
     <% } %>
     <form method="POST" action="/reminders/test-sms" class="daynav-left" style="gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:12px"><%- include("../partials/csrf") %>
-      <label class="field" style="gap:4px"><span>Send a test text to</span>
+      <p class="muted" style="margin:0 2px;font-size:12.5px;flex-basis:100%">
+        <b>Check if SMS works:</b> sends one sample text to the number you type (yours, for example).
+        If it arrives, patients are getting their texts too.
+      </p>
+      <label class="field" style="gap:4px"><span>Mobile number to check with</span>
         <input type="tel" name="number" placeholder="09xxxxxxxxx" inputmode="numeric" maxlength="16" required
                value="<%= smsTest && smsTest.number ? smsTest.number : '' %>" />
       </label>
-      <button type="submit" class="mini-btn">Send test SMS</button>
+      <button type="submit" class="mini-btn">Check if SMS works</button>
     </form>
     <% if (smsTest) { %>
       <div class="page-alert <%= smsTest.ok ? 'ok' : (smsTest.status === 'pending' ? 'warn' : 'bad') %>" style="margin:10px 0 0;display:block">

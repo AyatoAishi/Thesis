@@ -164,6 +164,10 @@
     </div>
   </div>
 
+  <%# Shown only when there is someone to reset (Gabo, Oct 2026: an empty
+      panel just raised questions). Signed in as the recovery account it
+      lists every admin, the super admin included. %>
+  <% if (issued || (mainDb.ok && admins.length)) { %>
   <div class="card" id="admin">
     <div class="panel-title" style="margin-bottom:4px">Admin forgot their password</div>
     <% if (issued) { %>
@@ -173,11 +177,7 @@
         Shown once. Give it to them in person — they will be asked to set their own when they sign in.
       </div>
     <% } %>
-    <% if (!mainDb.ok) { %>
-      <p class="muted" style="margin:0">Needs the main database. Restore a backup first if it is broken.</p>
-    <% } else if (!admins.length) { %>
-      <p class="muted" style="margin:0">No other admin accounts.</p>
-    <% } else { %>
+    <% if (mainDb.ok && admins.length) { %>
       <form method="POST" action="/recovery/admin-password" class="form-grid" style="margin-top:8px"
             data-confirm-title="Reset admin password" data-confirm="A new temporary password will replace the admin's current one, and they will be signed out everywhere."
             data-confirm-yes="Yes, reset it" data-confirm-no="No, cancel"><%- include("partials/csrf") %>
@@ -193,6 +193,7 @@
       </form>
     <% } %>
   </div>
+  <% } %>
 </main>
 <script src="/js/app.js"></script>
 <script>

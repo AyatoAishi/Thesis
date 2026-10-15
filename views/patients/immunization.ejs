@@ -40,13 +40,15 @@
   // services/reminders.js sends it: the patient's own number/email first, then
   // the emergency/family contact's. Shown here because "how does the reminder
   // reach a baby?" was a real question from our own group (Richelle, Sept 26)
-  // — if we had to ask, a nurse will too.
-  const _smsTo = patient.contact_number
-    ? { to: patient.contact_number, who: "the patient's own number" }
-    : patient.family_contact_number
-      ? { to: patient.family_contact_number, who: patient.family_contact_name || "the emergency contact" }
+  // — if we had to ask, a nurse will too. This card is shown for minors only,
+  // and for a minor services/reminders.js tries the emergency contact (the
+  // parent or guardian) FIRST — so the same order here.
+  const _smsTo = patient.family_contact_number
+    ? { to: patient.family_contact_number, who: patient.family_contact_name || "the emergency contact" }
+    : patient.contact_number
+      ? { to: patient.contact_number, who: "the patient's own number" }
       : null;
-  const _mailTo = patient.email || patient.family_email || null;
+  const _mailTo = patient.family_email || patient.email || null;
 %>
 <% if (patient.is_minor) { %>
   <div class="card parents-card">

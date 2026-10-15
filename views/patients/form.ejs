@@ -367,6 +367,24 @@
     sync();
   })();
 
+  // Prenatal check-up is greyed out while Sex is Male (Gabo, Oct 2026). If it
+  // was already picked, the choice falls back to "Just registering".
+  (function () {
+    var sex = document.querySelector('select[name="sex"]');
+    var prenatal = document.querySelector('input[name="purpose"][value="prenatal"]');
+    var none = document.querySelector('input[name="purpose"][value=""]');
+    if (!sex || !prenatal) return;
+    var wrap = prenatal.closest("label");
+    function sync() {
+      var male = sex.value === "male";
+      prenatal.disabled = male;
+      if (wrap) { wrap.style.opacity = male ? "0.4" : ""; wrap.style.pointerEvents = male ? "none" : ""; wrap.title = male ? "For female patients only" : ""; }
+      if (male && prenatal.checked && none) { none.checked = true; none.dispatchEvent(new Event("change", { bubbles: true })); }
+    }
+    sex.addEventListener("change", sync);
+    sync();
+  })();
+
   // Step bar: step 3 names where the chosen purpose of visit leads.
   (function () {
     var last = document.querySelector(".flow-steps .flow-step:last-child .flow-step-label");

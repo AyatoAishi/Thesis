@@ -544,6 +544,9 @@ router.get("/patients/new", async (req, res, next) => {
 router.post("/patients", async (req, res, next) => {
   const p = readForm(req.body);
   const errors = validate(p);
+  // The form greys this out for a male patient; a hand-made request is told.
+  if (req.body.purpose === "prenatal" && p.sex === "male")
+    errors.push("Prenatal check-up is only for female patients. Pick another purpose of visit.");
   if (errors.length) {
     return res.status(400).render("patients/form", {
       title: "Add patient · Sampaguita HC",

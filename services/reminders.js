@@ -101,6 +101,18 @@ function buildConfirmation(appt, kind = "booked") {
   };
 }
 
+// The SMS version of the confirmation (Gabo, Oct 2026: "not just 1 day before
+// the appointment, but also during the initial"). Kept short, like the reminder.
+function buildConfirmationSms(appt, kind = "booked") {
+  const svc = F.prettyService(appt.service_name);
+  const when = F.longDate(appt.appointment_date);
+  const time = F.shortTime(appt.appointment_time);
+  const timePart = time ? ` ${time}` : "";
+  const verb = kind === "rescheduled" ? "Nailipat" : "Naitakda";
+  return `Sampaguita Health Clinic: ${verb} po ang ${svc} appointment ni ${appt.full_name} sa ${when}${timePart}. ` +
+    `May paalala pa po bago ang araw. Salamat po.`;
+}
+
 // Send the instant confirmation for one appointment.
 //
 // Returns a result the booking screen can show the person at the desk, because
@@ -112,7 +124,8 @@ async function sendBookingConfirmation(appointment_id, kind = "booked") {
   const { rows } = await db.query(
     `SELECT a.appointment_id, a.appointment_date, a.appointment_time,
             s.name AS service_name,
-            p.patient_id, p.full_name, p.email, p.family_email, p.reminder_channel, p.is_minor
+            p.patient_id, p.full_name, p.contact_number, p.family_contact_number,
+            p.email, p.family_email, p.reminder_channel, p.is_minor
        FROM appointments a
        JOIN services s ON s.service_id = a.service_id
        JOIN patients p ON p.patient_id = a.patient_id
@@ -121,20 +134,28 @@ async function sendBookingConfirmation(appointment_id, kind = "booked") {
     [appointment_id]
   );
   const appt = rows[0];
-  if (!appt) return { status: "skipped", to: null, reason: "Appointment not found." };
-
-  if (!wantsChannel(appt, "email", null)) {
-    return { status: "skipped", to: null, reason: "Naka-set ang pasyenteng ito na huwag paalalahanan sa email." };
+  if (!appt) {
+    const none = { status: "skipped", to: null, reason: "Appointment not found." };
+    return { email: none, sms: none };
   }
+  // Both at once: the person at the desk waits for whichever is slower.
+  const [emailR, smsR] = await Promise.all([
+    confirmByEmail(appt, kind).catch((e) => ({ status: "failed", to: null, reason: e.message })),
+    confirmBySms(appt, kind).catch((e) => ({ status: "failed", to: null, reason: e.message })),
+  ]);
+  return { email: emailR, sms: smsR };
+}
 
+async function confirmByEmail(appt, kind) {
+  if (!wantsChannel(appt, "email", null))
+    return { status: "skipped", to: null, reason: "naka-set na huwag sa email" };
   const to = resolveEmailRecipient(appt);
-  if (!to) {
-    return { status: "skipped", to: null, reason: "Walang email address ang pasyenteng ito sa record." };
-  }
+  if (!to) return { status: "skipped", to: null, reason: "walang email sa record" };
 
   const mail = buildConfirmation(appt, kind);
   const r = await email.sendMail({ to: to.address, ...mail });
   await logNotification({
+    kind: "confirmation",
     patient_id: appt.patient_id, appointment_id: appt.appointment_id,
     channel: "email", recipient: to.address, recipient_type: to.type,
     message: `${mail.subject} — ${mail.text}`,
@@ -144,7 +165,31 @@ async function sendBookingConfirmation(appointment_id, kind = "booked") {
   return {
     status: r.sent ? "sent" : "failed",
     to: to.address,
-    reason: r.sent ? (r.simulated ? "Simulated — walang tunay na email na lumabas." : null) : r.response,
+    reason: r.sent ? (r.simulated ? "simulated — walang tunay na email na lumabas" : null) : r.response,
+  };
+}
+
+async function confirmBySms(appt, kind) {
+  if (!wantsChannel(appt, "sms", null))
+    return { status: "skipped", to: null, reason: "naka-set na huwag sa SMS" };
+  const to = resolveRecipient(appt);
+  if (!to) return { status: "skipped", to: null, reason: "walang mobile number sa record" };
+
+  const message = buildConfirmationSms(appt, kind);
+  const r = await sms.sendSMS(to.number, message);
+  const status = ["sent", "pending"].includes(r.status) ? r.status : "failed";
+  await logNotification({
+    kind: "confirmation",
+    patient_id: appt.patient_id, appointment_id: appt.appointment_id,
+    channel: "sms", recipient: to.number, recipient_type: to.type,
+    message, status,
+    provider_message_id: r.message_id, provider_response: r.response,
+  });
+  return {
+    status,
+    to: to.number,
+    reason: status === "failed" ? r.response
+      : r.simulated ? "simulated — walang tunay na text na lumabas" : null,
   };
 }
 
@@ -174,25 +219,36 @@ function resolveEmailRecipient(p) {
   return null;
 }
 
+// `kind` says which message this was: the day-before 'reminder' or the
+// instant 'confirmation' (db/migrations/2026-10-15-notification-kind.js).
 async function logNotification(n) {
   await db.query(
     `INSERT INTO notifications
        (patient_id, appointment_id, channel, recipient, recipient_type, message,
-        status, provider_message_id, provider_response, sent_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+        status, provider_message_id, provider_response, sent_at, kind)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
     [n.patient_id, n.appointment_id, n.channel, n.recipient, n.recipient_type,
      n.message, n.status, n.provider_message_id, n.provider_response,
-     n.status === "sent" ? new Date() : null]
+     n.status === "sent" ? new Date() : null, n.kind || "reminder"]
   );
 }
 
-// Already sent a reminder for this appointment on this channel? A text still
-// `pending` on the clinic phone counts: it may yet go out, and sending a second
-// copy would reach the patient twice.
+// Already sent the day-before reminder for this appointment on this channel?
+// A text still `pending` on the clinic phone counts: it may yet go out, and
+// sending a second copy would reach the patient twice.
+// Only REMINDERS count — the booking confirmation used to count too, which
+// silently cancelled the reminder email of every confirmed appointment (found
+// Oct 2026). And only reminders sent after the latest confirmation: an
+// appointment moved to another day gets a fresh reminder for the new date.
 async function alreadySent(appointment_id, channel) {
   const dup = await db.query(
-    `SELECT 1 FROM notifications
-      WHERE appointment_id=$1 AND channel=$2 AND status IN ('sent', 'pending') LIMIT 1`,
+    `SELECT 1 FROM notifications n
+      WHERE n.appointment_id=$1 AND n.channel=$2 AND n.kind='reminder'
+        AND n.status IN ('sent', 'pending')
+        AND n.created_at > COALESCE(
+              (SELECT max(c.created_at) FROM notifications c
+                WHERE c.appointment_id=$1 AND c.kind='confirmation'), '-infinity')
+      LIMIT 1`,
     [appointment_id, channel]
   );
   return dup.rowCount > 0;
@@ -278,7 +334,7 @@ async function processReminders({ date, force = false, only = null } = {}) {
 
 module.exports = {
   CHANNELS, CHANNEL_LABELS, wantsChannel,
-  buildMessage, buildEmail, buildConfirmation, resolveRecipient,
+  buildMessage, buildEmail, buildConfirmation, buildConfirmationSms, resolveRecipient,
   resolveEmailRecipient, sendBookingConfirmation, processReminders, leadDays,
 };
 

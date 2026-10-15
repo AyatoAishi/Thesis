@@ -37,20 +37,29 @@ const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || "");
 // 2026-08-19 every confirmation this system "sent" silently timed out, and the
 // only place that showed was a log page nobody opens. Now it lands on the
 // screen of whoever booked it.
-function raceConfirmation(promise, ms = 4000) {
+// The confirmation now goes by email AND SMS (Oct 2026); the result names both.
+function raceConfirmation(promise, ms = 6000) {
+  const slow = { status: "pending", to: null, reason: null };
   return Promise.race([
     promise,
-    new Promise((resolve) => setTimeout(() => resolve({ status: "pending" }), ms)),
+    new Promise((resolve) => setTimeout(() => resolve({ email: slow, sms: slow }), ms)),
   ]);
 }
 
 function confirmationFlash(r, name) {
-  if (r.status === "sent" && r.reason) return { kind: "warn", text: `${name}: ${r.reason}` };
-  if (r.status === "sent") return { kind: "ok", text: `Naipadala ang kumpirmasyon kay ${name} sa ${r.to}.` };
-  if (r.status === "skipped") return { kind: "info", text: `Walang kumpirmasyong naipadala kay ${name} — ${r.reason}` };
-  if (r.status === "pending")
-    return { kind: "info", text: `Ipinapadala pa ang kumpirmasyon kay ${name}. Tingnan sa Reminders kung nakarating.` };
-  return { kind: "warn", text: `Hindi naipadala ang kumpirmasyon kay ${name}. ${r.reason || ""}`.trim() };
+  const part = (label, c) => {
+    if (!c) return null;
+    if (c.status === "sent") return `${label} ✓ ${c.to}${c.reason ? ` (${c.reason})` : ""}`;
+    if (c.status === "pending") return `${label}: ipinapadala pa${c.to ? ` sa ${c.to}` : ""}`;
+    if (c.status === "skipped") return `${label}: wala — ${c.reason}`;
+    return `${label}: HINDI naipadala${c.reason ? ` (${c.reason})` : ""}`;
+  };
+  const parts = [part("Email", r.email), part("SMS", r.sms)].filter(Boolean);
+  const states = [r.email, r.sms].filter(Boolean).map((c) => c.status);
+  const kind = states.includes("failed") ? "warn"
+    : states.every((st) => st === "skipped") ? "info"
+    : states.some((st) => st === "sent") && !states.includes("pending") ? "ok" : "info";
+  return { kind, text: `Kumpirmasyon kay ${name} — ${parts.join(" · ")}.` };
 }
 
 // The services — immunization, pre-natal, medicine distribution and now
@@ -360,9 +369,10 @@ router.post("/appointments", async (req, res, next) => {
     const who = await db.query("SELECT full_name FROM patients WHERE patient_id=$1", [value.patient_id]);
     const name = (who.rows[0] || {}).full_name || "ang pasyente";
     const conf = await raceConfirmation(
-      sendBookingConfirmation(ins.rows[0].appointment_id, "booked").catch((e) => ({
-        status: "failed", to: null, reason: e.message,
-      }))
+      sendBookingConfirmation(ins.rows[0].appointment_id, "booked").catch((e) => {
+        const failed = { status: "failed", to: null, reason: e.message };
+        return { email: failed, sms: failed };
+      })
     );
     req.session.flash = confirmationFlash(conf, name);
     res.redirect(`/appointments?date=${value.date}`);
@@ -477,9 +487,10 @@ router.post("/appointments/:id", async (req, res, next) => {
     const who = await db.query("SELECT full_name FROM patients WHERE patient_id=$1", [value.patient_id]);
     const name = (who.rows[0] || {}).full_name || "ang pasyente";
     const conf = await raceConfirmation(
-      sendBookingConfirmation(req.params.id, "rescheduled").catch((e) => ({
-        status: "failed", to: null, reason: e.message,
-      }))
+      sendBookingConfirmation(req.params.id, "rescheduled").catch((e) => {
+        const failed = { status: "failed", to: null, reason: e.message };
+        return { email: failed, sms: failed };
+      })
     );
     req.session.flash = confirmationFlash(conf, name);
     res.redirect(`/appointments?date=${value.date}`);

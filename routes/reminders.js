@@ -86,7 +86,7 @@ async function renderIndex(req, res, extra = {}) {
 
   const [logQ, cntQ, balance, fails] = await Promise.all([
     db.query(
-      `SELECT n.notification_id, n.created_at, n.channel, n.recipient, n.recipient_type,
+      `SELECT n.notification_id, n.created_at, n.channel, n.recipient, n.recipient_type, n.kind,
               n.status, n.message, n.patient_id, p.full_name,
               p.contact_number, p.email, p.family_contact_number, p.family_email
          FROM notifications n

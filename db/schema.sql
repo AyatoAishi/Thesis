@@ -224,7 +224,10 @@ CREATE TABLE notifications (
     provider_message_id VARCHAR(60),                  -- e.g. Semaphore's message_id
     provider_response   TEXT,
     sent_at             TIMESTAMPTZ,
-    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    -- the day-before 'reminder' or the instant booking 'confirmation'
+    kind                VARCHAR(12) NOT NULL DEFAULT 'reminder'
+                        CONSTRAINT notifications_kind_check CHECK (kind IN ('reminder','confirmation'))
 );
 CREATE INDEX idx_notifications_status ON notifications (status);
 

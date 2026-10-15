@@ -208,6 +208,9 @@ async function autoSchedule({ today, horizonDays = HORIZON_DAYS, dryRun = false 
     };
   }
 
+  // New bookings made here get the same instant confirmation (email + SMS)
+  // as one made at the desk (Gabo, Oct 2026) — sent after the loop.
+  const newlyBooked = [];
   for (const group of byPatientAndDate.values()) {
     // Somebody at the desk may already have booked this child in for that day.
     // Reuse it rather than making a second one they would have to cancel.
@@ -229,6 +232,7 @@ async function autoSchedule({ today, horizonDays = HORIZON_DAYS, dryRun = false 
         [group.patient_id, service.service_id, group.sessionDate, note.slice(0, 255)]
       );
       appointmentId = ins.rows[0].appointment_id;
+      newlyBooked.push(appointmentId);
     }
 
     for (const d of group.doses) {
@@ -259,7 +263,18 @@ async function autoSchedule({ today, horizonDays = HORIZON_DAYS, dryRun = false 
     }
   }
 
-  return { booked, patients: patients.size, horizonDays, until, sessionDay: service.schedule_day };
+  // One at a time: the texts go through one phone. A failure is logged on the
+  // Reminders page and never undoes the booking.
+  let confirmed = 0;
+  if (newlyBooked.length) {
+    const { sendBookingConfirmation } = require("./reminders");
+    for (const id of newlyBooked) {
+      try { await sendBookingConfirmation(id, "booked"); confirmed++; }
+      catch (e) { console.error("[immunization] confirmation failed for appointment", id, e.message); }
+    }
+  }
+
+  return { booked, patients: patients.size, confirmed, horizonDays, until, sessionDay: service.schedule_day };
 }
 
 // The whole daily pass, in the order the two halves depend on.

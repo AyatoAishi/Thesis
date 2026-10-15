@@ -178,7 +178,7 @@
         rows scroll under it. %>
     <div class="scroll-box">
       <table class="tbl">
-        <thead><tr><th>When</th><th>Patient</th><th>Mobile #</th><th>Email</th><th>Channel</th><th>Sent to</th><th>Status</th></tr></thead>
+        <thead><tr><th>When</th><th>Patient</th><th>Mobile #</th><th>Email</th><th>Type</th><th>Channel</th><th>Sent to</th><th>Status</th></tr></thead>
         <tbody>
           <% log.forEach(n => { %>
             <tr>
@@ -190,6 +190,7 @@
               <td style="font-size:13px">
                 <% if (n.email) { %><%= n.email %><% } else if (n.family_email) { %><%= n.family_email %> <span class="muted">(emergency)</span><% } else { %>—<% } %>
               </td>
+              <td style="font-size:12.5px"><%= n.kind === "confirmation" ? "Confirmation" : "Reminder" %></td>
               <td><span class="badge <%= n.channel === 'email' ? 'ok' : 'info' %>"><%= n.channel %></span></td>
               <td class="mono" style="font-size:12.5px"><%= n.recipient %><% if (n.recipient_type && n.recipient_type !== "patient") { %> <span class="muted">(<%= n.recipient_type %>)</span><% } %></td>
               <td>

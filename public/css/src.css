@@ -2115,3 +2115,13 @@ section.manual { scroll-margin-top: 16px; }
 .dash-split { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; align-items: start; margin-bottom: 16px; }
 .dash-split > .card { margin: 0; }
 @media (max-width: 900px) { .dash-split { grid-template-columns: 1fr; } }
+
+/* Instant hover pop-up (public/js/app.js, [data-hover]). Same look as the
+   calendar's. Fixed to the page so a table's scroll box cannot cut it off. */
+.hover-tip {
+  position: fixed; z-index: 1000; display: none; max-width: 440px;
+  background: var(--ink); color: #fff;
+  font-size: 12.5px; font-weight: 600; line-height: 1.45;
+  padding: 7px 10px; border-radius: 8px; box-shadow: var(--shadow-md);
+  pointer-events: none; white-space: normal;
+}

@@ -100,7 +100,7 @@
             <span class="mono muted"><%= p.patient_number %></span>
             <% if (p.is_minor) { %><span class="badge info"><%= t("pat.minor") %></span><% } %>
             <% if (p.deceased_at) { %><span class="badge bad"><%= t("pat.deceased") %></span><% } %>
-            <% const od = overdue.get(p.patient_id); %><% if (od) { %><a href="/patients/<%= p.patient_id %>/immunization" class="badge bad" style="text-decoration:none" title="Overdue: <%= od.doses %> (oldest <%= od.worstDays %> days late)"><%= od.overdue %> vaccine dose<%= od.overdue === 1 ? "" : "s" %> overdue</a><% } %>
+            <% const od = overdue.get(p.patient_id); %><% if (od) { %><a href="/patients/<%= p.patient_id %>/immunization" class="badge bad" style="text-decoration:none" data-hover="Overdue: <%= od.doses %> (oldest <%= od.worstDays %> days late)" aria-label="Overdue: <%= od.doses %>"><%= od.overdue %> vaccine dose<%= od.overdue === 1 ? "" : "s" %> overdue</a><% } %>
           </div>
           <dl class="pc-meta">
             <div><dt><%= t("pat.col_age") %> · <%= t("pat.col_sex") %></dt><dd><%= age(p.birthdate) %> · <%= p.sex || "—" %></dd></div>
@@ -128,7 +128,7 @@
               <a href="/patients/<%= p.patient_id %>"><%= p.full_name %></a>
               <% if (p.is_minor) { %><span class="badge info" style="margin-left:6px"><%= t("pat.minor") %></span><% } %>
               <% if (p.deceased_at) { %><span class="badge bad" style="margin-left:6px"><%= t("pat.deceased") %></span><% } %>
-              <% const od = overdue.get(p.patient_id); %><% if (od) { %><a href="/patients/<%= p.patient_id %>/immunization" class="badge bad" style="margin-left:6px;text-decoration:none" title="Overdue: <%= od.doses %> (oldest <%= od.worstDays %> days late)"><%= od.overdue %> vaccine dose<%= od.overdue === 1 ? "" : "s" %> overdue</a><% } %>
+              <% const od = overdue.get(p.patient_id); %><% if (od) { %><a href="/patients/<%= p.patient_id %>/immunization" class="badge bad" style="margin-left:6px;text-decoration:none" data-hover="Overdue: <%= od.doses %> (oldest <%= od.worstDays %> days late)" aria-label="Overdue: <%= od.doses %>"><%= od.overdue %> vaccine dose<%= od.overdue === 1 ? "" : "s" %> overdue</a><% } %>
             </td>
             <td><%= p.sex || "—" %></td>
             <td><%= age(p.birthdate) %></td>

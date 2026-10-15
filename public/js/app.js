@@ -536,3 +536,34 @@
     // Enter still submits normally, but it no longer has to.
   });
 })();
+
+// Instant hover pop-up for anything with data-hover="…" (Oct 2026: the red
+// overdue badge on Patients used title=, which shows late or not at all, and
+// a pop-up drawn inside the table would be cut off by its scroll box). This one
+// is placed on the page itself, above the element, and kept on screen.
+(function () {
+  var tip = null;
+  function show(el) {
+    var text = el.getAttribute("data-hover");
+    if (!text) return;
+    if (!tip) { tip = document.createElement("div"); tip.className = "hover-tip"; tip.setAttribute("role", "tooltip"); document.body.appendChild(tip); }
+    tip.textContent = text;
+    tip.style.display = "block";
+    var r = el.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+    var left = Math.min(Math.max(8, r.left + r.width / 2 - w / 2), window.innerWidth - w - 8);
+    var top = r.top - h - 8 < 8 ? r.bottom + 8 : r.top - h - 8;
+    tip.style.left = left + "px";
+    tip.style.top = top + "px";
+  }
+  function hide() { if (tip) tip.style.display = "none"; }
+  document.addEventListener("mouseover", function (e) {
+    var el = e.target.closest && e.target.closest("[data-hover]");
+    if (el) show(el); else hide();
+  });
+  document.addEventListener("focusin", function (e) {
+    var el = e.target.closest && e.target.closest("[data-hover]");
+    if (el) show(el);
+  });
+  document.addEventListener("focusout", hide);
+  window.addEventListener("scroll", hide, true);
+})();

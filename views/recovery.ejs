@@ -61,6 +61,18 @@
         <% if (newest) { %><%= when(newest.created_at) %> <span class="muted">(<%= daysAgo === 0 ? "today" : daysAgo === 1 ? "yesterday" : daysAgo + " days ago" %>)</span>
         <% } else { %><span class="muted">none yet</span><% } %>
       </dd></div>
+      <%
+        const placeText = (pl) => pl ? (pl.neon ? "Neon PostgreSQL" : "PostgreSQL") +
+          (pl.region ? " · " + (regionNames[pl.region] || pl.region) : "") + " · " + pl.project : "—";
+      %>
+      <div style="grid-column:1/-1"><dt>Where the data is kept</dt><dd>
+        <b>Main database:</b> <span class="mono"><%= placeText(places.main) %></span><br />
+        <b>Backups:</b> <span class="mono"><%= placeText(places.backup) %></span>
+        <% if (places.main && places.backup && places.main.project !== places.backup.project) { %>
+          <span class="badge ok">separate</span>
+        <% } %>
+        <div class="muted" style="font-size:12px;margin-top:4px">Two different databases: if the main one is lost or broken, the backups are not lost with it. Each backup is compressed and encrypted with BACKUP_KEY before it is stored.</div>
+      </dd></div>
       <div><dt>Next backup</dt><dd>
         <% if (missing.length) { %><span class="muted">none — the backup database is not set up yet</span>
         <% } else if (nextDue) { %>At the next daily check <span class="muted">(today or tomorrow)</span>

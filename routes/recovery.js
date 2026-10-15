@@ -65,6 +65,23 @@ const actorId = (req) => req.session.user.user_id || null;
 const back = (res, msg, kind = "ok") =>
   res.redirect(`/recovery?${kind}=${encodeURIComponent(msg)}`);
 
+// Where each database lives — the server name only, never the password — so
+// the page can show that backups sit somewhere other than the data they copy
+// (asked for the panel's revision review, Oct 2026).
+function placeOf(url) {
+  try {
+    const u = new URL(url);
+    const host = u.hostname;
+    const region = (/\.(ap|us|eu|sa|ca|me|af)-([a-z]+)-(\d)\./.exec(host) || []).slice(1).join("-");
+    const neon = /neon\.tech$/.test(host);
+    const project = neon ? host.split(".")[0].replace(/-pooler$/, "") : host + (u.port ? ":" + u.port : "") + u.pathname;
+    return { host, project, region, neon };
+  } catch {
+    return null;
+  }
+}
+const REGION_NAMES = { "ap-southeast-1": "Singapore", "us-east-1": "N. Virginia", "us-east-2": "Ohio", "us-west-2": "Oregon", "eu-central-1": "Frankfurt" };
+
 router.get("/recovery", gate, async (req, res) => {
   const [mainDb, backupDb] = await Promise.all([db.ping(), store.ping()]);
   let backups = [];
@@ -97,6 +114,8 @@ router.get("/recovery", gate, async (req, res) => {
     admins,
     issued,
     keep: store.KEEP,
+    places: { main: placeOf(process.env.DATABASE_URL), backup: placeOf(process.env.BACKUP_DATABASE_URL) },
+    regionNames: REGION_NAMES,
     ok: req.query.ok || null,
     err: req.query.err || null,
   });

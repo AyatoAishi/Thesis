@@ -6,6 +6,10 @@
   <div style="display:flex;gap:8px;flex-wrap:wrap">
     <%# "Printable or exportable copy of inventory." %>
     <a class="mini-btn" href="/reports/inventory">Report &amp; export</a>
+    <%# Dispensing starts here too (Oct 2026): before, it was only reachable from
+        a medicine's own page, a patient's page, or the Dispenses list. %>
+    <a class="mini-btn" href="/inventory/dispenses">Dispenses</a>
+    <a class="btn" href="/inventory/dispense/new">+ Dispense</a>
     <a class="btn" href="/inventory/new">+ Add medicine</a>
   </div>
 </div>

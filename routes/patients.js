@@ -311,7 +311,10 @@ function readForm(body) {
     family_email: noContact ? null : (body.family_email || "").trim().toLowerCase() || null,
     // How this patient wants to be reminded. Defaults to both so an existing
     // record that predates the field behaves exactly as it always did.
-    reminder_channel: noContact ? "none" : REMINDER_CHANNELS.includes(body.reminder_channel) ? body.reminder_channel : "both",
+    // With no phone of their own the form greys this out (panel, Oct 2026):
+    // reminders go to the emergency contact by email and SMS.
+    reminder_channel: noContact ? "none" : noOwnPhone ? "both"
+      : REMINDER_CHANNELS.includes(body.reminder_channel) ? body.reminder_channel : "both",
     is_minor: calcIsMinor(birthdate),
     guardian_name: (body.guardian_name || "").trim() || null,
     // Asked for on a minor's record (Richelle, Sept 26); optional, because a

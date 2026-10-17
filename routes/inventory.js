@@ -24,7 +24,7 @@ const db = require("../db");
 const audit = require("../lib/audit");
 const stock = require("../lib/stock");
 const F = require("../lib/format");
-const { UNITS, optionsFor, isKnown, PACKAGES, isPackage, plural, perPackage, inPackages } = require("../lib/medicineUnits");
+const { UNITS, optionsFor, isKnown, PACKAGES, isPackage, plural, perPackage, inPackages, fromChoice } = require("../lib/medicineUnits");
 const { splitDose, dosageNeedsUnit } = require("../lib/medicineName");
 
 const router = express.Router();
@@ -42,18 +42,22 @@ function toInt(v, def) {
 }
 
 function readMedicineForm(body) {
+  // Category (what it comes in) -> subcategory (what it is), panel Oct 2026.
+  // Turned into the same unit / package columns as before (lib/medicineUnits.js).
+  const choice = fromChoice(body.category, body.form, body.pieces_per_package);
   return {
     name: (body.name || "").trim(),
     description: (body.description || "").trim() || null,
-    unit: (body.unit || "").trim() || null,
+    category: String(body.category || "").trim().toLowerCase(),
+    form: String(body.form || "").trim().toLowerCase() || null,
+    choice_error: choice.error || null,
+    unit: choice.error ? null : choice.unit,
     dosage: (body.dosage || "").trim() || null,
     stock_quantity: toInt(body.stock_quantity, 0),
-    // Restock by the box, give out by the piece (panel review, Oct 2026). Both
-    // or neither: a package with no size can't be turned into pieces.
-    package_unit: isPackage(body.package_unit) ? String(body.package_unit).trim().toLowerCase() : null,
-    pieces_per_package: isPackage(body.package_unit) ? toInt(body.pieces_per_package, null) : null,
+    package_unit: choice.error ? null : choice.package_unit,
+    pieces_per_package: choice.error ? toInt(body.pieces_per_package, null) : choice.pieces_per_package,
     // Opening stock may be typed as whole packages plus loose pieces.
-    stock_packages: isPackage(body.package_unit) ? toInt(body.stock_packages, 0) : 0,
+    stock_packages: !choice.error && choice.package_unit ? toInt(body.stock_packages, 0) : 0,
     low_stock_threshold: toInt(body.low_stock_threshold, 10),
     source: (body.source || "").trim() || null,
     is_family_planning: body.is_family_planning === "on" || body.is_family_planning === "true",
@@ -85,12 +89,9 @@ function validateMedicine(m) {
   if (dosageNeedsUnit(m.dosage))
     errors.push(`Dosage needs its unit — "${m.dosage}mg" or "${m.dosage}ml", not just "${m.dosage}".`);
 
-  if (!m.unit) errors.push("Choose a unit.");
+  if (m.choice_error) errors.push(m.choice_error);
   else if (!isKnown(m.unit))
     errors.push(`"${m.unit}" is not one of the units on the list. Pick one, or the same medicine ends up counted on two separate lines.`);
-
-  if (m.package_unit && (!Number.isInteger(m.pieces_per_package) || m.pieces_per_package < 2 || m.pieces_per_package > 10000))
-    errors.push(`Say how many ${plural(m.unit || "piece")} are in one ${m.package_unit} — a whole number from 2 up.`);
   if (!Number.isInteger(m.stock_packages) || m.stock_packages < 0)
     errors.push(`The number of ${plural(m.package_unit || "package")} must be zero or a positive whole number.`);
   else if (m.stock_packages > MAX_QTY)
@@ -369,11 +370,11 @@ router.post("/inventory", async (req, res, next) => {
       ({ rows } = await client.query(
         `INSERT INTO medicines
            (name, description, unit, dosage, stock_quantity, low_stock_threshold, source, is_family_planning,
-            package_unit, pieces_per_package)
-         VALUES ($1,$2,$3,$4,0,$5,$6,$7,$8,$9)
+            package_unit, pieces_per_package, form)
+         VALUES ($1,$2,$3,$4,0,$5,$6,$7,$8,$9,$10)
          RETURNING medicine_id`,
         [m.name, m.description, m.unit, m.dosage, m.low_stock_threshold, m.source, m.is_family_planning,
-         m.package_unit, m.pieces_per_package]
+         m.package_unit, m.pieces_per_package, m.form]
       ));
       if (opening > 0) {
         await stock.restock({
@@ -787,6 +788,18 @@ router.post("/inventory/:id", async (req, res, next) => {
     });
   }
   try {
+    // Stock is a count of the unit. With stock on the shelf, switching it from
+    // tablets to bottles would silently turn "320 tablets" into "320 bottles".
+    const cur = (await db.query("SELECT unit, stock_quantity FROM medicines WHERE medicine_id=$1", [req.params.id])).rows[0];
+    if (cur && cur.stock_quantity > 0 && String(cur.unit || "").toLowerCase() !== String(m.unit || "").toLowerCase()) {
+      return res.status(400).render("inventory/form", {
+        title: "Edit medicine · Sampaguita HC", active: "inventory", mode: "edit",
+        medicine: { ...m, medicine_id: req.params.id },
+        unitOptions: optionsFor(m.unit, res.locals.t), packages: PACKAGES,
+        errors: [`This medicine has ${cur.stock_quantity} ${plural(cur.unit || "piece", cur.stock_quantity)} in stock, so it must stay counted in ${plural(cur.unit || "piece")}. ` +
+          `Choose a category and subcategory counted in ${plural(cur.unit || "piece")}, or bring the stock to zero first.`],
+      });
+    }
     const dup = await findDuplicateMedicine(m, parseInt(req.params.id, 10));
     if (dup) {
       return res.status(400).render("inventory/form", {
@@ -826,10 +839,10 @@ router.post("/inventory/:id", async (req, res, next) => {
       // A number typed over the total would break stock == sum of batches.
       `UPDATE medicines SET
          name=$1, description=$2, unit=$3, dosage=$4, low_stock_threshold=$5,
-         source=$6, is_family_planning=$7, package_unit=$8, pieces_per_package=$9, updated_at=now()
-       WHERE medicine_id=$10 ${guarded ? "AND date_trunc('milliseconds', updated_at) = $11" : ""}`,
+         source=$6, is_family_planning=$7, package_unit=$8, pieces_per_package=$9, form=$10, updated_at=now()
+       WHERE medicine_id=$11 ${guarded ? "AND date_trunc('milliseconds', updated_at) = $12" : ""}`,
       [m.name, m.description, m.unit, m.dosage, m.low_stock_threshold,
-       m.source, m.is_family_planning, m.package_unit, m.pieces_per_package, req.params.id,
+       m.source, m.is_family_planning, m.package_unit, m.pieces_per_package, m.form, req.params.id,
        ...(guarded ? [new Date(seenAt)] : [])]
     );
 

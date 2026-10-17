@@ -533,6 +533,31 @@ app.get("/dashboard", async (req, res) => {
   });
 });
 
+// One day's appointments as a bare fragment, for the calendar pop-up. Same
+// query and partial as the panel under the calendar.
+app.get("/dashboard/day", async (req, res, next) => {
+  try {
+    const todayISO = F.manilaToday();
+    const selected = cal.validDate(req.query.d) || todayISO;
+    const { rows } = await db.query(
+      `SELECT a.appointment_id, a.appointment_time, a.status, a.notes,
+              s.name AS service_name,
+              p.patient_id, p.patient_number, p.full_name
+         FROM appointments a
+         JOIN services s ON s.service_id = a.service_id
+         JOIN patients p ON p.patient_id = a.patient_id
+        WHERE a.appointment_date = $1
+        ORDER BY a.appointment_time NULLS LAST, p.full_name`,
+      [selected]
+    );
+    res.render("partials/day-panel", {
+      layout: false, selected, selectedLabel: F.longDate(selected), todayISO, dayAppts: rows,
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
 // ----- 404 + error handlers -------------------------------------------------
 app.use((req, res) => {
   res.status(404).render("error", {

@@ -66,7 +66,7 @@
     </dl>
     <% if (!patient.mother_name && !patient.father_name || !_smsTo && !_mailTo) { %>
       <p class="muted" style="margin:8px 0 0;font-size:12.5px">
-        <a href="/patients/<%= patient.patient_id %>/edit">Edit the patient</a> to add the parents<%= !_smsTo && !_mailTo ? " and a parent's number under Emergency / family contact" : "" %>.
+        <a href="/patients/<%= patient.patient_id %>/edit">Edit the patient</a> to add the parents<%= !_smsTo && !_mailTo ? " and a parent's number under Emergency contact" : "" %>.
       </p>
     <% } %>
   </div>

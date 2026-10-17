@@ -2,6 +2,10 @@
   const isEdit = mode === "edit";
   const m = medicine || {};
   const action = isEdit ? `/inventory/${m.medicine_id}` : "/inventory";
+  // Category -> subcategory (panel, Oct 2026), read back from the stored
+  // columns on edit, or from what was posted after a validation error.
+  const _choice = m.category ? { category: m.category, form: m.form || "" } : medUnits.toChoice(m);
+  const _json = (x) => JSON.stringify(x).replace(/</g, "\\u003c");
 %>
 <%- include("../partials/back", { href: "/inventory", to: "Back to inventory" }) %>
 <div class="page-head">
@@ -35,38 +39,35 @@
           <%= t("inv.dosage_hint") %>
         </span>
       </label>
-      <%# A fixed list, not a text box. Two of eleven medicines in the live
-          inventory were stocked in "tabletgfg" — a typo in a unit is not
-          cosmetic, it splits one medicine into two lines that never add up
-          again. Anything already saved off-list still appears, marked, so it
-          can be corrected on purpose instead of by accident. %>
-      <label class="field"><span>Unit *</span>
-        <select name="unit" required>
-          <option value=""><%= t("inv.choose_unit") %></option>
-          <% unitOptions.forEach(function (u) { %>
-            <option value="<%= u.value %>" <%= (m.unit || '') === u.value ? 'selected' : '' %>><%= u.label %></option>
+      <%# Category -> subcategory (panel, Oct 2026: "gawing main category ang
+          bottle, box, etc. then subcategory ang syrup, tablet"). Still a fixed
+          list, never free text: "tabletgfg" once split one medicine into two.
+          Tablets in a box/strip/pack/bottle ask how many are in one, and stock
+          is counted in tablets; a bottle of syrup or a vial is counted whole. %>
+      <label class="field"><span>Category * <span class="muted">(what it comes in)</span></span>
+        <select name="category" required data-cat>
+          <option value="">— choose —</option>
+          <% Object.keys(medUnits.CATEGORIES).forEach(function (k) { %>
+            <option value="<%= k %>" <%= _choice.category === k ? 'selected' : '' %>><%= medUnits.CATEGORIES[k].label %></option>
           <% }) %>
         </select>
       </label>
-      <%# Restock by the box, give out by the piece (panel review, Oct 2026).
-          Optional: a medicine handed out whole, like a bottle of syrup, needs
-          no package. Stock is always counted in the unit above. %>
-      <div class="field" style="grid-column:1/-1"><span>Comes in packages? <span class="muted">(optional — for restocking by the box)</span></span>
-        <div class="pack-row" data-pack>
-          <span>1</span>
-          <select name="package_unit" data-pack-unit aria-label="Package">
-            <option value="">— no package, counted one by one —</option>
-            <% (typeof packages !== "undefined" ? packages : []).forEach(function (p) { %>
-              <option value="<%= p %>" <%= (m.package_unit || '') === p ? 'selected' : '' %>><%= p %></option>
-            <% }) %>
-          </select>
-          <span>=</span>
+      <label class="field"><span>Subcategory * <span class="muted">(what it is)</span></span>
+        <select name="form" required data-form data-current="<%= _choice.form %>">
+          <option value="">— choose a category first —</option>
+        </select>
+      </label>
+      <div class="field" style="grid-column:1/-1" data-pack hidden><span>How many in one?</span>
+        <div class="pack-row">
+          <span>1</span> <b data-pack-cat-word>box</b> <span>=</span>
           <input type="number" name="pieces_per_package" min="2" max="10000" step="1" data-pack-per
-                 value="<%= m.pieces_per_package || '' %>" placeholder="e.g. 100" aria-label="Pieces in one package" />
-          <span data-pack-unit-word><%= m.unit ? medUnits.plural(m.unit) : "pieces" %></span>
+                 value="<%= m.pieces_per_package || '' %>" placeholder="e.g. 100" aria-label="How many in one" />
+          <span data-pack-unit-word>tablets</span>
         </div>
-        <span class="muted" style="font-size:11.5px">Deliveries can then be typed as boxes; patients are still given any number of pieces.</span>
+        <span class="muted" style="font-size:11.5px">Deliveries can then be typed by the box; patients are still given any number of tablets.</span>
       </div>
+      <span class="muted" style="grid-column:1/-1;font-size:12px;margin-top:-6px" data-count-note></span>
+      <script type="application/json" data-cat-data><%- _json({ cats: medUnits.CATEGORIES, countable: medUnits.COUNTABLE, labels: Object.fromEntries([].concat(...Object.values(medUnits.CATEGORIES).map(c => c.forms)).map(f => [f, medUnits.formLabel(f)])) }) %></script>
       <label class="field" style="grid-column:1/-1"><span>Description</span>
         <input type="text" name="description" value="<%= m.description || '' %>" />
       </label>
@@ -118,16 +119,20 @@
 </form>
 
 <script>
-  // The package row and the opening stock follow what is chosen above:
-  // "1 box = 100 tablets", and on a new medicine, boxes plus loose tablets
-  // with the total in tablets underneath — the number that is actually saved.
+  // Category -> subcategory, the "1 box = N tablets" row, and on a new
+  // medicine the opening stock (boxes plus loose tablets, total underneath).
+  // Mirrors lib/medicineUnits.js fromChoice(); the server decides.
   (function () {
-    var form = document.querySelector("[data-pack]");
-    if (!form) return;
-    var unitSel = document.querySelector('select[name="unit"]');
-    var packSel = document.querySelector("[data-pack-unit]");
+    var catSel = document.querySelector("[data-cat]");
+    var formSel = document.querySelector("[data-form]");
+    var dataEl = document.querySelector("[data-cat-data]");
+    if (!catSel || !formSel || !dataEl) return;
+    var data = JSON.parse(dataEl.textContent);
+    var pack = document.querySelector("[data-pack]");
     var per = document.querySelector("[data-pack-per]");
-    var word = document.querySelector("[data-pack-unit-word]");
+    var catWord = document.querySelector("[data-pack-cat-word]");
+    var unitWord = document.querySelector("[data-pack-unit-word]");
+    var note = document.querySelector("[data-count-note]");
     var openPk = document.querySelector("[data-open-packages]");
     var openPkWord = document.querySelector("[data-open-pack-word]");
     var openLabel = document.querySelector("[data-open-label]");
@@ -141,25 +146,46 @@
       if (/(x|s|ch|sh)$/.test(w)) return w + "es";
       return w + "s";
     }
-    function sync() {
-      var unit = unitSel && unitSel.value ? unitSel.value : "piece";
-      var pack = packSel.value;
-      var n = parseInt(per.value, 10);
-      per.disabled = !pack;
-      per.required = !!pack;
-      word.textContent = plural(unit, 2);
-      if (!openPk) return;
-      var packed = pack && n >= 2;
-      openPk.hidden = !packed;
-      if (pkInput) pkInput.disabled = !packed;
-      openPkWord.textContent = packed ? plural(pack, 2).replace(/^./, function (c) { return c.toUpperCase(); }) : "";
-      openLabel.textContent = packed ? "Loose " + plural(unit, 2) + " on hand" : "Opening stock *";
-      var total = (parseInt(looseInput.value, 10) || 0) + (packed ? (parseInt(pkInput.value, 10) || 0) * n : 0);
-      openTotal.textContent = packed ? "= " + total + " " + plural(unit, total) + " in stock" : "";
+    function fillForms() {
+      var cat = data.cats[catSel.value];
+      var keep = formSel.value || formSel.getAttribute("data-current") || "";
+      formSel.innerHTML = "";
+      var first = document.createElement("option");
+      first.value = ""; first.textContent = cat ? "— choose —" : "— choose a category first —";
+      formSel.appendChild(first);
+      (cat ? cat.forms : []).forEach(function (f) {
+        var o = document.createElement("option");
+        o.value = f; o.textContent = data.labels[f] || f;
+        if (f === keep) o.selected = true;
+        formSel.appendChild(o);
+      });
+      formSel.disabled = !cat;
+      formSel.setAttribute("data-current", "");
     }
-    [unitSel, packSel, per, pkInput, looseInput].forEach(function (el) {
+    function sync() {
+      var cat = catSel.value, form = formSel.value;
+      var packed = !!(cat && form && cat !== "piece" && data.countable.indexOf(form) !== -1);
+      var counted = !form ? "" : packed || data.countable.indexOf(form) !== -1 ? form : form === "device" ? "piece" : cat;
+      pack.hidden = !packed;
+      per.disabled = !packed; per.required = packed;
+      catWord.textContent = cat === "strip" ? "strip" : cat;
+      unitWord.textContent = plural(form, 2);
+      note.textContent = counted ? "Stock is counted in " + plural(counted, 2) + "." : "";
+      if (!openPk) return;
+      var n = parseInt(per.value, 10);
+      var boxes = packed && n >= 2;
+      openPk.hidden = !boxes;
+      if (pkInput) pkInput.disabled = !boxes;
+      openPkWord.textContent = boxes ? plural(cat, 2).replace(/^./, function (c) { return c.toUpperCase(); }) : "";
+      openLabel.textContent = boxes ? "Loose " + plural(form, 2) + " on hand" : (counted ? plural(counted, 2).replace(/^./, function (c) { return c.toUpperCase(); }) + " on hand *" : "Opening stock *");
+      var total = (parseInt(looseInput.value, 10) || 0) + (boxes ? (parseInt(pkInput.value, 10) || 0) * n : 0);
+      openTotal.textContent = boxes ? "= " + total + " " + plural(form, total) + " in stock" : "";
+    }
+    catSel.addEventListener("change", function () { fillForms(); sync(); });
+    [formSel, per, pkInput, looseInput].forEach(function (el) {
       if (el) { el.addEventListener("change", sync); el.addEventListener("input", sync); }
     });
+    fillForms();
     sync();
   })();
 </script>

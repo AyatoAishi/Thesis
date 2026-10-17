@@ -187,41 +187,12 @@
   </div>
 
   <div class="cal-day-panel">
-    <div class="panel-head" style="margin-bottom:8px">
-      <div class="panel-title" style="font-size:14px">
-        <%= selectedLabel %><% if (selected === todayISO) { %> <span class="badge ok"><%= t("dash.today") %></span><% } %>
-      </div>
-      <% if (dayAppts.length) { %>
-        <a class="mini-btn" href="/appointments?date=<%= selected %>"><%= t("dash.open_list") %></a>
-      <% } else { %>
-        <a class="mini-btn" href="/appointments/new"><%= t("dash.book") %></a>
-      <% } %>
-    </div>
-
-    <% if (!dayAppts.length) { %>
-      <p class="muted" style="margin:4px 2px;font-size:13px"><%= t("dash.no_appts_day") %></p>
-    <% } else { %>
-      <div class="status-list">
-        <% dayAppts.forEach(function (a) { %>
-          <%
-            const badge = { scheduled: ["info", t("status.scheduled")], completed: ["ok", t("status.completed")],
-                            missed: ["bad", t("status.missed")], cancelled: ["warn", t("status.cancelled")] }[a.status]
-                          || ["info", a.status];
-          %>
-          <div class="status-row">
-            <div class="status-label">
-              <b><%= a.appointment_time ? a.appointment_time.slice(0, 5) : "—" %></b>
-              &nbsp;<a href="/patients/<%= a.patient_id %>"><%= a.full_name %></a>
-              <small>
-                <%= a.service_name.replace(/_/g, " ") %><%= a.notes ? " · " + a.notes : "" %>
-              </small>
-            </div>
-            <span class="badge <%= badge[0] %>"><%= badge[1] %></span>
-          </div>
-        <% }) %>
-      </div>
-    <% } %>
+    <%- include("partials/day-panel", { selected, selectedLabel, todayISO, dayAppts }) %>
   </div>
 </section>
+<dialog class="confirm-dialog day-dialog" data-day-dialog aria-label="Appointments for the day">
+  <div data-day-dialog-body></div>
+  <div class="confirm-actions"><button type="button" class="btn confirm-no" data-day-dialog-close>Close</button></div>
+</dialog>
 <% } %>
 

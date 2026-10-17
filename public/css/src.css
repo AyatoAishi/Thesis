@@ -2125,3 +2125,17 @@ section.manual { scroll-margin-top: 16px; }
   padding: 7px 10px; border-radius: 8px; box-shadow: var(--shadow-md);
   pointer-events: none; white-space: normal;
 }
+
+/* Family box on Edit patient (panel, Oct 2026): search on the left stays put;
+   the members list on the right grows downward. One column on a phone, search
+   first. */
+.fam-split { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(240px, 1.2fr); gap: 18px; align-items: start; }
+.fam-col-label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+.fam-rows { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.fam-rows .family-chip-static { justify-content: flex-start; }
+.fam-empty { font-size: 12.5px; margin: 2px 0 0; }
+@media (max-width: 700px) { .fam-split { grid-template-columns: 1fr; } }
+
+/* Calendar day pop-up (Dashboard). */
+.day-dialog { width: min(560px, calc(100vw - 32px)); }
+.day-dialog .status-list { max-height: 60vh; overflow-y: auto; }

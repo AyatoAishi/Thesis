@@ -67,6 +67,7 @@
   <div class="panel-title" style="margin-bottom:12px">Stock</div>
   <dl class="kv">
     <% const _pk = medUnits.inPackages(m.stock_quantity, m); %>
+    <div><dt>Category</dt><dd><%= medUnits.kindLabel(m) %></dd></div>
     <div><dt>Usable stock</dt><dd style="font-weight:700<%= low ? ';color:var(--bad-ink)' : '' %>"><%= m.stock_quantity %> <%= m.unit || "" %><% if (_pk) { %> <span class="muted" style="font-weight:500">(<%= _pk %>)</span><% } %></dd></div>
     <% if (medUnits.perPackage(m)) { %><div><dt>Package</dt><dd>1 <%= m.package_unit %> = <%= m.pieces_per_package %> <%= medUnits.plural(m.unit || "piece") %></dd></div><% } %>
     <div><dt>Low-stock threshold</dt><dd><%= m.low_stock_threshold %></dd></div>

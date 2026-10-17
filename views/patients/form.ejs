@@ -212,7 +212,7 @@
   <% } %>
 
   <div class="card">
-    <div class="panel-title" style="margin-bottom:6px">Emergency / family contact <span class="muted">(required if the patient has no phone of their own)</span></div>
+    <div class="panel-title" style="margin-bottom:6px">Emergency contact <span class="muted">(required if the patient has no phone of their own)</span></div>
     <p class="muted" style="margin:0 0 10px;font-size:12.5px;<%= p.is_minor ? '' : 'display:none' %>" data-minor-only>
       <b>This patient is a minor</b> (from the birthdate) — the emergency contact # is required. Put the parent's or guardian's number here; the child's reminders go to it.
     </p>
@@ -359,6 +359,15 @@
         var wrap = f.closest(".field");
         if (wrap) wrap.style.opacity = off ? "0.45" : "";
       });
+      // No phone of their own (panel, Oct 2026): "How to remind this patient"
+      // is greyed out — the reminders go to the emergency contact by both
+      // email and SMS (whichever it has), set on the server too.
+      if (reminder) {
+        reminder.disabled = m === "emergency";
+        if (m === "emergency") reminder.value = "both";
+        var wrapR = reminder.closest(".field");
+        if (wrapR) wrapR.style.opacity = m === "emergency" ? "0.45" : "";
+      }
       if (fallback) fallback.required = m === "emergency" || minor;
       if (hint) hint.textContent = m === "emergency" ? "Sa emergency contact # ipapadala." : "11 digits, e.g. 09171234567";
     }

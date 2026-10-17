@@ -171,6 +171,7 @@ CREATE TABLE medicines (
     is_family_planning  BOOLEAN NOT NULL DEFAULT false, -- feeds the Family Planning Acceptors report
     package_unit        VARCHAR(20),                 -- 'box','pack','bottle','strip','carton' — restocked by the package
     pieces_per_package  INTEGER CHECK (pieces_per_package IS NULL OR pieces_per_package BETWEEN 2 AND 10000),
+    form                VARCHAR(40),                 -- subcategory: 'tablet','syrup','injection' (category = package_unit or unit)
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );

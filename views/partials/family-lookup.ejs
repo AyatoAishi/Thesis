@@ -31,38 +31,38 @@
   // reach it" is not the same as safe.
   const _json = (x) => JSON.stringify(x).replace(/</g, "\\u003c");
 %>
-<div class="family-link" data-family-link>
+<%# Panel, Oct 2026: the search box stays put on the LEFT; the family list
+    grows downward on the RIGHT as people are added, so the box never moves.
+    No × on the names: taking someone out is done on the Family records page
+    (or with the button below, for this patient). %>
+<div class="family-link fam-split" data-family-link>
   <input type="hidden" name="family_number" data-family-link-value value="<%= _famNum %>" />
   <input type="hidden" name="family_join_ids" data-family-join-ids value="<%= _joinIds %>" />
-  <input type="hidden" name="family_remove_ids" data-family-remove-ids value="<%= _canRemove ? _removeIds.join(",") : "" %>" />
+  <input type="hidden" name="family_remove_ids" data-family-remove-ids value="" />
 
-  <div class="family-members" data-family-members <%= _members.length ? "" : "hidden" %>>
-    <div class="family-members-label muted">In this family:</div>
-    <div class="family-chip-row">
-      <% _members.forEach(m => { %>
-        <span class="family-chip-static<%= _canRemove && _removeIds.includes(String(m.patient_id)) ? " is-removing" : "" %>" data-family-member="<%= m.patient_id %>">
-          <b><%= m.full_name %></b>
-          <span class="muted mono"><%= m.patient_number %></span>
-          <% if (_canRemove) { %>
-            <button type="button" class="family-chip-x" data-family-remove
-                    aria-label="Take <%= m.full_name %> out of this family" title="Take out of this family">×</button>
-          <% } %>
-        </span>
-      <% }) %>
-    </div>
-    <% if (_canRemove) { %>
-      <p class="muted family-remove-hint">× takes that person out of this family when you save. Press it again to keep them.</p>
-    <% } %>
-    <button type="button" class="mini-btn" data-family-link-clear>Take this patient out of the family</button>
+  <div class="fam-search" data-family-link-search-wrap>
+    <span class="fam-col-label muted">Add a family member</span>
+    <input type="text" data-family-link-search autocomplete="off"
+           placeholder="Type a relative's name — they must already be registered" />
+    <div class="patient-picker-results" data-family-link-results hidden></div>
   </div>
 
-  <%# Picked on this form but not saved yet. %>
-  <div class="family-chip-row" data-family-pending hidden></div>
-
-  <div data-family-link-search-wrap>
-    <input type="text" data-family-link-search autocomplete="off"
-           placeholder="Type a relative's name to add them — they must already be registered" />
-    <div class="patient-picker-results" data-family-link-results hidden></div>
+  <div class="fam-list">
+    <span class="fam-col-label muted">In this family</span>
+    <div class="family-members" data-family-members <%= _members.length ? "" : "hidden" %>>
+      <div class="fam-rows">
+        <% _members.forEach(m => { %>
+          <span class="family-chip-static" data-family-member="<%= m.patient_id %>">
+            <b><%= m.full_name %></b>
+            <span class="muted mono"><%= m.patient_number %></span>
+          </span>
+        <% }) %>
+      </div>
+      <button type="button" class="mini-btn" data-family-link-clear>Take this patient out of the family</button>
+    </div>
+    <%# Picked on this form but not saved yet. %>
+    <div class="fam-rows" data-family-pending hidden></div>
+    <p class="muted fam-empty" data-family-empty <%= _members.length ? "hidden" : "" %>>No family members yet.</p>
   </div>
 
   <script type="application/json" data-family-link-data><%- _json(_list) %></script>

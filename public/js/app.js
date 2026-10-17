@@ -83,25 +83,27 @@
         var name = document.createElement("b");
         name.textContent = p.name;
         var from = elsewhere(p);
-        var drop = document.createElement("button");
-        drop.type = "button";
-        drop.className = "family-chip-x";
-        drop.setAttribute("aria-label", "Remove " + p.name);
-        drop.textContent = "×";
-        drop.addEventListener("click", function () {
-          picked = picked.filter(function (q) { return q.id !== p.id; });
-          syncPending();
-        });
         chip.appendChild(name);
+        if (p.num) {
+          var num = document.createElement("span");
+          num.className = "muted mono";
+          num.textContent = p.num;
+          chip.appendChild(num);
+        }
+        var tag = document.createElement("span");
+        tag.className = "family-chip-move";
+        tag.textContent = "new — saved when you press Save";
+        chip.appendChild(tag);
         if (from) {
           var note = document.createElement("span");
           note.className = "family-chip-move";
           note.textContent = "moves from " + from;
           chip.appendChild(note);
         }
-        chip.appendChild(drop);
         pending.appendChild(chip);
       });
+      var empty = root.querySelector("[data-family-empty]");
+      if (empty) empty.hidden = picked.length > 0 || (membersBox && !membersBox.hidden);
     }
 
     if (clearBtn) {
@@ -112,6 +114,7 @@
         removing = [];                // leaving yourself; nobody else is touched
         syncRemoving();
         if (membersBox) membersBox.hidden = true;
+        syncPending();
         search.focus();
       });
     }
@@ -566,4 +569,29 @@
   });
   document.addEventListener("focusout", hide);
   window.addEventListener("scroll", hide, true);
+})();
+
+// Dashboard calendar: a click on a day opens its appointments in a pop-up
+// instead of reloading the page (panel, Oct 2026). Ctrl/Cmd-click and a page
+// without JavaScript still follow the link.
+(function () {
+  var dlg = document.querySelector("[data-day-dialog]");
+  if (!dlg || !dlg.showModal) return;
+  var body = dlg.querySelector("[data-day-dialog-body]");
+  dlg.querySelector("[data-day-dialog-close]").addEventListener("click", function () { dlg.close(); });
+  dlg.addEventListener("click", function (e) { if (e.target === dlg) dlg.close(); });
+  document.querySelectorAll("a.cal-cell").forEach(function (cell) {
+    cell.addEventListener("click", function (e) {
+      if (e.ctrlKey || e.metaKey || e.shiftKey) return;
+      var d = (/[?&]d=(\d{4}-\d{2}-\d{2})/.exec(cell.getAttribute("href")) || [])[1];
+      if (!d) return;
+      e.preventDefault();
+      body.innerHTML = '<p class="muted" style="margin:6px 2px">Loading…</p>';
+      dlg.showModal();
+      fetch("/dashboard/day?d=" + d, { credentials: "same-origin", headers: { accept: "text/html" } })
+        .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
+        .then(function (html) { body.innerHTML = html; })
+        .catch(function () { location.href = cell.getAttribute("href"); });
+    });
+  });
 })();

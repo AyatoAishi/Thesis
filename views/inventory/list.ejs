@@ -68,7 +68,7 @@
   <% } else { %>
     <table class="tbl">
       <thead>
-        <tr><th>Name</th><th>Unit</th><th>Usable stock</th><th>Next expiry</th><th>Source</th><th></th></tr>
+        <tr><th>Name</th><th>Category</th><th>Usable stock</th><th>Next expiry</th><th>Source</th><th></th></tr>
       </thead>
       <tbody>
         <% medicines.forEach(m => { %>
@@ -79,7 +79,7 @@
               <% if (m.is_family_planning) { %> <span class="badge info" title="Family planning commodity">FP · family planning</span><% } %>
               <% if (m.description) { %><div class="muted" style="font-size:11.5px"><%= m.description %></div><% } %>
             </td>
-            <td><%= m.unit || "—" %></td>
+            <td><%= medUnits.kindLabel(m) %></td>
             <td>
               <span style="<%= low ? 'color:var(--bad-ink);font-weight:700' : '' %>"><%= m.stock_quantity %></span>
               <% const _pk = medUnits.inPackages(m.stock_quantity, m); if (_pk) { %><span class="muted" style="font-size:11px"> (<%= _pk %>)</span><% } %>

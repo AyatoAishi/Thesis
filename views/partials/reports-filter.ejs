@@ -23,7 +23,9 @@
   <a href="<%= action %>?from=<%= from %>&to=<%= to %><%= _extra %>" class="tab <%= period ? '' : 'active' %>">Custom range</a>
 </div>
 
-<form method="GET" action="<%= action %>" class="form-grid" style="align-items:flex-end;margin-bottom:16px">
+<%# One row: From, To and Apply side by side (panel, Oct 2026: "itabi nalang
+    sa date yung apply button"). Wraps only on a narrow phone. %>
+<form method="GET" action="<%= action %>" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:16px">
   <label class="field"><span>From</span>
     <input type="date" name="from" value="<%= from %>" />
   </label>

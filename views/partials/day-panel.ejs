@@ -1,0 +1,37 @@
+<%# One day's appointments: under the Dashboard calendar, and in the pop-up a
+    click on a calendar day opens (panel, Oct 2026: "pagkaclick, magppop up
+    nalang lahat ng nakasched for that day"). GET /dashboard/day renders it alone. %>
+    <div class="panel-head" style="margin-bottom:8px">
+      <div class="panel-title" style="font-size:14px">
+        <%= selectedLabel %><% if (selected === todayISO) { %> <span class="badge ok"><%= t("dash.today") %></span><% } %>
+      </div>
+      <% if (dayAppts.length) { %>
+        <a class="mini-btn" href="/appointments?date=<%= selected %>"><%= t("dash.open_list") %></a>
+      <% } else { %>
+        <a class="mini-btn" href="/appointments/new"><%= t("dash.book") %></a>
+      <% } %>
+    </div>
+
+    <% if (!dayAppts.length) { %>
+      <p class="muted" style="margin:4px 2px;font-size:13px"><%= t("dash.no_appts_day") %></p>
+    <% } else { %>
+      <div class="status-list">
+        <% dayAppts.forEach(function (a) { %>
+          <%
+            const badge = { scheduled: ["info", t("status.scheduled")], completed: ["ok", t("status.completed")],
+                            missed: ["bad", t("status.missed")], cancelled: ["warn", t("status.cancelled")] }[a.status]
+                          || ["info", a.status];
+          %>
+          <div class="status-row">
+            <div class="status-label">
+              <b><%= a.appointment_time ? a.appointment_time.slice(0, 5) : "—" %></b>
+              &nbsp;<a href="/patients/<%= a.patient_id %>"><%= a.full_name %></a>
+              <small>
+                <%= a.service_name.replace(/_/g, " ") %><%= a.notes ? " · " + a.notes : "" %>
+              </small>
+            </div>
+            <span class="badge <%= badge[0] %>"><%= badge[1] %></span>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
